@@ -18,7 +18,7 @@ var (
 
 func init() {
 	logLvl = os.Getenv("PSW_LOG_LEVEL")
-	storagePath = os.Getenv("PSW_STORAGE_DIR")
+	cmd.SetStoragePath(os.Getenv("PSW_STORAGE_DIR"))
 }
 
 func main() {
