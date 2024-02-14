@@ -3,7 +3,9 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -28,6 +30,43 @@ func Execute() {
 	}
 }
 
-func SetStoragePath(path string) {
-	storagePath = path
+func SetStoragePath(path string) error {
+	var err error
+	storagePath, err = expandPathWithHomePrefix(path)
+	if err != nil {
+		return err
+	}
+
+	err = ensureDirExists(storagePath)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func ensureDirExists(path string) error {
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		err := os.MkdirAll(path, 0755)
+		if err != nil {
+			return err
+		}
+		log.Debugf("Directory created: %s\n", path)
+	} else if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func expandPathWithHomePrefix(path string) (string, error) {
+	if strings.HasPrefix(path, "~") {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		path = strings.Replace(path, "~", home, 1)
+	}
+
+	return path, nil
 }

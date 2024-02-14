@@ -17,20 +17,24 @@ var (
 )
 
 func init() {
-	logLvl = os.Getenv("PSW_LOG_LEVEL")
-	cmd.SetStoragePath(os.Getenv("PSW_STORAGE_DIR"))
-}
-
-func main() {
 	log.SetFormatter(&easy.Formatter{
 		TimestampFormat: "2006-01-02 15:04:05",
 		LogFormat:       "%time% [%lvl%]: %msg%",
 	})
 
+	logLvl = os.Getenv("PSW_LOG_LEVEL")
+
 	if logLvl == "debug" {
 		log.SetLevel(log.DebugLevel)
 	}
 
+	err := cmd.SetStoragePath(os.Getenv("PSW_STORAGE_DIR"))
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+}
+
+func main() {
 	log.Debug("App started\n")
 	cmd.Execute()
 	log.Debug("App finished\n")
