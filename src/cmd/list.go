@@ -20,27 +20,42 @@ var listCmd = &cobra.Command{
 	Short: "List all files storing secrets",
 	Run: func(cmd *cobra.Command, args []string) {
 		log.Debug("List command executed\n")
-		log.Debugf("Storage path: %s\n", storagePath)
-		password, err := utils.PromptForPassword("Password")
+		log.Debugf("Storage path: %s\n", app.storagePath)
+
+		password, created, err := utils.CreateEncryptedStorageIfNotExists(app.storageFilePath)
 		if err != nil {
-			log.Fatalln(err)
+			fmt.Println(err.Error())
+			return
 		}
-		storageContent, err := utils.DecryptStringFromFile(storageFile, password)
-		// todo: seek names only that are one line below marker always
-		records := strings.Split(storageContent, recordMarker)
-		names := lo.Map(records, func(record string, _ int) string { return strings.Split(record, "(;+!_+_!+;)")[0] })
 
-		// fmt.Println(len(records))
-		// // Iterate over the records, starting from index 1 because index 0 is before the first recordMarker
-		// for i, record := range records {
-		// 	if i == 0 {
-		// 		// Skip the content before the first recordMarker
-		// 		continue
-		// 	}
-		// 	fmt.Println(record)
-		// }
+		// when storage already exists, prompt for password to access
+		if !created && password == "" {
+			password, err = utils.PromptForPassword("Password")
+			if err != nil {
+				fmt.Println(err.Error())
+				return
+			}
+		}
 
-		fmt.Printf("records: %v\n", records)
-		fmt.Printf("names: %v\n", names)
+		storageContent, err := utils.DecryptStringFromFile(app.storageFilePath, password)
+		if err != nil {
+			fmt.Println(err.Error())
+			return
+		}
+
+		records := strings.Split(storageContent, app.recordMarker)
+		names := lo.Map(records, func(record string, _ int) string {
+			return strings.Split(record, app.valueEndMarker)[0]
+		})
+
+		if len(names) == 1 && names[0] == "" {
+			fmt.Println("No secrets found. Use 'add' command first.")
+			return
+		}
+
+		for _, name := range names {
+			fmt.Print(name)
+		}
+		fmt.Println()
 	},
 }

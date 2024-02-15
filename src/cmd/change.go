@@ -10,10 +10,10 @@ func init() {
 	rootCmd.AddCommand(changeCmd)
 }
 
-var getCmd = &cobra.Command{
-	Use:   "get",
-	Short: "Get secrets under specified name",
+var changeCmd = &cobra.Command{
+	Use:   "change",
+	Short: "Change current password to a new one",
 	Run: func(cmd *cobra.Command, args []string) {
-		log.Debug("Get command executed\n")
+		log.Debug("Change command executed\n")
 	},
 }

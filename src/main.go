@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/ylniss/psw/cmd"
@@ -28,12 +29,16 @@ func init() {
 		log.SetLevel(log.DebugLevel)
 	}
 
+	cmd.SetStorageFileName("storage.psw")
+
 	err := cmd.SetStoragePaths(os.Getenv("PSW_STORAGE_DIR"))
 	if err != nil {
-		log.Fatalln(err.Error())
+		fmt.Println(err.Error())
+		os.Exit(1)
 	}
 
 	cmd.SetRecordMarker("!===##$$##$$##$$##$$===!")
+	cmd.SetValueEndMarker("(;+!_+_!+;)")
 }
 
 func main() {
