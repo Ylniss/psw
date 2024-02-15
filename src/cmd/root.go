@@ -9,14 +9,18 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var storagePath string
+var (
+	storagePath  string
+	storageFile  string
+	recordMarker string
+)
 
 var rootCmd = &cobra.Command{
 	Use:   "psw",
 	Short: "psw is a simple password manager",
 	Long: `A password manager using AES encryption that stores your
 passwords in a separate files that are easy to backup.`,
-	Version: "0.1",
+	Version: "0.2",
 	Run: func(cmd *cobra.Command, args []string) {
 		// display help when running just psw command
 		cmd.Help()
@@ -30,7 +34,7 @@ func Execute() {
 	}
 }
 
-func SetStoragePath(path string) error {
+func SetStoragePaths(path string) error {
 	var err error
 	storagePath, err = expandPathWithHomePrefix(path)
 	if err != nil {
@@ -42,7 +46,13 @@ func SetStoragePath(path string) error {
 		return err
 	}
 
+	storageFile = storagePath + "/storage.psw"
+
 	return nil
+}
+
+func SetRecordMarker(marker string) {
+	recordMarker = marker
 }
 
 func ensureDirExists(path string) error {

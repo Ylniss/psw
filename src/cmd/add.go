@@ -2,12 +2,11 @@ package cmd
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"os"
 
-	"github.com/manifoldco/promptui"
 	log "github.com/sirupsen/logrus"
+	"github.com/ylniss/psw/utils"
 
 	"github.com/spf13/cobra"
 )
@@ -29,24 +28,30 @@ var addCmd = &cobra.Command{
 		}
 
 		if isStorageEmpty {
-			password, err := propmptForPassword("Enter main password")
+			err = firstTimeCreateEncryptedStorage()
 			if err != nil {
-				fmt.Println(err.Error())
-				return
+				log.Fatalln(err)
 			}
+		}
 
-			passwordRepat, err := propmptForPassword("Repeat main password")
-			if err != nil {
-				fmt.Println(err.Error())
-				return
-			}
+		password, err := utils.PromptForPassword("Password")
+		if err != nil {
+			log.Fatalln(err)
+		}
 
-			if password != passwordRepat {
-				fmt.Println("Passwords don't match, try again")
-				return
-			}
+		storageContent, err := utils.DecryptStringFromFile(storageFile, password)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		// todo: prompt for user and password and get name from args (if no name in args also prompt for it before)
+		// add global line ending marker with complex structure (;+!_+_!+;)
+		storageContent += recordMarker + "\nuser2000(;+!_+_!+;)\n" + "haseu" + "(;+!_+_!+;)\n"
 
-			fmt.Println(password)
+		log.Debugf("new storage content:\n%s\n", storageContent)
+
+		err = utils.EncryptStringToFile(storageFile, storageContent, password)
+		if err != nil {
+			log.Fatalln(err)
 		}
 	},
 }
@@ -68,19 +73,25 @@ func isPathEmpty(path string) (bool, error) {
 	return false, err
 }
 
-func propmptForPassword(text string) (string, error) {
-	validate := func(input string) error {
-		if len(input) < 4 {
-			return errors.New("Password must be at least 4 characters long")
-		}
-		return nil
+func firstTimeCreateEncryptedStorage() error {
+	password, err := utils.PromptForPassword("Enter main password")
+	if err != nil {
+		return err
 	}
 
-	prompt := promptui.Prompt{
-		Label:    text,
-		Mask:     '*',
-		Validate: validate,
+	passwordRepat, err := utils.PromptForPassword("Repeat main password")
+	if err != nil {
+		return err
 	}
 
-	return prompt.Run()
+	if password != passwordRepat {
+		return errors.New("Passwords don't match, try again")
+	}
+
+	err = utils.EncryptStringToFile(storageFile, "", password)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

@@ -28,10 +28,12 @@ func init() {
 		log.SetLevel(log.DebugLevel)
 	}
 
-	err := cmd.SetStoragePath(os.Getenv("PSW_STORAGE_DIR"))
+	err := cmd.SetStoragePaths(os.Getenv("PSW_STORAGE_DIR"))
 	if err != nil {
 		log.Fatalln(err.Error())
 	}
+
+	cmd.SetRecordMarker("!===##$$##$$##$$##$$===!")
 }
 
 func main() {
