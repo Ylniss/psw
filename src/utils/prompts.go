@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	color "github.com/TwiN/go-color"
 	"github.com/manifoldco/promptui"
 )
 
@@ -25,9 +26,30 @@ func PromptForPassword(text string) (string, error) {
 	return prompt.Run()
 }
 
+func GetStorageContentOrCreateIfNotExists(storageFilePath string) (storageContent string, password string, err error) {
+	password, created, err := createEncryptedStorageIfNotExists(storageFilePath)
+	if err != nil {
+		return "", password, err
+	}
+
+	// when storage already exists, prompt for password to access
+	if !created && password == "" {
+		password, err = PromptForPassword("Password")
+		if err != nil {
+			return "", password, err
+		}
+	}
+
+	storageContent, err = DecryptStringFromFile(storageFilePath, password)
+	if err != nil {
+		return "", password, err
+	}
+	return storageContent, password, nil
+}
+
 // returns true and password used to create storage if created storage
 // or false with empty string when error occured or storage already existed
-func CreateEncryptedStorageIfNotExists(storageFilePath string) (string, bool, error) {
+func createEncryptedStorageIfNotExists(storageFilePath string) (string, bool, error) {
 	storageFileExists, err := fileExists(storageFilePath)
 	if err != nil {
 		return "", false, err
@@ -51,6 +73,8 @@ func CreateEncryptedStorageIfNotExists(storageFilePath string) (string, bool, er
 
 	if password != passwordRepat {
 		return "", false, errors.New("Passwords don't match, try again")
+	} else {
+		fmt.Println(color.Ize(color.Green, "Main password set successfully"))
 	}
 
 	err = EncryptStringToFile(storageFilePath, "", password)

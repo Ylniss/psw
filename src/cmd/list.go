@@ -22,22 +22,7 @@ var listCmd = &cobra.Command{
 		log.Debug("List command executed\n")
 		log.Debugf("Storage path: %s\n", app.storagePath)
 
-		password, created, err := utils.CreateEncryptedStorageIfNotExists(app.storageFilePath)
-		if err != nil {
-			fmt.Println(err.Error())
-			return
-		}
-
-		// when storage already exists, prompt for password to access
-		if !created && password == "" {
-			password, err = utils.PromptForPassword("Password")
-			if err != nil {
-				fmt.Println(err.Error())
-				return
-			}
-		}
-
-		storageContent, err := utils.DecryptStringFromFile(app.storageFilePath, password)
+		storageContent, _, err := utils.GetStorageContentOrCreateIfNotExists(app.storageFilePath)
 		if err != nil {
 			fmt.Println(err.Error())
 			return

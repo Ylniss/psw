@@ -24,10 +24,11 @@ var app AppVars
 var rootCmd = &cobra.Command{
 	Use:   "psw",
 	Short: "psw is a simple password manager",
-	Long: `A password manager using AES encryption that stores your passwords
-in a file that is easy to backup. First use of any command will prompt to set
-main password. Storage file directory can be changed from default home dir by
-setting env variable PSW_STORAGE_DIR in your shell config file.`,
+	Long: `psw is a simple password manager that employs AES SHA256 encryption to secure your passwords.
+It consolidates your passwords into a single file, safeguarded by a main password you choose.
+The initial interaction with any command prompts the setup of this main password. For added flexibility,
+you can customize the storage file's default directory by setting the PSW_STORAGE_DIR environment variable
+in your shell configuration file.`,
 	Version: "0.3",
 	Run: func(cmd *cobra.Command, args []string) {
 		// display help when running just psw command

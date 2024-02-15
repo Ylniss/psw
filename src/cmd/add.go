@@ -20,22 +20,7 @@ var addCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		log.Debug("Add command executed\n")
 
-		password, created, err := utils.CreateEncryptedStorageIfNotExists(app.storageFilePath)
-		if err != nil {
-			fmt.Println(err.Error())
-			return
-		}
-
-		// when storage already exists, prompt for password to access
-		if !created && password == "" {
-			password, err = utils.PromptForPassword("Password")
-			if err != nil {
-				fmt.Println(err.Error())
-				return
-			}
-		}
-
-		storageContent, err := utils.DecryptStringFromFile(app.storageFilePath, password)
+		storageContent, password, err := utils.GetStorageContentOrCreateIfNotExists(app.storageFilePath)
 		if err != nil {
 			fmt.Println(err.Error())
 			return
