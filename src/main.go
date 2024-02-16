@@ -36,9 +36,6 @@ func init() {
 		fmt.Println(err.Error())
 		os.Exit(1)
 	}
-
-	cmd.SetRecordMarker("!===##$$##$$##$$##$$===!")
-	cmd.SetValueEndMarker("(;+!_+_!+;)")
 }
 
 func main() {

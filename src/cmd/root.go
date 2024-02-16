@@ -15,8 +15,6 @@ type AppVars struct {
 	storagePath     string
 	storageFilePath string
 	storageFileName string
-	recordMarker    string
-	valueEndMarker  string
 }
 
 var app AppVars
@@ -72,14 +70,6 @@ func SetStoragePaths(path string) error {
 	app.storageFilePath = filepath.Join(app.storagePath, app.storageFileName)
 
 	return nil
-}
-
-func SetRecordMarker(marker string) {
-	app.recordMarker = marker
-}
-
-func SetValueEndMarker(marker string) {
-	app.valueEndMarker = marker
 }
 
 func SetStorageFileName(name string) {

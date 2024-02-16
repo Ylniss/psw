@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/ylniss/psw/strg"
 	"github.com/ylniss/psw/utils"
 
 	"github.com/spf13/cobra"
@@ -19,9 +20,7 @@ var addCmd = &cobra.Command{
 	Long:  `Add username/password or a value that will be stored in a record with provided name`,
 	Args:  cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		log.Debug("Add command executed\n")
-
-		storageContent, mainPass, err := utils.GetStorageContentOrCreateIfNotExists(app.storageFilePath)
+		storage, err := strg.GetOrCreateIfNotExists(app.storageFilePath)
 		if err != nil {
 			fmt.Println(err.Error())
 			return
@@ -32,7 +31,7 @@ var addCmd = &cobra.Command{
 			return
 		}
 
-		username, err := utils.PromptForName("Username")
+		recordUser, err := utils.PromptForName("Username")
 		if err != nil {
 			fmt.Println(err.Error())
 			return
@@ -44,11 +43,13 @@ var addCmd = &cobra.Command{
 			return
 		}
 
-		storageContent += app.recordMarker + "\n" + recordName + app.valueEndMarker + "\n" + username + app.valueEndMarker + "\n" + recordPass + app.valueEndMarker + "\n"
+		// todo: if flag -v --value then save value only
+		storage.AddRecord(strg.Record{Name: recordName, User: recordUser, Pass: recordPass})
+		storageStr := storage.String()
 
-		log.Debugf("new storage content:\n%s\n", storageContent)
+		log.Debugf("new storage content:\n%s", storageStr)
 
-		err = utils.EncryptStringToFile(app.storageFilePath, storageContent, mainPass)
+		err = utils.EncryptStringToFile(app.storageFilePath, storageStr, storage.MainPass)
 		if err != nil {
 			fmt.Println(err.Error())
 		}
