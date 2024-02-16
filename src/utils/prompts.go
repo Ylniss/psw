@@ -2,98 +2,85 @@ package utils
 
 import (
 	"errors"
-	"fmt"
 	"os"
 
-	color "github.com/TwiN/go-color"
-	"github.com/manifoldco/promptui"
+	"github.com/cqroot/prompt"
+	"github.com/cqroot/prompt/input"
 )
 
-func PromptForPassword(text string) (string, error) {
-	validate := func(input string) error {
-		if len(input) < 4 {
-			return errors.New("Password must be at least 4 characters long")
+var ErrPasswordsDontMatch = errors.New("Passwords don't match, try again")
+
+func validateMainPassLen(content string) error {
+	if len(content) < 4 {
+		return errors.New("Main password must be at least 4 characters long")
+	}
+
+	return nil
+}
+
+func PromptForMainPass(ensure bool) (string, error) {
+	mainPass, err := prompt.New().Ask("Main password").
+		Input("", input.WithEchoMode(input.EchoPassword), input.WithValidateFunc(validateMainPassLen))
+	if err != nil {
+		if errors.Is(err, prompt.ErrUserQuit) {
+			os.Exit(1)
 		}
-		return nil
+		return "", err
 	}
 
-	prompt := promptui.Prompt{
-		Label:    text,
-		Mask:     '*',
-		Validate: validate,
+	if !ensure {
+		return mainPass, nil
 	}
 
-	return prompt.Run()
-}
-
-func GetStorageContentOrCreateIfNotExists(storageFilePath string) (storageContent string, password string, err error) {
-	password, created, err := createEncryptedStorageIfNotExists(storageFilePath)
+	repeatMainPass, err := prompt.New().Ask("Repeat main password").
+		Input("", input.WithEchoMode(input.EchoPassword), input.WithValidateFunc(validateMainPassLen))
 	if err != nil {
-		return "", password, err
-	}
-
-	// when storage already exists, prompt for password to access
-	if !created && password == "" {
-		password, err = PromptForPassword("Password")
-		if err != nil {
-			return "", password, err
+		if errors.Is(err, prompt.ErrUserQuit) {
+			os.Exit(1)
 		}
+		return "", err
 	}
 
-	storageContent, err = DecryptStringFromFile(storageFilePath, password)
-	if err != nil {
-		return "", password, err
+	if mainPass != repeatMainPass {
+		return "", ErrPasswordsDontMatch
 	}
-	return storageContent, password, nil
+
+	return mainPass, nil
 }
 
-// returns true and password used to create storage if created storage
-// or false with empty string when error occured or storage already existed
-func createEncryptedStorageIfNotExists(storageFilePath string) (string, bool, error) {
-	storageFileExists, err := fileExists(storageFilePath)
+func PromptForRecordPass() (string, error) {
+	recordPass, err := prompt.New().Ask("Password").
+		Input("", input.WithEchoMode(input.EchoPassword))
 	if err != nil {
-		return "", false, err
+		if errors.Is(err, prompt.ErrUserQuit) {
+			os.Exit(1)
+		}
+		return "", err
 	}
 
-	if storageFileExists {
-		return "", false, nil
-	}
-
-	fmt.Println("No encrypted storage found. Set your main password that will be used to decrypt your secrets.")
-
-	password, err := PromptForPassword("Enter main password")
+	repeatRecordPass, err := prompt.New().Ask("Repeat password").
+		Input("", input.WithEchoMode(input.EchoPassword))
 	if err != nil {
-		return "", false, err
+		if errors.Is(err, prompt.ErrUserQuit) {
+			os.Exit(1)
+		}
+		return "", err
 	}
 
-	passwordRepat, err := PromptForPassword("Repeat main password")
-	if err != nil {
-		return "", false, err
+	if recordPass != repeatRecordPass {
+		return "", ErrPasswordsDontMatch
 	}
 
-	if password != passwordRepat {
-		return "", false, errors.New("Passwords don't match, try again")
-	} else {
-		fmt.Println(color.Ize(color.Green, "Main password set successfully"))
-	}
-
-	err = EncryptStringToFile(storageFilePath, "", password)
-	if err != nil {
-		return "", false, err
-	}
-
-	return password, true, nil
+	return recordPass, nil
 }
 
-func fileExists(path string) (bool, error) {
-	_, err := os.Stat(path)
-	if err == nil {
-		return true, nil
+func PromptForName(promptText string) (string, error) {
+	password, err := prompt.New().Ask(promptText).Input("")
+	if err != nil {
+		if errors.Is(err, prompt.ErrUserQuit) {
+			os.Exit(1)
+		}
+		return "", err
 	}
-
-	if os.IsNotExist(err) {
-		return false, nil
-	}
-
-	return false, fmt.Errorf("Error when checking if file %s exists:\n%w", path, err)
+	return password, nil
 }

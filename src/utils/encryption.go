@@ -18,7 +18,7 @@ func generateSha256Key(password string) []byte {
 	return hasher.Sum(nil)
 }
 
-// encryptStringToFile encrypts a plain text string and writes the encrypted data as base64 encoded string to a file.
+// encrypts a plain text string and writes the encrypted data as base64 encoded string to a file.
 func EncryptStringToFile(filename, plainText, password string) error {
 	key := generateSha256Key(password)
 	block, err := aes.NewCipher(key)
@@ -47,7 +47,7 @@ func EncryptStringToFile(filename, plainText, password string) error {
 	return nil
 }
 
-// decryptStringFromFile reads encrypted data from a file, decrypts it, and returns the plain text string.
+// reads encrypted data from a file, decrypts it, and returns the plain text string.
 func DecryptStringFromFile(filename, password string) (string, error) {
 	encodedData, err := os.ReadFile(filename)
 	if err != nil {
@@ -72,13 +72,13 @@ func DecryptStringFromFile(filename, password string) (string, error) {
 
 	nonceSize := gcm.NonceSize()
 	if len(encryptedData) < nonceSize {
-		return "", errors.New("encrypted data is too short compared to the nonce size")
+		return "", errors.New("Encrypted data is too short compared to the nonce size")
 	}
 
 	nonce, ciphertext := encryptedData[:nonceSize], encryptedData[nonceSize:]
 	decryptedData, err := gcm.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
-		return "", fmt.Errorf("Error when decrypting file:\n%w", err)
+		return "", errors.New("Wrong password.")
 	}
 
 	return string(decryptedData), nil
