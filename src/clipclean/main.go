@@ -14,15 +14,15 @@ func main() {
 	if err != nil {
 		return // duration in incorrect format
 	}
-	pass := os.Args[2]
+	pass := clipboard.Read(clipboard.FmtText)
 
-	if len(os.Args) < 3 {
+	if len(os.Args) < 2 {
 		return // incorrect arguments number
 	}
 
 	time.Sleep(time.Duration(duration) * time.Second)
 	curClip := clipboard.Read(clipboard.FmtText)
-	if string(curClip) == pass {
+	if string(curClip) == string(pass) {
 		clipboard.Write(clipboard.FmtText, []byte(""))
 	}
 }

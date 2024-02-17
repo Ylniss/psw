@@ -1,8 +1,10 @@
 package cmd
 
 import (
+	"bytes"
 	"fmt"
 	"os/exec"
+	"strings"
 
 	"github.com/TwiN/go-color"
 	"github.com/spf13/cobra"
@@ -20,14 +22,25 @@ func init() {
 var getCmd = &cobra.Command{
 	Use:   "get <name>",
 	Short: "Get secrets from record with specified name",
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		storage, err := strg.GetOrCreateIfNotExists(app.storageFilePath)
 		if err != nil {
 			fmt.Println(err.Error())
 			return
 		}
-		recordName := args[0]
+
+		var recordName string
+		if len(args) == 0 {
+			recordName, err = getRecordNamesWithFzf(storage)
+			if err != nil {
+				fmt.Println(err.Error())
+				return
+			}
+		} else {
+			recordName = args[0]
+		}
+
 		record, isFound := storage.GetRecord(recordName)
 
 		if !isFound {
@@ -49,7 +62,29 @@ var getCmd = &cobra.Command{
 			fmt.Println(color.InYellow(record.Value))
 		}
 
-		syscmd := exec.Command("clipclean", "30", record.Pass)
+		syscmd := exec.Command("clipclean", "10")
 		syscmd.Start()
 	},
+}
+
+func getRecordNamesWithFzf(storage *strg.Storage) (string, error) {
+	// Check if fzf is installed
+	if _, err := exec.LookPath("fzf"); err != nil {
+		return "", fmt.Errorf("fzf is not installed. Please install fzf to use this feature or use 'psw get <name>' instead")
+	}
+
+	cmd := exec.Command("fzf")
+
+	var input bytes.Buffer
+	input.WriteString(strings.Join(storage.GetNames(), "\n"))
+	cmd.Stdin = &input
+
+	var output bytes.Buffer
+	cmd.Stdout = &output
+
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("Failed to run fzf:\n%w", err)
+	}
+
+	return strings.TrimSpace(output.String()), nil
 }

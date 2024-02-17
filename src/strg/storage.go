@@ -82,7 +82,7 @@ func GetOrCreateIfNotExists(storageFilePath string) (*Storage, error) {
 		}
 	}
 
-	storageStr, err := utils.DecryptStringFromFile(storageFilePath, mainPass)
+	storageStr, err := DecryptStringFromFile(storageFilePath, mainPass)
 	if err != nil {
 		return nil, err
 	}
@@ -129,7 +129,7 @@ func createEncryptedStorageIfNotExists(storageFilePath string) (string, bool, er
 		return "", false, err
 	}
 
-	err = utils.EncryptStringToFile(storageFilePath, "", mainPass)
+	err = EncryptStringToFile(storageFilePath, "", mainPass)
 	fmt.Println(color.InGreen("Main password set successfully"))
 
 	if err != nil {

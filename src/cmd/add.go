@@ -56,7 +56,7 @@ var addCmd = &cobra.Command{
 
 		log.Debugf("new storage content:\n%s", storageStr)
 
-		err = utils.EncryptStringToFile(app.storageFilePath, storageStr, storage.MainPass)
+		err = strg.EncryptStringToFile(app.storageFilePath, storageStr, storage.MainPass)
 		if err != nil {
 			fmt.Println(err.Error())
 		}

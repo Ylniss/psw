@@ -1,4 +1,4 @@
-package utils
+package strg
 
 import (
 	"crypto/aes"
