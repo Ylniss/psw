@@ -25,9 +25,15 @@ var addCmd = &cobra.Command{
 			fmt.Println(err.Error())
 			return
 		}
+
 		recordName, err := getRecordName(args)
 		if err != nil {
 			fmt.Println(err.Error())
+			return
+		}
+
+		if storage.IsDuplicate(recordName) {
+			fmt.Printf("Record with name %s already exists\n", recordName)
 			return
 		}
 
@@ -43,8 +49,9 @@ var addCmd = &cobra.Command{
 			return
 		}
 
-		// todo: if flag -v --value then save value only
-		storage.AddRecord(strg.Record{Name: recordName, User: recordUser, Pass: recordPass})
+		// todo: if flag -s --single then save single value only
+		storage.AddRecord(&strg.Record{Name: recordName, User: recordUser, Pass: recordPass})
+
 		storageStr := storage.String()
 
 		log.Debugf("new storage content:\n%s", storageStr)

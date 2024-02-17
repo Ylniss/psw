@@ -3,6 +3,7 @@ package strg
 import (
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 
 	color "github.com/TwiN/go-color"
@@ -36,10 +37,18 @@ func (s *Storage) GetNames() []string {
 	return lo.Map(s.Records, func(r Record, _ int) string { return r.Name })
 }
 
-func (s *Storage) AddRecord(r Record) error {
-	// todo: check for duplicate, return error if found; also insert into sorted place alphabetically
-	s.Records = append(s.Records, r)
-	return nil
+func (s *Storage) AddRecord(r *Record) {
+	s.Records = append(s.Records, *r)
+
+	// Sort Records alphabetically by Name
+	sort.Slice(s.Records, func(i, j int) bool {
+		return s.Records[i].Name < s.Records[j].Name
+	})
+}
+
+func (s *Storage) IsDuplicate(name string) bool {
+	names := s.GetNames()
+	return lo.Contains(names, name)
 }
 
 func (s *Storage) String() string {
