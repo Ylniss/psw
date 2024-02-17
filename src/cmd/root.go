@@ -9,6 +9,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"github.com/ylniss/psw/strg"
 )
 
 type AppVars struct {
@@ -29,8 +30,22 @@ you can customize the storage file's default directory by setting the PSW_STORAG
 in your shell configuration file.`,
 	Version: "0.3",
 	Run: func(cmd *cobra.Command, args []string) {
-		// display help when running just psw command
-		cmd.Help()
+		// list all record names on 'psw' command
+		storage, err := strg.GetOrCreateIfNotExists(app.storageFilePath)
+		if err != nil {
+			fmt.Println(err.Error())
+			return
+		}
+
+		names := storage.GetNames()
+		if len(names) == 0 {
+			fmt.Println("No secrets found. Use 'add' command first.")
+			return
+		}
+
+		for _, name := range names {
+			fmt.Println(name)
+		}
 	},
 }
 
@@ -48,8 +63,8 @@ func SetStoragePaths(path string) error {
 			return fmt.Errorf("Error while retrieving home directory:\n%w", err)
 		}
 
-		// by default fallback to home directory as a storage directory
-		path = home
+		// by default fallback to ~/.psw as a storage directory
+		path = filepath.Join(home, ".psw")
 	}
 
 	var err error

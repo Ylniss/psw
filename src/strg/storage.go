@@ -46,6 +46,10 @@ func (s *Storage) AddRecord(r *Record) {
 	})
 }
 
+func (s *Storage) GetRecord(name string) (Record, bool) {
+	return lo.Find(s.Records, func(r Record) bool { return r.Name == name })
+}
+
 func (s *Storage) IsDuplicate(name string) bool {
 	names := s.GetNames()
 	return lo.Contains(names, name)
@@ -91,7 +95,7 @@ func GetOrCreateIfNotExists(storageFilePath string) (*Storage, error) {
 
 func getRecords(storageStr string) []Record {
 	recordsStr := strings.Split(storageStr, Cfg.RecordMarker)
-	recordsStr = lo.Slice(recordsStr, 1, len(recordsStr)) // trim from first empty string
+	recordsStr = recordsStr[1:] // trim from first empty string
 	return lo.Map(recordsStr, func(rStr string, _ int) Record {
 		values := strings.Split(rStr, Cfg.ValueEndMarker)
 		if len(values) == 1 { // empty
@@ -126,7 +130,7 @@ func createEncryptedStorageIfNotExists(storageFilePath string) (string, bool, er
 	}
 
 	err = utils.EncryptStringToFile(storageFilePath, "", mainPass)
-	fmt.Println(color.Ize(color.Green, "Main password set successfully"))
+	fmt.Println(color.InGreen("Main password set successfully"))
 
 	if err != nil {
 		return "", false, err
