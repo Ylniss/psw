@@ -15,7 +15,10 @@ func init() {
 }
 
 var addCmd = &cobra.Command{
-	Use:   "add",
+	Use: `add [name] [flags]
+
+Arguments:
+  name    Optional name of the record to get. If omitted, you'll be prompted to provide it`,
 	Short: "Add new record with secrets",
 	Long:  `Add username/password or a value that will be stored in a record with provided name`,
 	Args:  cobra.MaximumNArgs(1),

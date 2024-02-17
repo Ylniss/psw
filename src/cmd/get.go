@@ -20,7 +20,10 @@ func init() {
 }
 
 var getCmd = &cobra.Command{
-	Use:   "get <name>",
+	Use: `get [name] [flags]
+
+Arguments:
+  name    Optional name of the record to get. If omitted, you'll be prompted to select a record with fzf`,
 	Short: "Get secrets from record with specified name",
 	Args:  cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
