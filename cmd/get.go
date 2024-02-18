@@ -27,7 +27,7 @@ Arguments:
 	Short: "Get secrets from record with specified name",
 	Args:  cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		storage, err := strg.GetOrCreateIfNotExists(app.storageFilePath)
+		storage, err := strg.GetOrCreateIfNotExists()
 		if err != nil {
 			fmt.Println(err.Error())
 			return

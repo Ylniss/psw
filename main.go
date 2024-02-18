@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/ylniss/psw/cmd"
@@ -27,14 +26,6 @@ func init() {
 
 	if logLvl == "debug" {
 		log.SetLevel(log.DebugLevel)
-	}
-
-	cmd.SetStorageFileName("storage.psw")
-
-	err := cmd.SetStoragePaths(os.Getenv("PSW_STORAGE_DIR"))
-	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
 	}
 }
 

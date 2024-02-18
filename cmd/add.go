@@ -23,7 +23,7 @@ Arguments:
 	Long:  `Add username/password or a value that will be stored in a record with provided name`,
 	Args:  cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		storage, err := strg.GetOrCreateIfNotExists(app.storageFilePath)
+		storage, err := strg.GetOrCreateIfNotExists()
 		if err != nil {
 			fmt.Println(err.Error())
 			return
@@ -59,7 +59,7 @@ Arguments:
 
 		log.Debugf("new storage content:\n%s", storageStr)
 
-		err = strg.EncryptStringToFile(app.storageFilePath, storageStr, storage.MainPass)
+		err = strg.EncryptStringToStorage(storageStr, storage.MainPass)
 		if err != nil {
 			fmt.Println(err.Error())
 		}

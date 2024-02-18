@@ -2,7 +2,6 @@ package strg
 
 import (
 	"fmt"
-	"os"
 	"sort"
 	"strings"
 
@@ -10,16 +9,6 @@ import (
 	"github.com/samber/lo"
 	"github.com/ylniss/psw/utils"
 )
-
-type StorageCfg struct {
-	RecordMarker   string
-	ValueEndMarker string
-}
-
-var Cfg = StorageCfg{
-	RecordMarker:   "!===##$$##$$##$$##$$===!\n",
-	ValueEndMarker: "(;+!_+_!+;)\n",
-}
 
 type Record struct {
 	Name  string
@@ -59,17 +48,17 @@ func (s *Storage) String() string {
 	storageStr := ""
 	for _, r := range s.Records {
 		if r.Value == "" { // record is user/pass
-			storageStr += Cfg.RecordMarker + r.Name + Cfg.ValueEndMarker + r.User + Cfg.ValueEndMarker + r.Pass + Cfg.ValueEndMarker
+			storageStr += cfg.recordMarker + r.Name + cfg.valueEndMarker + r.User + cfg.valueEndMarker + r.Pass + cfg.valueEndMarker
 		} else { // record is value only
-			storageStr += Cfg.RecordMarker + r.Name + Cfg.ValueEndMarker + r.Value + Cfg.ValueEndMarker
+			storageStr += cfg.recordMarker + r.Name + cfg.valueEndMarker + r.Value + cfg.valueEndMarker
 		}
 	}
 
 	return storageStr
 }
 
-func GetOrCreateIfNotExists(storageFilePath string) (*Storage, error) {
-	mainPass, created, err := createEncryptedStorageIfNotExists(storageFilePath)
+func GetOrCreateIfNotExists() (*Storage, error) {
+	mainPass, created, err := createEncryptedStorageIfNotExists()
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +71,7 @@ func GetOrCreateIfNotExists(storageFilePath string) (*Storage, error) {
 		}
 	}
 
-	storageStr, err := DecryptStringFromFile(storageFilePath, mainPass)
+	storageStr, err := DecryptStringFromStorage(mainPass)
 	if err != nil {
 		return nil, err
 	}
@@ -94,10 +83,10 @@ func GetOrCreateIfNotExists(storageFilePath string) (*Storage, error) {
 }
 
 func getRecords(storageStr string) []Record {
-	recordsStr := strings.Split(storageStr, Cfg.RecordMarker)
+	recordsStr := strings.Split(storageStr, cfg.recordMarker)
 	recordsStr = recordsStr[1:] // trim from first empty string
 	return lo.Map(recordsStr, func(rStr string, _ int) Record {
-		values := strings.Split(rStr, Cfg.ValueEndMarker)
+		values := strings.Split(rStr, cfg.valueEndMarker)
 		if len(values) == 1 { // empty
 			return Record{}
 		}
@@ -112,8 +101,8 @@ func getRecords(storageStr string) []Record {
 
 // returns true and password used to create storage if created storage
 // or false with empty string when error occured or storage already existed
-func createEncryptedStorageIfNotExists(storageFilePath string) (string, bool, error) {
-	storageFileExists, err := fileExists(storageFilePath)
+func createEncryptedStorageIfNotExists() (string, bool, error) {
+	storageFileExists, err := fileExists(cfg.storageFilePath)
 	if err != nil {
 		return "", false, err
 	}
@@ -129,7 +118,7 @@ func createEncryptedStorageIfNotExists(storageFilePath string) (string, bool, er
 		return "", false, err
 	}
 
-	err = EncryptStringToFile(storageFilePath, "", mainPass)
+	err = EncryptStringToStorage("", mainPass)
 	fmt.Println(color.InGreen("Main password set successfully"))
 
 	if err != nil {
@@ -137,17 +126,4 @@ func createEncryptedStorageIfNotExists(storageFilePath string) (string, bool, er
 	}
 
 	return mainPass, true, nil
-}
-
-func fileExists(path string) (bool, error) {
-	_, err := os.Stat(path)
-	if err == nil {
-		return true, nil
-	}
-
-	if os.IsNotExist(err) {
-		return false, nil
-	}
-
-	return false, fmt.Errorf("Error when checking if file %s exists:\n%w", path, err)
 }

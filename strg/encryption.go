@@ -12,6 +12,14 @@ import (
 	"os"
 )
 
+func EncryptStringToStorage(plainText, password string) error {
+	return encryptStringToFile(cfg.storageFilePath, plainText, password)
+}
+
+func DecryptStringFromStorage(password string) (string, error) {
+	return decryptStringFromFile(cfg.storageFilePath, password)
+}
+
 func generateSha256Key(password string) []byte {
 	hasher := sha256.New()
 	hasher.Write([]byte(password))
@@ -19,7 +27,7 @@ func generateSha256Key(password string) []byte {
 }
 
 // encrypts a plain text string and writes the encrypted data as base64 encoded string to a file.
-func EncryptStringToFile(filename, plainText, password string) error {
+func encryptStringToFile(filePath, plainText, password string) error {
 	key := generateSha256Key(password)
 	block, err := aes.NewCipher(key)
 	if err != nil {
@@ -39,7 +47,7 @@ func EncryptStringToFile(filename, plainText, password string) error {
 	encryptedData := gcm.Seal(nonce, nonce, []byte(plainText), nil)
 	encodedData := base64.StdEncoding.EncodeToString(encryptedData)
 
-	err = os.WriteFile(filename, []byte(encodedData), 0644)
+	err = os.WriteFile(filePath, []byte(encodedData), 0644)
 	if err != nil {
 		return fmt.Errorf("Error when writing encypted file:\n%w", err)
 	}
@@ -48,8 +56,8 @@ func EncryptStringToFile(filename, plainText, password string) error {
 }
 
 // reads encrypted data from a file, decrypts it, and returns the plain text string.
-func DecryptStringFromFile(filename, password string) (string, error) {
-	encodedData, err := os.ReadFile(filename)
+func decryptStringFromFile(filePath, password string) (string, error) {
+	encodedData, err := os.ReadFile(filePath)
 	if err != nil {
 		return "", fmt.Errorf("Error when reading file to decrypt:\n%w", err)
 	}
