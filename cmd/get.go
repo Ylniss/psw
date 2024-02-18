@@ -12,10 +12,14 @@ import (
 	"golang.design/x/clipboard"
 )
 
-var show bool
+var (
+	reveal       bool
+	clipDuration int
+)
 
 func init() {
-	getCmd.Flags().BoolVarP(&show, "show", "s", false, "show secret inside terminal")
+	clipDuration = 30
+	getCmd.Flags().BoolVarP(&reveal, "reveal", "r", false, "reveal secret inside terminal")
 	rootCmd.AddCommand(getCmd)
 }
 
@@ -35,7 +39,7 @@ Arguments:
 
 		var recordName string
 		if len(args) == 0 {
-			recordName, err = getRecordNamesWithFzf(storage)
+			recordName, err = getRecordNameWithFzf(storage)
 			if err != nil {
 				fmt.Println(err.Error())
 				return
@@ -53,24 +57,32 @@ Arguments:
 
 		clipboard.Write(clipboard.FmtText, []byte(record.Pass))
 
-		// Print user & pass or value, depending on what's available
+		// Print user & pass or value, depending on what is stored in the record
 		if record.Value == "" {
+			fmt.Println("Username")
 			fmt.Println(color.InYellow(record.User))
-			if show {
+			fmt.Println()
+			fmt.Println("Password")
+			if reveal {
 				fmt.Println(color.InYellow(record.Pass))
 			} else {
-				fmt.Println(color.InYellow("Password has been copied to the clipboard. It will be cleared in 30 seconds."))
+				fmt.Println(color.InYellow(fmt.Sprintf("*********** - copied to the clipboard, it will be cleared in %d seconds", clipDuration)))
 			}
 		} else {
-			fmt.Println(color.InYellow(record.Value))
+			fmt.Println("Value")
+			if reveal {
+				fmt.Println(color.InYellow(record.Value))
+			} else {
+				fmt.Println(color.InYellow(fmt.Sprintf("*********** - copied to the clipboard, it will be cleared in %d seconds", clipDuration)))
+			}
 		}
 
-		syscmd := exec.Command("clipclean", "10")
+		syscmd := exec.Command("clipclean", fmt.Sprint(clipDuration))
 		syscmd.Start()
 	},
 }
 
-func getRecordNamesWithFzf(storage *strg.Storage) (string, error) {
+func getRecordNameWithFzf(storage *strg.Storage) (string, error) {
 	// Check if fzf is installed
 	if _, err := exec.LookPath("fzf"); err != nil {
 		return "", fmt.Errorf("fzf is not installed. Please install fzf to use this feature or use 'psw get <name>' instead")

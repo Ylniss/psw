@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/TwiN/go-color"
 	"github.com/spf13/cobra"
 	"github.com/ylniss/psw/strg"
 )
@@ -33,7 +34,7 @@ in your shell configuration file.`,
 		}
 
 		for _, name := range names {
-			fmt.Println(name)
+			fmt.Println(color.InGreen(name))
 		}
 	},
 }
