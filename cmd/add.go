@@ -7,8 +7,8 @@ import (
 	"github.com/TwiN/go-color"
 	passgen "github.com/sethvargo/go-password/password"
 	log "github.com/sirupsen/logrus"
+	"github.com/ylniss/psw/prmpt"
 	"github.com/ylniss/psw/strg"
-	"github.com/ylniss/psw/utils"
 
 	"github.com/spf13/cobra"
 )
@@ -64,7 +64,7 @@ Arguments:
 		}
 
 		if singleValFlag {
-			recordVal, err := utils.PromptForName("Value")
+			recordVal, err := prmpt.PromptForName("Value")
 			if err != nil {
 				fmt.Println(err.Error())
 				return
@@ -72,7 +72,7 @@ Arguments:
 
 			storage.AddRecord(&strg.Record{Name: recordName, Value: recordVal})
 		} else {
-			recordUser, err := utils.PromptForName("Username")
+			recordUser, err := prmpt.PromptForName("Username")
 			if err != nil {
 				fmt.Println(err.Error())
 				return
@@ -94,6 +94,13 @@ Arguments:
 		err = strg.EncryptStringToStorage(storageStr, storage.MainPass)
 		if err != nil {
 			fmt.Println(err.Error())
+			return
+		}
+
+		if singleValFlag {
+			fmt.Printf("Value set successfuly in %s record\n", color.InGreen(recordName))
+		} else {
+			fmt.Printf("Username/password set successfuly in %s record\n", color.InGreen(recordName))
 		}
 	},
 }
@@ -102,7 +109,7 @@ func getRecordName(args []string) (string, error) {
 	var recordName string
 	var err error
 	if len(args) == 0 {
-		recordName, err = utils.PromptForName("Record name")
+		recordName, err = prmpt.PromptForName("Record name")
 		if err != nil {
 			return "", err
 		}
@@ -119,7 +126,7 @@ func getOrGenerateRecordPass() (string, error) {
 	if genPassFlag {
 		recordPass, err = passgen.Generate(16, 4, 6, false, true)
 	} else {
-		recordPass, err = utils.PromptForRecordPass()
+		recordPass, err = prmpt.PromptForRecordPass()
 	}
 
 	if err != nil {

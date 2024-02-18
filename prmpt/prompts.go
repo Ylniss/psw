@@ -1,4 +1,4 @@
-package utils
+package prmpt
 
 import (
 	"errors"
@@ -11,11 +11,23 @@ import (
 	"github.com/cqroot/prompt/input"
 )
 
-var passwordsDontMatchMsg = "Passwords don't match, try again"
+var (
+	passwordsDontMatchMsg = "Passwords don't match, try again"
+	errMainPassLen        = errors.New("Main password must be at least 4 characters long")
+	errRequired           = errors.New("Input required")
+)
 
 func validateMainPassLen(content string) error {
 	if len(content) < 4 {
-		return errors.New("Main password must be at least 4 characters long")
+		return errMainPassLen
+	}
+
+	return nil
+}
+
+func validateRequired(content string) error {
+	if len(content) < 1 {
+		return errRequired
 	}
 
 	return nil
@@ -25,8 +37,8 @@ func PromptForMainPass(ensure bool) (string, error) {
 	mainPass := "*"
 	repeatMainPass := ""
 
-	for mainPass != repeatMainPass { // ask until passwords match
-		var err error
+	var err error
+	for mainPass != repeatMainPass { // ask until passwords match todo: and is valid length
 		mainPass, err = prompt.New().Ask("Main password").
 			Input("", input.WithEchoMode(input.EchoPassword), input.WithValidateFunc(validateMainPassLen))
 		if err != nil {
@@ -63,7 +75,7 @@ func PromptForRecordPass() (string, error) {
 	for recordPass != repeatRecordPass { // ask until passwords match
 		var err error
 		recordPass, err = prompt.New().Ask("Password").
-			Input("", input.WithEchoMode(input.EchoPassword))
+			Input("", input.WithEchoMode(input.EchoPassword), input.WithValidateFunc(validateRequired))
 		if err != nil {
 			if errors.Is(err, prompt.ErrUserQuit) {
 				os.Exit(1)
@@ -72,7 +84,7 @@ func PromptForRecordPass() (string, error) {
 		}
 
 		repeatRecordPass, err = prompt.New().Ask("Repeat password").
-			Input("", input.WithEchoMode(input.EchoPassword))
+			Input("", input.WithEchoMode(input.EchoPassword), input.WithValidateFunc(validateRequired))
 		if err != nil {
 			if errors.Is(err, prompt.ErrUserQuit) {
 				os.Exit(1)
@@ -89,7 +101,7 @@ func PromptForRecordPass() (string, error) {
 }
 
 func PromptForName(promptText string) (string, error) {
-	password, err := prompt.New().Ask(promptText).Input("")
+	password, err := prompt.New().Ask(promptText).Input("", input.WithValidateFunc(validateRequired))
 	if err != nil {
 		if errors.Is(err, prompt.ErrUserQuit) {
 			os.Exit(1)

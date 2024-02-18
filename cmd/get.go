@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/TwiN/go-color"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/ylniss/psw/strg"
 	"golang.design/x/clipboard"
@@ -49,6 +50,8 @@ Arguments:
 		}
 
 		record, isFound := storage.GetRecord(recordName)
+
+		log.Debugf("record: %#v\n", record)
 
 		if !isFound {
 			fmt.Printf("Record '%s' was not found\n", recordName)

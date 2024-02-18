@@ -7,7 +7,7 @@ import (
 
 	color "github.com/TwiN/go-color"
 	"github.com/samber/lo"
-	"github.com/ylniss/psw/utils"
+	"github.com/ylniss/psw/prmpt"
 )
 
 type Record struct {
@@ -65,7 +65,7 @@ func GetOrCreateIfNotExists() (*Storage, error) {
 
 	// when storage already exists, prompt for password to access
 	if !created && mainPass == "" {
-		mainPass, err = utils.PromptForMainPass(false)
+		mainPass, err = prmpt.PromptForMainPass(false)
 		if err != nil {
 			return nil, err
 		}
@@ -113,17 +113,20 @@ func createEncryptedStorageIfNotExists() (string, bool, error) {
 
 	fmt.Println("No encrypted storage found. Set your main password that will be used to decrypt your secrets.")
 
-	mainPass, err := utils.PromptForMainPass(true)
+	mainPass, err := prmpt.PromptForMainPass(true)
 	if err != nil {
 		return "", false, err
 	}
 
 	err = EncryptStringToStorage("", mainPass)
-	fmt.Println(color.InGreen("Main password set successfully"))
-
 	if err != nil {
 		return "", false, err
 	}
+
+	fmt.Println(
+		color.InGreen("Main password set successfully, you can change it with"),
+		color.InCyan("change main"),
+		color.InGreen("command"))
 
 	return mainPass, true, nil
 }
