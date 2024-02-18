@@ -51,7 +51,7 @@ Arguments:
 
 		record, isFound := storage.GetRecord(recordName)
 
-		log.Debugf("record: %#v\n", record)
+		log.Debugf("cmd/get - record: %#v\n", record)
 
 		if !isFound {
 			fmt.Printf("Record '%s' was not found\n", recordName)
