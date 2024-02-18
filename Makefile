@@ -1,8 +1,10 @@
-.PHONY: build clean install
+.PHONY: build install clean b i c
+
+BIN_DIR := ./bin
 
 build:
-	go build -o ../bin/
-	go build -o ../bin/ ./clipclean/
+	go build -o $(BIN_DIR)
+	go build -o $(BIN_DIR) ./clipclean/
 
 install:
 	go install
@@ -10,4 +12,9 @@ install:
 
 # Clean up build artifacts
 clean:
-	@rm -rf ../bin/
+	@rm -rf $(BIN_DIR)/*
+	
+# Shortcuts
+b: build
+i: install
+c: clean

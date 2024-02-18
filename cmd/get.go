@@ -13,13 +13,13 @@ import (
 )
 
 var (
-	reveal       bool
+	revealFlag   bool
 	clipDuration int
 )
 
 func init() {
 	clipDuration = 30
-	getCmd.Flags().BoolVarP(&reveal, "reveal", "r", false, "reveal secret inside terminal")
+	getCmd.Flags().BoolVarP(&revealFlag, "reveal", "r", false, "reveal secret inside terminal")
 	rootCmd.AddCommand(getCmd)
 }
 
@@ -63,14 +63,14 @@ Arguments:
 			fmt.Println(color.InYellow(record.User))
 			fmt.Println()
 			fmt.Println("Password")
-			if reveal {
+			if revealFlag {
 				fmt.Println(color.InYellow(record.Pass))
 			} else {
 				fmt.Println(color.InYellow(fmt.Sprintf("*********** - copied to the clipboard, it will be cleared in %d seconds", clipDuration)))
 			}
 		} else {
 			fmt.Println("Value")
-			if reveal {
+			if revealFlag {
 				fmt.Println(color.InYellow(record.Value))
 			} else {
 				fmt.Println(color.InYellow(fmt.Sprintf("*********** - copied to the clipboard, it will be cleared in %d seconds", clipDuration)))

@@ -40,8 +40,8 @@ func (s *Storage) GetRecord(name string) (Record, bool) {
 }
 
 func (s *Storage) IsDuplicate(name string) bool {
-	names := s.GetNames()
-	return lo.Contains(names, name)
+	names := lo.Map(s.GetNames(), func(n string, _ int) string { return strings.ToLower(n) })
+	return lo.Contains(names, strings.ToLower(name))
 }
 
 func (s *Storage) String() string {
