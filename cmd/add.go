@@ -87,11 +87,15 @@ Arguments:
 			storage.AddRecord(&strg.Record{Name: recordName, User: recordUser, Pass: recordPass})
 		}
 
-		storageStr := storage.String()
+		storageJson, err := storage.ToJson()
+		if err != nil {
+			fmt.Println(err.Error())
+			return
+		}
 
-		log.Debugf("new storage content:\n%s", storageStr)
+		log.Debugf("new storage content:\n%s\n", storageJson)
 
-		err = strg.EncryptStringToStorage(storageStr, storage.MainPass)
+		err = strg.EncryptStringToStorage(storageJson, storage.MainPass)
 		if err != nil {
 			fmt.Println(err.Error())
 			return

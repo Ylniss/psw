@@ -58,10 +58,11 @@ Arguments:
 			return
 		}
 
-		clipboard.Write(clipboard.FmtText, []byte(record.Pass))
-
-		// Print user & pass or value, depending on what is stored in the record
+		// Print and copy to clipboard user & pass or value,
+		// depending on what is stored in the record
 		if record.Value == "" {
+			clipboard.Write(clipboard.FmtText, []byte(record.Pass))
+
 			fmt.Println("Username")
 			fmt.Println(color.InYellow(record.User))
 			fmt.Println()
@@ -72,6 +73,8 @@ Arguments:
 				fmt.Println(color.InYellow(fmt.Sprintf("*********** - copied to the clipboard, it will be cleared in %d seconds", clipDuration)))
 			}
 		} else {
+			clipboard.Write(clipboard.FmtText, []byte(record.Value))
+
 			fmt.Println("Value")
 			if revealFlag {
 				fmt.Println(color.InYellow(record.Value))

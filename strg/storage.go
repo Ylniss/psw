@@ -1,6 +1,7 @@
 package strg
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -11,10 +12,10 @@ import (
 )
 
 type Record struct {
-	Name  string
-	User  string
-	Pass  string
-	Value string
+	Name  string `json:"name"`
+	User  string `json:"user"`
+	Pass  string `json:"pass"`
+	Value string `json:"value"`
 }
 
 type Storage struct {
@@ -44,17 +45,13 @@ func (s *Storage) IsDuplicate(name string) bool {
 	return lo.Contains(names, strings.ToLower(name))
 }
 
-func (s *Storage) String() string {
-	storageStr := ""
-	for _, r := range s.Records {
-		if r.Value == "" { // record is user/pass
-			storageStr += cfg.recordMarker + r.Name + cfg.valueEndMarker + r.User + cfg.valueEndMarker + r.Pass + cfg.valueEndMarker
-		} else { // record is value only
-			storageStr += cfg.recordMarker + r.Name + cfg.valueEndMarker + r.Value + cfg.valueEndMarker
-		}
+func (s *Storage) ToJson() (string, error) {
+	jsonData, err := json.MarshalIndent(s.Records, "", "  ")
+	if err != nil {
+		return "", err
 	}
 
-	return storageStr
+	return string(jsonData), nil
 }
 
 func GetOrCreateIfNotExists() (*Storage, error) {
@@ -71,32 +68,29 @@ func GetOrCreateIfNotExists() (*Storage, error) {
 		}
 	}
 
-	storageStr, err := DecryptStringFromStorage(mainPass)
+	storageJson, err := DecryptStringFromStorage(mainPass)
 	if err != nil {
 		return nil, err
 	}
 
-	records := getRecords(storageStr)
+	records, err := getRecords(storageJson)
+	if err != nil {
+		return nil, err
+	}
+
 	storage := Storage{Records: records, MainPass: mainPass}
 
 	return &storage, nil
 }
 
-func getRecords(storageStr string) []Record {
-	recordsStr := strings.Split(storageStr, cfg.recordMarker)
-	recordsStr = recordsStr[1:] // trim from first empty string
-	return lo.Map(recordsStr, func(rStr string, _ int) Record {
-		values := strings.Split(rStr, cfg.valueEndMarker)
-		if len(values) == 1 { // empty
-			return Record{}
-		}
-
-		if len(values) == 2 { // single value instead of user/pass
-			return Record{Name: values[0], Value: values[1]}
-		}
-
-		return Record{Name: values[0], User: values[1], Pass: values[2]}
-	})
+func getRecords(storageJson string) ([]Record, error) {
+	var records []Record
+	err := json.Unmarshal([]byte(storageJson), &records)
+	if err != nil {
+		// Return an empty slice and the error
+		return nil, fmt.Errorf("error decoding JSON: %w", err)
+	}
+	return records, nil
 }
 
 // returns true and password used to create storage if created storage
@@ -118,7 +112,7 @@ func createEncryptedStorageIfNotExists() (string, bool, error) {
 		return "", false, err
 	}
 
-	err = EncryptStringToStorage("", mainPass)
+	err = EncryptStringToStorage("[]", mainPass)
 	if err != nil {
 		return "", false, err
 	}

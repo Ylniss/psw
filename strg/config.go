@@ -11,13 +11,9 @@ type StorageCfg struct {
 	storagePath     string
 	storageFilePath string
 	storageFileName string
-	recordMarker    string
-	valueEndMarker  string
 }
 
 var cfg = StorageCfg{
-	recordMarker:    "!===##$$##$$##$$##$$===!\n",
-	valueEndMarker:  "(;+!_+_!+;)\n",
 	storageFileName: "storage.psw",
 }
 

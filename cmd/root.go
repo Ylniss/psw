@@ -15,7 +15,7 @@ import (
 var verboseFlag bool
 
 func init() {
-	rootCmd.PersistentFlags().BoolVarP(&verboseFlag, "verbose", "v", false, "verbose output")
+	rootCmd.PersistentFlags().BoolVarP(&verboseFlag, "verbose", "v", false, "verbose output, sensitive data will be logged")
 }
 
 var rootCmd = &cobra.Command{
