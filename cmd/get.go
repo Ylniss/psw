@@ -1,10 +1,8 @@
 package cmd
 
 import (
-	"bytes"
 	"fmt"
 	"os/exec"
-	"strings"
 
 	"github.com/TwiN/go-color"
 	log "github.com/sirupsen/logrus"
@@ -40,7 +38,7 @@ Arguments:
 
 		var recordName string
 		if len(args) == 0 {
-			recordName, err = getRecordNameWithFzf(storage)
+			recordName, err = strg.GetRecordNameWithFzf(storage)
 			if err != nil {
 				fmt.Println(err.Error())
 				return
@@ -54,7 +52,7 @@ Arguments:
 		log.Debugf("cmd/get - record: %#v\n", record)
 
 		if !isFound {
-			fmt.Printf("Record '%s' was not found\n", recordName)
+			fmt.Printf("Record %s was not found\n", color.InGreen(recordName))
 			return
 		}
 
@@ -86,26 +84,4 @@ Arguments:
 		syscmd := exec.Command("clipclean", fmt.Sprint(clipDuration))
 		syscmd.Start()
 	},
-}
-
-func getRecordNameWithFzf(storage *strg.Storage) (string, error) {
-	// Check if fzf is installed
-	if _, err := exec.LookPath("fzf"); err != nil {
-		return "", fmt.Errorf("fzf is not installed. Please install fzf to use this feature or use 'psw get <name>' instead")
-	}
-
-	cmd := exec.Command("fzf")
-
-	var input bytes.Buffer
-	input.WriteString(strings.Join(storage.GetNames(), "\n"))
-	cmd.Stdin = &input
-
-	var output bytes.Buffer
-	cmd.Stdout = &output
-
-	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("Failed to run fzf:\n%w", err)
-	}
-
-	return strings.TrimSpace(output.String()), nil
 }

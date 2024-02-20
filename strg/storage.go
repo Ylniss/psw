@@ -1,8 +1,10 @@
 package strg
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"os/exec"
 	"sort"
 	"strings"
 
@@ -81,6 +83,28 @@ func GetOrCreateIfNotExists() (*Storage, error) {
 	storage := Storage{Records: records, MainPass: mainPass}
 
 	return &storage, nil
+}
+
+func GetRecordNameWithFzf(storage *Storage) (string, error) {
+	// Check if fzf is installed
+	if _, err := exec.LookPath("fzf"); err != nil {
+		return "", fmt.Errorf("fzf is not installed. Please install fzf to use this feature or use 'psw get <name>' instead")
+	}
+
+	cmd := exec.Command("fzf")
+
+	var input bytes.Buffer
+	input.WriteString(strings.Join(storage.GetNames(), "\n"))
+	cmd.Stdin = &input
+
+	var output bytes.Buffer
+	cmd.Stdout = &output
+
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("Failed to run fzf:\n%w", err)
+	}
+
+	return strings.TrimSpace(output.String()), nil
 }
 
 func getRecords(storageJson string) ([]Record, error) {

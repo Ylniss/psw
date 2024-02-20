@@ -19,7 +19,7 @@ func init() {
 }
 
 var rootCmd = &cobra.Command{
-	Use: `psw         lists all record names
+	Use: `psw         lists all stored record names
   psw`,
 	Short: "psw is a simple password manager",
 	Long: `psw is a simple password manager that employs AES SHA256 encryption to secure your passwords.
