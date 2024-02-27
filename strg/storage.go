@@ -42,6 +42,26 @@ func (s *Storage) GetRecord(name string) (Record, bool) {
 	return lo.Find(s.Records, func(r Record) bool { return r.Name == name })
 }
 
+func (s *Storage) UpdateRecord(name string, updatedRecord Record) {
+	records := lo.Map(s.Records, func(r Record, _ int) Record {
+		if r.Name != name {
+			return r
+		} else {
+			return updatedRecord
+		}
+	})
+
+	s.Records = records
+}
+
+func (s *Storage) RemoveRecord(name string) {
+	records := lo.Filter(s.Records, func(r Record, _ int) bool {
+		return r.Name != name
+	})
+
+	s.Records = records
+}
+
 func (s *Storage) IsDuplicate(name string) bool {
 	names := lo.Map(s.GetNames(), func(n string, _ int) string { return strings.ToLower(n) })
 	return lo.Contains(names, strings.ToLower(name))
