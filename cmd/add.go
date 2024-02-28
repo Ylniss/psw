@@ -58,7 +58,7 @@ Arguments:
 			return
 		}
 
-		if storage.IsDuplicate(recordName) {
+		if storage.Exists(recordName) {
 			fmt.Printf("Record with name %s already exists\n", color.InGreen(recordName))
 			return
 		}

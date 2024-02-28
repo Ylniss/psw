@@ -41,7 +41,7 @@ in your shell configuration file.`,
 
 		names := storage.GetNames()
 		if len(names) == 0 {
-			fmt.Println("No secrets found. Use 'add' command first.")
+			fmt.Printf("No secrets found. Use %s command first.\n", color.InCyan("add"))
 			return
 		}
 

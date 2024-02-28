@@ -68,17 +68,51 @@ Arguments:
 			return
 		}
 
-		if yes := prmpt.YesOrNo("Do you want to change your name?"); yes {
+		if yes := prmpt.YesOrNo("Do you want to change record name?"); yes {
 			newName, err := prmpt.PromptForName("New name")
 			if err != nil {
 				fmt.Println(err.Error())
 				return
 			}
 
+			if storage.Exists(newName) {
+				fmt.Printf("Record with name %s already exists\n", color.InGreen(newName))
+				return
+			}
+
 			record.Name = newName
 		}
 
-		if record.Value != "" {
+		if record.Value == "" {
+			if yes := prmpt.YesOrNo("Do you want to change username?"); yes {
+				newUser, err := prmpt.PromptForName("New username")
+				if err != nil {
+					fmt.Println(err.Error())
+					return
+				}
+
+				record.User = newUser
+			}
+
+			if yes := prmpt.YesOrNo("Do you want to change password?"); yes {
+				newPass, err := prmpt.PromptForRecordPass()
+				if err != nil {
+					fmt.Println(err.Error())
+					return
+				}
+
+				record.Pass = newPass
+			}
+		} else {
+			if yes := prmpt.YesOrNo("Do you want to change value?"); yes {
+				newValue, err := prmpt.PromptForName("New value")
+				if err != nil {
+					fmt.Println(err.Error())
+					return
+				}
+
+				record.Value = newValue
+			}
 		}
 
 		storage.UpdateRecord(recordName, record)
@@ -97,6 +131,6 @@ Arguments:
 			return
 		}
 
-		fmt.Printf("Record %s updated\n", color.InGreen(recordName))
+		fmt.Printf(color.InGreen("Record updated\n"))
 	},
 }

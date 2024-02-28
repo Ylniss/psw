@@ -62,7 +62,7 @@ func (s *Storage) RemoveRecord(name string) {
 	s.Records = records
 }
 
-func (s *Storage) IsDuplicate(name string) bool {
+func (s *Storage) Exists(name string) bool {
 	names := lo.Map(s.GetNames(), func(n string, _ int) string { return strings.ToLower(n) })
 	return lo.Contains(names, strings.ToLower(name))
 }
