@@ -74,13 +74,19 @@ func PromptForMainPass(ensure bool) (string, error) {
 	repeatMainPass := ""
 
 	var err error
-	for mainPass != repeatMainPass { // ask until passwords match todo: and is valid length
+	for mainPass != repeatMainPass || errors.Is(err, errMainPassLen) { // ask until passwords match and is valid length
 		mainPass, err = prompt.New().Ask("Main password").
 			Input("", input.WithEchoMode(input.EchoPassword), input.WithValidateFunc(validateMainPassLen))
 		if err != nil {
 			if errors.Is(err, prompt.ErrUserQuit) {
 				os.Exit(1)
 			}
+
+			if errors.Is(err, errMainPassLen) {
+				fmt.Println(color.InYellow(errMainPassLen.Error()))
+				continue
+			}
+
 			return "", err
 		}
 
@@ -94,11 +100,17 @@ func PromptForMainPass(ensure bool) (string, error) {
 			if errors.Is(err, prompt.ErrUserQuit) {
 				os.Exit(1)
 			}
+
+			if errors.Is(err, errMainPassLen) {
+				fmt.Println(color.InYellow(errMainPassLen.Error()))
+				continue
+			}
+
 			return "", err
 		}
 
 		if mainPass != repeatMainPass {
-			fmt.Println(color.InCyan(passwordsDontMatchMsg))
+			fmt.Println(color.InYellow(passwordsDontMatchMsg))
 		}
 	}
 	return mainPass, nil
