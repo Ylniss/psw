@@ -43,8 +43,9 @@ jobs:
         release_tag: v${{ env.version }}  # Use extracted version as the release tag
         multi_binaries: true             # Enable multi-binary packaging
         binary_name: "psw"                # Use the binary name for assets
+        project_path: ./bin
+        build_command: ""
         extra_files: ./bin/clipclean # Include the additional binary
-        md5sum: true                     # Publish MD5 checksum
         sha256sum: true                  # Publish SHA256 checksum
         overwrite: true                  # Overwrite existing assets if necessary
         compress_assets: true            # Compress assets before uploading
