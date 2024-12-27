@@ -24,6 +24,11 @@ jobs:
         version=$(grep -oP 'psw v\K[0-9.]+' ./cmd/version.go)
         echo "version=${version}" >> $GITHUB_ENV
 
+    - name: Install Dependencies
+      run: |
+        apt-get update
+        apt-get install -y libx11-dev xorg-dev
+
     - name: Build Binaries
       run: |
         mkdir -p ./bin
