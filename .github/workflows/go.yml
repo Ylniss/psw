@@ -28,8 +28,8 @@ jobs:
       run: |
         mkdir -p ./bin
         go mod tidy
+        go build -o ./bin/clipclean
         go build -o ./bin/psw
-        go build -o ./bin/clipclean ./clipclean/
 
     - name: Go Release Binaries
       uses: wangyoucao577/go-release-action@v1.53
