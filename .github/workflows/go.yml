@@ -35,11 +35,11 @@ jobs:
       run: |
         make build
 
+
     - name: Generate SHA256 Checksums
       run: |
-        cd ./bin
-        sha256sum psw > psw.sha256
-        sha256sum clipclean > clipclean.sha256
+        sha256sum ./bin/psw > ./bin/psw.sha256
+        sha256sum ./bin/clipclean > ./bin/clipclean.sha256
 
     - name: Archive Binaries
       env:
