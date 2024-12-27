@@ -40,15 +40,11 @@ jobs:
       uses: wangyoucao577/go-release-action@v1.53
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
-        goos: linux,windows,darwin   # Specify target operating systems
-        goarch: amd64,arm64          # Specify target architectures
-        goversion: 1.22              # Go version
         release_tag: v${{ env.version }}  # Use extracted version as the release tag
-        multi_binaries: true         # Enable multi-binary packaging
-        build_flags: -v              # Additional build flags
-        binary_name: "{{.Binary}}"  # Use the binary name for assets
+        multi_binaries: true             # Enable multi-binary packaging
+        binary_name: "psw"                # Use the binary name for assets
         extra_files: ./bin/clipclean # Include the additional binary
-        md5sum: true                 # Publish MD5 checksum
-        sha256sum: true              # Publish SHA256 checksum
-        overwrite: true              # Overwrite existing assets if necessary
-        compress_assets: true        # Compress assets before uploading
+        md5sum: true                     # Publish MD5 checksum
+        sha256sum: true                  # Publish SHA256 checksum
+        overwrite: true                  # Overwrite existing assets if necessary
+        compress_assets: true            # Compress assets before uploading
