@@ -42,10 +42,12 @@ jobs:
         sha256sum clipclean > clipclean.sha256
 
     - name: Archive Binaries
+      env:
+        VERSION: ${{ env.version }}
       run: |
         mkdir -p ./release
         cp ./bin/psw ./bin/clipclean ./release/
-        tar -czvf ./release/psw-${{ env.version }}.tar.gz -C ./release psw clipclean
+        tar -czvf ./release/psw-${VERSION}.tar.gz -C ./release psw clipclean
 
     - name: Create GitHub Release and Upload Assets
       env:
