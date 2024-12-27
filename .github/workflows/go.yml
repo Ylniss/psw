@@ -40,26 +40,18 @@ jobs:
         sha256sum ./bin/psw > ./bin/psw.sha256
         sha256sum ./bin/clipclean > ./bin/clipclean.sha256
 
-    - name: Verify Binaries in Bin
-      run: |
-        ls -la ./bin
-
     - name: Archive Binaries
       env:
         VERSION: ${{ env.version }}
       run: |
-        tar -czvf ./bin/psw-v${VERSION}.tar.gz -C ./bin psw clipclean
-
-    - name: Verify Archive in Bin
-      run: |
-        ls -la ./bin
+        tar -czvf ./bin/psw-${VERSION}.tar.gz -C ./bin psw clipclean
 
     - name: Create GitHub Release and Upload Assets
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        VERSION: v${{ env.version }}
+        VERSION: ${{ env.version }}
       run: |
-        gh release create $VERSION ./bin/psw-v${VERSION}.tar.gz \
+        gh release create $VERSION ./bin/psw-${VERSION}.tar.gz \
           --title "Release $VERSION" \
           --notes "Package of psw and clipclean binaries."
 
