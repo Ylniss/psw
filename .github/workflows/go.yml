@@ -21,7 +21,7 @@ jobs:
     - name: Extract version
       id: get_version
       run: |
-        version=$(grep -oP 'psw v\K[0-9.]*' psw/cmd/version.go)
+        version=$(grep -oP 'psw v\K[0-9.]+' ./cmd/version.go)
         echo "version=${version}" >> $GITHUB_ENV
 
     - name: Build Binaries
