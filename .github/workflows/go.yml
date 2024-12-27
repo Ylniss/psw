@@ -40,6 +40,9 @@ jobs:
         sha256sum ./bin/psw > ./bin/psw.sha256
         sha256sum ./bin/clipclean > ./bin/clipclean.sha256
 
+    - name: Verify Binaries Exist
+      run: ls -la ./bin
+
     - name: Archive Binaries
       env:
         VERSION: ${{ env.version }}
