@@ -1,0 +1,49 @@
+# This workflow will build, test, and release a golang project
+name: Go
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.22'
+
+    - name: Extract version
+      id: get_version
+      run: |
+        version=$(grep -oP 'psw v\K[0-9.]*' psw/cmd/version.go)
+        echo "version=${version}" >> $GITHUB_ENV
+
+    - name: Build Binaries
+      run: |
+        mkdir -p ./bin
+        go mod tidy
+        go build -o ./bin/psw
+        go build -o ./bin/clipclean ./clipclean/
+
+    - name: Go Release Binaries
+      uses: wangyoucao577/go-release-action@v1.53
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        goos: linux,windows,darwin   # Specify target operating systems
+        goarch: amd64,arm64          # Specify target architectures
+        goversion: 1.22              # Go version
+        release_tag: v${{ env.version }}  # Use extracted version as the release tag
+        multi_binaries: true         # Enable multi-binary packaging
+        build_flags: -v              # Additional build flags
+        binary_name: "{{.Binary}}"  # Use the binary name for assets
+        extra_files: ./bin/clipclean # Include the additional binary
+        md5sum: true                 # Publish MD5 checksum
+        sha256sum: true              # Publish SHA256 checksum
+        overwrite: true              # Overwrite existing assets if necessary
+        compress_assets: true        # Compress assets before uploading
