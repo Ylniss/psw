@@ -38,7 +38,6 @@ jobs:
         binary_name: "psw"                # Use the binary name for assets
         extra_files: ./bin/clipclean     # Include the additional binary
         project_path: ./                  # Root directory of the project
-        pre_command: "apt-get install -y libx11-dev xorg-dev"
         build_command: make i
         sha256sum: true                  # Publish SHA256 checksum
         overwrite: true                  # Overwrite existing assets if necessary
