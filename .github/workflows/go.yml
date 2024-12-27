@@ -29,23 +29,19 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y libx11-dev xorg-dev
 
-    - name: Build Binaries
-      run: |
-        mkdir -p ./bin
-        go mod tidy
-        go build -o ./bin/clipclean
-        go build -o ./bin/psw
-
     - name: Go Release Binaries
       uses: wangyoucao577/go-release-action@v1.53
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         release_tag: v${{ env.version }}  # Use extracted version as the release tag
-        multi_binaries: true             # Enable multi-binary packaging
+        multi_binaries: true               # Enable multi-binary packaging
         binary_name: "psw"                # Use the binary name for assets
-        project_path: ./bin
-        build_command: ""
-        extra_files: ./bin/clipclean # Include the additional binary
+        extra_files: ./bin/clipclean     # Include the additional binary
+        project_path: ./                  # Root directory of the project
+        build_command: |
+          go mod tidy && \
+          go build -o ./bin/psw && \
+          go build -o ./bin/clipclean
         sha256sum: true                  # Publish SHA256 checksum
         overwrite: true                  # Overwrite existing assets if necessary
         compress_assets: true            # Compress assets before uploading
