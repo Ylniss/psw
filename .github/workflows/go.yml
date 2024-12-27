@@ -35,11 +35,18 @@ jobs:
       run: |
         make build
 
-
     - name: Generate SHA256 Checksums
       run: |
         sha256sum ./bin/psw > ./bin/psw.sha256
         sha256sum ./bin/clipclean > ./bin/clipclean.sha256
+
+    - name: Verify Binaries1inbin
+      run: |
+        ls -la ./bin
+
+    - name: Verify Binaries2inhere
+      run: |
+        ls -la
 
     - name: Archive Binaries
       env:
