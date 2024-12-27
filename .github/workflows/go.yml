@@ -39,8 +39,7 @@ jobs:
         extra_files: ./bin/clipclean     # Include the additional binary
         project_path: ./                  # Root directory of the project
         build_command: |
-          go mod tidy && \
-          go build -o ./bin/psw && \
+          go build -o ./bin/psw
           go build -o ./bin/clipclean
         sha256sum: true                  # Publish SHA256 checksum
         overwrite: true                  # Overwrite existing assets if necessary
