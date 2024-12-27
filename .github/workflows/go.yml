@@ -38,9 +38,7 @@ jobs:
         binary_name: "psw"                # Use the binary name for assets
         extra_files: ./bin/clipclean     # Include the additional binary
         project_path: ./                  # Root directory of the project
-        build_command: |
-          go build -o ./bin/psw
-          go build -o ./bin/clipclean
+        build_command: make i
         sha256sum: true                  # Publish SHA256 checksum
         overwrite: true                  # Overwrite existing assets if necessary
         compress_assets: true            # Compress assets before uploading
