@@ -4,8 +4,8 @@ BIN_DIR := ./bin
 
 build:
 	go mod tidy
-	go build -o $(BIN_DIR)
-	go build -o $(BIN_DIR) ./clipclean/
+	go build -o $(BIN_DIR)/psw
+	go build -o $(BIN_DIR)/clipclean ./clipclean/
 
 install:
 	go mod tidy

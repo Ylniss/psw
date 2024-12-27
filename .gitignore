@@ -12,6 +12,7 @@
 *.test
 
 bin/
+.idea/
 *.log
 
 # Output of the go coverage tool, specifically when used with LiteIDE

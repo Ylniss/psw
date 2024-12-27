@@ -3,22 +3,18 @@ package prmpt
 import (
 	"errors"
 	"fmt"
-	"os"
-	"strings"
-
 	"github.com/TwiN/go-color"
-	"github.com/eiannone/keyboard"
-	"github.com/samber/lo"
-
 	"github.com/cqroot/prompt"
 	"github.com/cqroot/prompt/input"
+	"github.com/eiannone/keyboard"
+	"os"
 )
 
 var (
 	passwordsDontMatchMsg = "Passwords don't match, try again"
-	errMainPassLen        = errors.New("Main password must be at least 4 characters long")
-	errRequired           = errors.New("Input required")
-	errInvalidYesNo       = errors.New("Input must be one of the following: y, yes, n, no")
+	errMainPassLen        = errors.New("main password must be at least 4 characters long")
+	errRequired           = errors.New("input required")
+	errInvalidYesNo       = errors.New("input must be one of the following: y, yes, n, no")
 )
 
 func validateMainPassLen(content string) error {
@@ -32,15 +28,6 @@ func validateMainPassLen(content string) error {
 func validateRequired(content string) error {
 	if len(content) < 1 {
 		return errRequired
-	}
-
-	return nil
-}
-
-func validateYesOrNoInput(content string) error {
-	valid := []string{"y", "yes", "n", "no"}
-	if !lo.Contains(valid, strings.ToLower(content)) {
-		return errInvalidYesNo
 	}
 
 	return nil
