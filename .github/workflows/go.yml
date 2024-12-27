@@ -1,4 +1,3 @@
-# This workflow will build, test, and release a golang project
 name: Go
 
 on:
@@ -18,27 +17,33 @@ jobs:
       with:
         go-version: '1.22'
 
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libx11-dev xorg-dev
+
     - name: Extract version
       id: get_version
       run: |
         version=$(grep -oP 'psw v\K[0-9.]+' ./cmd/version.go)
         echo "version=${version}" >> $GITHUB_ENV
 
-    - name: Install Dependencies
+    - name: Build Applications
       run: |
-        sudo apt-get update
-        sudo apt-get install -y libx11-dev xorg-dev
+        make build
 
-    - name: Go Release Binaries
-      uses: wangyoucao577/go-release-action@v1.53
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        release_tag: v${{ env.version }}  # Use extracted version as the release tag
-        multi_binaries: true               # Enable multi-binary packaging
-        binary_name: "psw"                # Use the binary name for assets
-        extra_files: ./bin/clipclean     # Include the additional binary
-        project_path: ./                  # Root directory of the project
-        build_command: make i
-        sha256sum: true                  # Publish SHA256 checksum
-        overwrite: true                  # Overwrite existing assets if necessary
-        compress_assets: true            # Compress assets before uploading
+    - name: Generate SHA256 Checksums
+      run: |
+        cd ./bin
+        sha256sum psw > psw.sha256
+        sha256sum clipclean > clipclean.sha256
+
+    - name: Create GitHub Release and Upload Assets
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        VERSION: v${{ env.version }}
+      run: |
+        gh release create $VERSION ./bin/psw ./bin/psw.sha256 ./bin/clipclean ./bin/clipclean.sha256 \
+          --title "Release $VERSION" \
+          --notes "Release of psw and clipclean binaries."
+
