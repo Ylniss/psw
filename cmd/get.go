@@ -61,7 +61,7 @@ Arguments:
 		if record.Value == "" {
 			err = clipboard.WriteAll(record.Pass)
 			if err != nil {
-				fmt.Println("Failed to copy password to clipboard")
+				fmt.Println(fmt.Sprintf("Failed to copy value to clipboard: %s", err.Error()))
 				return
 			}
 
@@ -77,7 +77,7 @@ Arguments:
 		} else {
 			err = clipboard.WriteAll(record.Value)
 			if err != nil {
-				fmt.Println("Failed to copy value to clipboard")
+				fmt.Println(fmt.Sprintf("Failed to copy value to clipboard: %s", err.Error()))
 				return
 			}
 
