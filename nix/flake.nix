@@ -19,17 +19,19 @@
   }:
     flake-utils.lib.eachDefaultSystem (system: let
       pkgs = import nixpkgs {inherit system;};
-      version = "0.5";
+      version = "0.6";
       vendorFile = ../gomod2nix.toml;
       vendorHash = "sha256-6/O2NGJQue4w2DLAGEZ1PZt2dCx9yrqLWZ9Ld7+BwFk=";
 
       # Common build dependencies
       nativeDeps = with pkgs; [
         go
-        gopls
-        gotools
-        go-tools
         gomod2nix.packages.${system}.default
+      ];
+
+      # Runtime dependencies
+      runtimeDeps = with pkgs; [
+        xclip
       ];
     in {
       # Package for the main application
@@ -40,6 +42,7 @@
         modules = vendorFile;
         inherit vendorHash;
         nativeBuildInputs = nativeDeps;
+        propagatedBuildInputs = runtimeDeps;
       };
 
       # Package for clipclean binary
@@ -51,16 +54,11 @@
         subPackages = ["clipclean"];
         inherit vendorHash;
         nativeBuildInputs = nativeDeps;
+        propagatedBuildInputs = runtimeDeps;
       };
 
-      devShells.default = let
-        pkgs = import nixpkgs {
-          inherit system;
-        };
-      in
-        pkgs.mkShell {
-          packages = nativeDeps;
-          buildInputs = nativeDeps;
-        };
+      devShells.default = pkgs.mkShell {
+        buildInputs = nativeDeps ++ runtimeDeps;
+      };
     });
 }
