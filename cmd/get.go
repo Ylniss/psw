@@ -5,10 +5,10 @@ import (
 	"os/exec"
 
 	"github.com/TwiN/go-color"
+	"github.com/atotto/clipboard"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/ylniss/psw/strg"
-	"golang.design/x/clipboard"
 )
 
 var (
@@ -59,7 +59,11 @@ Arguments:
 		// Print and copy to clipboard user & pass or value,
 		// depending on what is stored in the record
 		if record.Value == "" {
-			clipboard.Write(clipboard.FmtText, []byte(record.Pass))
+			err = clipboard.WriteAll(record.Pass)
+			if err != nil {
+				fmt.Println("Failed to copy password to clipboard")
+				return
+			}
 
 			fmt.Println("Username")
 			fmt.Println(color.InYellow(record.User))
@@ -71,7 +75,11 @@ Arguments:
 				fmt.Println(color.InYellow(fmt.Sprintf("*********** - copied to the clipboard, it will be cleared in %d seconds", clipDuration)))
 			}
 		} else {
-			clipboard.Write(clipboard.FmtText, []byte(record.Value))
+			err = clipboard.WriteAll(record.Value)
+			if err != nil {
+				fmt.Println("Failed to copy value to clipboard")
+				return
+			}
 
 			fmt.Println("Value")
 			if revealFlag {
