@@ -19,15 +19,9 @@
   }:
     flake-utils.lib.eachDefaultSystem (system: let
       pkgs = import nixpkgs {inherit system;};
-
-      # Static version for the project
       version = "0.5";
-
-      # Path to the generated gomod2nix.toml file
       vendorFile = ../gomod2nix.toml;
-
-      # Replace these fake hashes with the actual hashes from failed builds
-      vendorHash = "sha256-AQgMbLNm2wp1S0Yif7FnrDIVmVerAEQ+YIyelj9Emso=";
+      vendorHash = "sha256-6/O2NGJQue4w2DLAGEZ1PZt2dCx9yrqLWZ9Ld7+BwFk=";
 
       # Common build dependencies
       nativeDeps = with pkgs; [
@@ -36,13 +30,6 @@
         gotools
         go-tools
         gomod2nix.packages.${system}.default
-        xorg.libX11
-        xorg.libX11.dev
-        xorg.libXext
-        xorg.xorgproto
-        libxkbcommon
-        pkg-config
-        gcc
       ];
     in {
       # Package for the main application
@@ -66,9 +53,14 @@
         nativeBuildInputs = nativeDeps;
       };
 
-      # Development shell with Go tooling and gomod2nix
-      devShell = pkgs.mkShell {
-        buildInputs = nativeDeps;
-      };
+      devShells.default = let
+        pkgs = import nixpkgs {
+          inherit system;
+        };
+      in
+        pkgs.mkShell {
+          packages = nativeDeps;
+          buildInputs = nativeDeps;
+        };
     });
 }
