@@ -54,7 +54,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         VERSION: ${{ env.version }}
       run: |
-        gh release create $VERSION ./bin/psw-${VERSION}.tar.gz \
+        gh release create $VERSION ./bin/* \
           --title "Release $VERSION" \
           --notes "Package of psw and clipclean binaries."
 
