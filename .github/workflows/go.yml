@@ -2,9 +2,9 @@ name: Go
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 permissions:
   contents: write
@@ -13,46 +13,45 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: '1.22'
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.22"
 
-    - name: Install Dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y libx11-dev xorg-dev
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libx11-dev xorg-dev
 
-    - name: Extract version
-      id: get_version
-      run: |
-        version=$(grep -oP 'psw v\K[0-9.]+' ./cmd/version.go)
-        echo "version=${version}" >> $GITHUB_ENV
+      - name: Extract Version
+        id: get_version
+        run: |
+          version=$(cat VERSION)
+          echo "version=${version}" >> $GITHUB_ENV
 
-    - name: Build Applications
-      run: |
-        make build
+      - name: Build Applications
+        run: |
+          make build
 
-    - name: Generate SHA256 Checksums
-      run: |
-        sha256sum ./bin/psw > ./bin/psw.sha256
-        sha256sum ./bin/clipclean > ./bin/clipclean.sha256
+      - name: Generate SHA256 Checksums
+        run: |
+          sha256sum ./bin/psw > ./bin/psw.sha256
+          sha256sum ./bin/clipclean > ./bin/clipclean.sha256
 
-    - name: Archive Binaries
-      env:
-        VERSION: ${{ env.version }}
-      run: |
-        tar -czvf ./bin/psw-${VERSION}.tar.gz -C ./bin psw clipclean
-        rm ./bin/psw ./bin/clipclean
+      - name: Archive Binaries
+        env:
+          VERSION: ${{ env.version }}
+        run: |
+          tar -czvf ./bin/psw-${VERSION}.tar.gz -C ./bin psw clipclean
+          rm ./bin/psw ./bin/clipclean
 
-    - name: Create GitHub Release and Upload Assets
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        VERSION: ${{ env.version }}
-      run: |
-        gh release create $VERSION ./bin/* \
-          --title "Release $VERSION" \
-          --notes "Package of psw and clipclean binaries."
-
+      - name: Create GitHub Release and Upload Assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ env.version }}
+        run: |
+          gh release create $VERSION ./bin/* \
+            --title "Release $VERSION" \
+            --notes "Package of psw and clipclean binaries."
