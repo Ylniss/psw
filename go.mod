@@ -5,6 +5,7 @@ go 1.22.0
 require (
 	github.com/atotto/clipboard v0.1.4
 	github.com/cqroot/prompt v0.9.3
+	github.com/pelletier/go-toml v1.9.5
 	github.com/samber/lo v1.39.0
 	github.com/sethvargo/go-password v0.2.0
 	github.com/sirupsen/logrus v1.9.3

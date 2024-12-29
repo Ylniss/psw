@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 
 	"github.com/TwiN/go-color"
@@ -17,7 +18,13 @@ var (
 )
 
 func init() {
-	clipDuration = 30
+	config, err := strg.LoadConfig(strg.Cfg.ConfigFileName)
+	if err != nil {
+		fmt.Println("Failed to load configuration:", err)
+		os.Exit(1)
+	}
+
+	clipDuration = config.Psw.ClipboardTimeout
 	getCmd.Flags().BoolVarP(&revealFlag, "reveal", "r", false, "reveal secret inside terminal")
 	rootCmd.AddCommand(getCmd)
 }

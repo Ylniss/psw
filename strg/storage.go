@@ -140,7 +140,7 @@ func getRecords(storageJson string) ([]Record, error) {
 // returns true and password used to create storage if created storage
 // or false with empty string when error occured or storage already existed
 func createEncryptedStorageIfNotExists() (string, bool, error) {
-	storageFileExists, err := fileExists(cfg.storageFilePath)
+	storageFileExists, err := fileExists(Cfg.storageFilePath)
 	if err != nil {
 		return "", false, err
 	}

@@ -5,21 +5,53 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/pelletier/go-toml"
 )
 
 type StorageCfg struct {
 	storagePath     string
 	storageFilePath string
 	storageFileName string
+	ConfigFileName  string
 }
 
-var cfg = StorageCfg{
+var Cfg = StorageCfg{
 	storageFileName: "storage.psw",
+	ConfigFileName:  "pswcfg.toml",
+}
+
+type Config struct {
+	Psw PswConfig `toml:"psw"`
+}
+
+type PswConfig struct {
+	StorageDir       string `toml:"storage_dir"`
+	ClipboardTimeout int    `toml:"clipboard_timeout"`
+}
+
+func LoadConfig(path string) (*Config, error) {
+	file, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("error reading config file: %w", err)
+	}
+
+	var config Config
+	if err := toml.Unmarshal(file, &config); err != nil {
+		return nil, fmt.Errorf("error parsing config file: %w", err)
+	}
+
+	return &config, nil
 }
 
 func init() {
-	// todo: instead of env var will use confing file
-	err := setStoragePaths(os.Getenv("PSW_STORAGE_DIR"))
+	config, err := LoadConfig(Cfg.ConfigFileName)
+	if err != nil {
+		fmt.Println("Failed to load configuration:", err)
+		os.Exit(1)
+	}
+
+	err = setStoragePaths(config.Psw.StorageDir)
 	if err != nil {
 		fmt.Println(err.Error())
 		os.Exit(1)
@@ -38,21 +70,21 @@ func setStoragePaths(path string) error {
 	}
 
 	var err error
-	cfg.storagePath, err = expandPathWithHomePrefix(path)
+	Cfg.storagePath, err = expandPathWithHomePrefix(path)
 	if err != nil {
 		return err
 	}
 
-	err = ensureDirExists(cfg.storagePath)
+	err = ensureDirExists(Cfg.storagePath)
 	if err != nil {
 		return err
 	}
 
-	if cfg.storageFileName == "" {
+	if Cfg.storageFileName == "" {
 		return errors.New("Error when setting storage paths, storage file name is not set")
 	}
 
-	cfg.storageFilePath = filepath.Join(cfg.storagePath, cfg.storageFileName)
+	Cfg.storageFilePath = filepath.Join(Cfg.storagePath, Cfg.storageFileName)
 
 	return nil
 }

@@ -13,11 +13,11 @@ import (
 )
 
 func EncryptStringToStorage(plainText, password string) error {
-	return encryptStringToFile(cfg.storageFilePath, plainText, password)
+	return encryptStringToFile(Cfg.storageFilePath, plainText, password)
 }
 
 func DecryptStringFromStorage(password string) (string, error) {
-	return decryptStringFromFile(cfg.storageFilePath, password)
+	return decryptStringFromFile(Cfg.storageFilePath, password)
 }
 
 func generateSha256Key(password string) []byte {
