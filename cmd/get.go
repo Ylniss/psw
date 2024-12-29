@@ -18,13 +18,7 @@ var (
 )
 
 func init() {
-	config, err := strg.LoadConfig()
-	if err != nil {
-		fmt.Println("Failed to load configuration:", err)
-		os.Exit(1)
-	}
-
-	clipDuration = config.Psw.ClipboardTimeout
+	clipDuration = strg.AppConfig.Psw.ClipboardTimeout
 	getCmd.Flags().BoolVarP(&revealFlag, "reveal", "r", false, "reveal secret inside terminal")
 	rootCmd.AddCommand(getCmd)
 }

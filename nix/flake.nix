@@ -21,6 +21,7 @@
       pkgs = import nixpkgs {inherit system;};
       version = builtins.readFile ../VERSION;
       vendorFile = ../gomod2nix.toml;
+      src = ../.;
       vendorHash = "sha256-neC5tZA4/9KrfhV9T83IiDF0PbQ+ZSWED6Ql4j1G07Y=";
 
       nativeDeps = with pkgs; [
@@ -32,21 +33,17 @@
       packages.psw = pkgs.buildGoModule {
         pname = "psw";
         inherit version;
-        src = ../.;
+        inherit src;
         modules = vendorFile;
         inherit vendorHash;
         nativeBuildInputs = nativeDeps;
-
-        postInstall = ''
-          ln -sf ${../pswcfg.toml} $out/bin/pswcfg.toml
-        '';
       };
 
       # Package for clipclean binary
       packages.clipclean = pkgs.buildGoModule {
         pname = "clipclean";
         inherit version;
-        src = ../.;
+        inherit src;
         modules = vendorFile;
         subPackages = ["clipclean"];
         inherit vendorHash;

@@ -46,3 +46,20 @@ func fileExists(path string) (bool, error) {
 
 	return false, fmt.Errorf("Error when checking if file %s exists:\n%w", path, err)
 }
+
+func moveFile(src, dst string) error {
+	input, err := os.ReadFile(src)
+	if err != nil {
+		return fmt.Errorf("failed to read source file: %w", err)
+	}
+
+	if err := os.WriteFile(dst, input, 0644); err != nil {
+		return fmt.Errorf("failed to write file to destination: %w", err)
+	}
+
+	if err := os.Remove(src); err != nil {
+		return fmt.Errorf("failed to remove source file: %w", err)
+	}
+
+	return nil
+}
