@@ -44,9 +44,9 @@ jobs:
         env:
           VERSION: ${{ env.version }}
         run: |
-          tar -czvf ./bin/psw-${VERSION}.tar.gz -C ./bin psw clipclean
+          tar -czvf ./bin/psw-${VERSION}.tar.gz -C ./bin psw clipclean *.toml
           rm ./bin/psw ./bin/clipclean ./bin/*.toml
-  
+
       - name: Create GitHub Release and Upload Assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -39,7 +39,7 @@ func init() {
 		os.Exit(1)
 	}
 
-	err := loadConfig()
+	err = loadConfig()
 	if err != nil {
 		fmt.Println("Failed to load configuration:", err.Error())
 		os.Exit(1)
@@ -80,22 +80,32 @@ func setStoragePaths(path string) error {
 func loadConfig() error {
 	Cfg.configFilePath = filepath.Join(Cfg.storagePath, Cfg.configFileName)
 
-	if !fileExists(Cfg.configFilePath) {
-		binPath, err := os.Executable()
-		if err != nil {
-			return fmt.Errorf("unable to determine executable path: %w", err)
-		}
-		binDir := filepath.Dir(binPath)
-		binConfigPath := filepath.Join(binDir, Cfg.configFileName)
+	exists, err := fileExists(Cfg.configFilePath)
+	if err != nil {
+		return fmt.Errorf("error checking config file existence: %w", err)
+	}
+	if exists {
+		return nil
+	}
 
-		if !fileExists(binConfigPath) {
-			return errors.New("config file does not exist in the binary location")
-		}
+	binPath, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("unable to determine executable path: %w", err)
+	}
+	binDir := filepath.Dir(binPath)
+	binConfigPath := filepath.Join(binDir, Cfg.configFileName)
 
-		// Move the file to the target location
-		if err := moveFile(binConfigPath, Cfg.configFilePath); err != nil {
-			return fmt.Errorf("failed to move config file: %w", err)
-		}
+	exists, err = fileExists(binConfigPath)
+	if err != nil {
+		return fmt.Errorf("error checking binary config file existence: %w", err)
+	}
+	if !exists {
+		return errors.New("config file does not exist in the binary location")
+	}
+
+	// Move the file to the target location
+	if err := moveFile(binConfigPath, Cfg.configFilePath); err != nil {
+		return fmt.Errorf("failed to move config file: %w", err)
 	}
 
 	file, err := os.ReadFile(Cfg.configFilePath)
