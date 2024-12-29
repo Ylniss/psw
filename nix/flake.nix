@@ -21,7 +21,7 @@
       pkgs = import nixpkgs {inherit system;};
       version = builtins.readFile ../VERSION;
       vendorFile = ../gomod2nix.toml;
-      vendorHash = "sha256-6/O2NGJQue4w2DLAGEZ1PZt2dCx9yrqLWZ9Ld7+BwFk=";
+      vendorHash = "sha256-neC5tZA4/9KrfhV9T83IiDF0PbQ+ZSWED6Ql4j1G07Y=";
 
       nativeDeps = with pkgs; [
         go
