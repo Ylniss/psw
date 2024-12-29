@@ -16,6 +16,6 @@ var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print the version number of psw",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println(fmt.Sprintf("psw v", Version))
+		fmt.Println(fmt.Sprintf("psw v%s", Version))
 	},
 }

@@ -11,9 +11,7 @@ import (
 	"github.com/ylniss/psw/strg"
 )
 
-var (
-	revealFlag bool
-)
+var revealFlag bool
 
 func init() {
 	getCmd.Flags().BoolVarP(&revealFlag, "reveal", "r", false, "reveal secret inside terminal")
