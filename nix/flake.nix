@@ -19,7 +19,7 @@
   }:
     flake-utils.lib.eachDefaultSystem (system: let
       pkgs = import nixpkgs {inherit system;};
-      version = "0.7";
+      version = "0.8";
       vendorFile = ../gomod2nix.toml;
       vendorHash = "sha256-6/O2NGJQue4w2DLAGEZ1PZt2dCx9yrqLWZ9Ld7+BwFk=";
 
