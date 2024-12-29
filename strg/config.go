@@ -3,9 +3,10 @@ package strg
 import (
 	"errors"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"os"
 	"path/filepath"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/pelletier/go-toml"
 )
@@ -81,7 +82,13 @@ func loadConfig() error {
 	if err != nil {
 		return fmt.Errorf("error checking config file existence: %w", err)
 	}
+
 	if exists {
+		err = readConfigFile()
+		if err != nil {
+			return fmt.Errorf("error while reading config file: %w", err)
+		}
+
 		return nil
 	}
 
@@ -101,9 +108,18 @@ func loadConfig() error {
 	}
 
 	if err := copyFile(binConfigPath, Cfg.configFilePath); err != nil {
-		return fmt.Errorf("failed to move config file: %w", err)
+		return fmt.Errorf("failed to copy config file from %s to %s: %w", binConfigPath, Cfg.configFilePath, err)
 	}
 
+	err = readConfigFile()
+	if err != nil {
+		return fmt.Errorf("error while reading config file: %w", err)
+	}
+
+	return nil
+}
+
+func readConfigFile() error {
 	file, err := os.ReadFile(Cfg.configFilePath)
 	if err != nil {
 		return fmt.Errorf("error reading config file: %w", err)
