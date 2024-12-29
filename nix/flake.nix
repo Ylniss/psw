@@ -19,10 +19,15 @@
   }:
     flake-utils.lib.eachDefaultSystem (system: let
       pkgs = import nixpkgs {inherit system;};
-      version = builtins.readFile ../VERSION;
+      lib = pkgs.lib;
+
+      removeWhitespacesFunc = str: lib.strings.replaceStrings [" " "\t" "\n" "\r"] ["" "" "" ""] str;
+      rawVersion = builtins.readFile ../VERSION;
+      version = removeWhitespacesFunc rawVersion;
+
       vendorFile = ../gomod2nix.toml;
-      src = ../.;
       vendorHash = "sha256-neC5tZA4/9KrfhV9T83IiDF0PbQ+ZSWED6Ql4j1G07Y=";
+      src = ../.;
 
       nativeDeps = with pkgs; [
         go
@@ -37,6 +42,7 @@
         modules = vendorFile;
         inherit vendorHash;
         nativeBuildInputs = nativeDeps;
+        ldflags = ["-X 'github.com/ylniss/psw/cmd.Version=${version}'"];
 
         postInstall = ''
           cp ${../pswcfg-template.toml} $out/bin/pswcfg.toml
