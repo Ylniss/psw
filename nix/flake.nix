@@ -39,7 +39,7 @@
         nativeBuildInputs = nativeDeps;
 
         postInstall = ''
-          cp ${../pswcfg.toml} $out/bin/pswcfg.toml
+          cp ${../pswcfg-template.toml} $out/bin/pswcfg.toml
         '';
       };
 

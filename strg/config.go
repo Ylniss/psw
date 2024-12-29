@@ -104,7 +104,7 @@ func loadConfig() error {
 	}
 
 	// Move the file to the target location
-	if err := moveFile(binConfigPath, Cfg.configFilePath); err != nil {
+	if err := copyFile(binConfigPath, Cfg.configFilePath); err != nil {
 		return fmt.Errorf("failed to move config file: %w", err)
 	}
 
