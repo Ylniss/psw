@@ -3,22 +3,21 @@ package strg
 import (
 	"errors"
 	"fmt"
+	"github.com/pelletier/go-toml"
 	"os"
 	"path/filepath"
-
-	"github.com/pelletier/go-toml"
 )
 
 type StorageCfg struct {
 	storagePath     string
 	storageFilePath string
 	storageFileName string
-	ConfigFileName  string
+	configFileName  string
 }
 
 var Cfg = StorageCfg{
 	storageFileName: "storage.psw",
-	ConfigFileName:  "pswcfg.toml",
+	configFileName:  "pswcfg.toml",
 }
 
 type Config struct {
@@ -26,11 +25,12 @@ type Config struct {
 }
 
 type PswConfig struct {
-	StorageDir       string `toml:"storage_dir"`
-	ClipboardTimeout int    `toml:"clipboard_timeout"`
+	ClipboardTimeout int `toml:"clipboard_timeout"`
 }
 
-func LoadConfig(path string) (*Config, error) {
+func LoadConfig() (*Config, error) {
+	path := filepath.Join(Cfg.storageFilePath, "pswcfg.toml")
+
 	file, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("error reading config file: %w", err)
@@ -45,13 +45,7 @@ func LoadConfig(path string) (*Config, error) {
 }
 
 func init() {
-	config, err := LoadConfig(Cfg.ConfigFileName)
-	if err != nil {
-		fmt.Println("Failed to load configuration:", err)
-		os.Exit(1)
-	}
-
-	err = setStoragePaths(config.Psw.StorageDir)
+	err := setStoragePaths("")
 	if err != nil {
 		fmt.Println(err.Error())
 		os.Exit(1)

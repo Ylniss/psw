@@ -18,7 +18,7 @@ var (
 )
 
 func init() {
-	config, err := strg.LoadConfig(strg.Cfg.ConfigFileName)
+	config, err := strg.LoadConfig()
 	if err != nil {
 		fmt.Println("Failed to load configuration:", err)
 		os.Exit(1)

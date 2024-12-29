@@ -1,3 +1,2 @@
 [psw]
-storage_dir = "~/.psw/"
 clipboard_timeout = 20  # duration in seconds
