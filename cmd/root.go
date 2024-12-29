@@ -28,13 +28,9 @@ The initial interaction with any command prompts the setup of this main password
 you can customize the storage file's default directory by setting the PSW_STORAGE_DIR environment variable
 in your shell configuration file.`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		if verboseFlag {
-			log.SetLevel(log.DebugLevel)
-		} else {
-			log.SetLevel(log.InfoLevel)
-		}
-
+		setupLogger()
 		log.Debug("App started\n")
+		strg.InitConfig()
 	},
 	Run: func(cmd *cobra.Command, args []string) {
 		// list all record names on 'psw' command
@@ -65,7 +61,7 @@ func Execute() {
 	log.Debug("App finished\n")
 }
 
-func SetupLogger() {
+func setupLogger() {
 	log.SetFormatter(&easy.Formatter{
 		TimestampFormat: "2006-01-02 15:04:05",
 		LogFormat:       "%time% [%lvl%]: %msg%",

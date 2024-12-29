@@ -6,6 +6,5 @@ import (
 )
 
 func main() {
-	cmd.SetupLogger()
 	cmd.Execute()
 }

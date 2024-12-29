@@ -2,6 +2,10 @@ package cmd
 
 import (
 	"fmt"
+	"io/ioutil"
+	"log"
+	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -9,6 +13,15 @@ import (
 var Version string
 
 func init() {
+	versionFilePath := filepath.Join("..", "VERSION")
+
+	content, err := ioutil.ReadFile(versionFilePath)
+	if err != nil {
+		log.Fatalf("Failed to read version file: %v", err)
+	}
+
+	Version = strings.TrimSpace(string(content))
+
 	rootCmd.AddCommand(versionCmd)
 }
 

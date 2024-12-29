@@ -30,8 +30,8 @@ type Config struct {
 
 var AppConfig Config
 
-func init() {
-	err := setStoragePaths("")
+func InitConfig() {
+	err := setStoragePath()
 	if err != nil {
 		fmt.Println(err.Error())
 		os.Exit(1)
@@ -44,18 +44,15 @@ func init() {
 	}
 }
 
-func setStoragePaths(path string) error {
-	if path == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return fmt.Errorf("Error while retrieving home directory:\n%w", err)
-		}
-
-		// by default fallback to ~/.psw as a storage directory
-		path = filepath.Join(home, ".psw")
+func setStoragePath() error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("Error while retrieving home directory:\n%w", err)
 	}
 
-	var err error
+	// by default fallback to ~/.psw as a storage directory
+	path := filepath.Join(home, ".psw")
+
 	Cfg.storagePath, err = expandPathWithHomePrefix(path)
 	if err != nil {
 		return err
@@ -67,7 +64,7 @@ func setStoragePaths(path string) error {
 	}
 
 	if Cfg.storageFileName == "" {
-		return errors.New("error when setting storage paths, storage file name is not set")
+		return errors.New("error when setting storage path, storage file name is not set")
 	}
 
 	Cfg.storageFilePath = filepath.Join(Cfg.storagePath, Cfg.storageFileName)
