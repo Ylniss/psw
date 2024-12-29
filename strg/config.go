@@ -3,6 +3,7 @@ package strg
 import (
 	"errors"
 	"fmt"
+	log "github.com/sirupsen/logrus"
 	"os"
 	"path/filepath"
 
@@ -111,6 +112,8 @@ func loadConfig() error {
 	if err := toml.Unmarshal(file, &AppConfig); err != nil {
 		return fmt.Errorf("error parsing config file: %w", err)
 	}
+
+	log.Debugf("Config loaded: %#v\n", AppConfig)
 
 	return nil
 }

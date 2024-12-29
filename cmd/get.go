@@ -12,12 +12,10 @@ import (
 )
 
 var (
-	revealFlag   bool
-	clipDuration int
+	revealFlag bool
 )
 
 func init() {
-	clipDuration = strg.AppConfig.ClipboardTimeout
 	getCmd.Flags().BoolVarP(&revealFlag, "reveal", "r", false, "reveal secret inside terminal")
 	rootCmd.AddCommand(getCmd)
 }
@@ -31,6 +29,8 @@ Arguments:
 	Args:  cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		storage, err := strg.GetOrCreateIfNotExists()
+		clipDuration := strg.AppConfig.ClipboardTimeout
+
 		if err != nil {
 			fmt.Println(err.Error())
 			return
@@ -90,6 +90,10 @@ Arguments:
 		}
 
 		syscmd := exec.Command("clipclean", fmt.Sprint(clipDuration))
-		syscmd.Start()
+		err = syscmd.Start()
+		if err != nil {
+			fmt.Println(fmt.Sprintf("clipclean error: %s", err.Error()))
+			return
+		}
 	},
 }
