@@ -17,7 +17,7 @@ build:
 	fi
 
 install: build
-	go install
+	go install -ldflags="-X 'github.com/ylniss/psw/cmd.Version=$(VERSION)'" 
 	go install ./clipclean
 
 # Clean up build artifacts
