@@ -22,15 +22,11 @@ var Cfg = StorageCfg{
 	configFileName:  "pswcfg.toml",
 }
 
-var AppConfig *Config
-
 type Config struct {
-	Psw PswConfig `toml:"psw"`
-}
-
-type PswConfig struct {
 	ClipboardTimeout int `toml:"clipboard_timeout"`
 }
+
+var AppConfig Config
 
 func init() {
 	err := setStoragePaths("")
@@ -103,7 +99,6 @@ func loadConfig() error {
 		return errors.New("config file does not exist in the binary location")
 	}
 
-	// Move the file to the target location
 	if err := copyFile(binConfigPath, Cfg.configFilePath); err != nil {
 		return fmt.Errorf("failed to move config file: %w", err)
 	}

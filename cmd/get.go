@@ -17,7 +17,7 @@ var (
 )
 
 func init() {
-	clipDuration = strg.AppConfig.Psw.ClipboardTimeout
+	clipDuration = strg.AppConfig.ClipboardTimeout
 	getCmd.Flags().BoolVarP(&revealFlag, "reveal", "r", false, "reveal secret inside terminal")
 	rootCmd.AddCommand(getCmd)
 }
