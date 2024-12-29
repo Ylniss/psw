@@ -37,6 +37,10 @@
         modules = vendorFile;
         inherit vendorHash;
         nativeBuildInputs = nativeDeps;
+
+        postInstall = ''
+          cp ${../pswcfg.toml} $out/bin/
+        '';
       };
 
       # Package for clipclean binary
