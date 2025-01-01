@@ -34,7 +34,7 @@ func expandPathWithHomePrefix(path string) (string, error) {
 	return path, nil
 }
 
-func fileExists(path string) (bool, error) {
+func pathExists(path string) (bool, error) {
 	_, err := os.Stat(path)
 	if err == nil {
 		return true, nil

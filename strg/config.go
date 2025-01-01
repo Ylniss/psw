@@ -75,7 +75,7 @@ func setStoragePath() error {
 func loadConfig() error {
 	Cfg.configFilePath = filepath.Join(Cfg.storagePath, Cfg.configFileName)
 
-	exists, err := fileExists(Cfg.configFilePath)
+	exists, err := pathExists(Cfg.configFilePath)
 	if err != nil {
 		return fmt.Errorf("error checking config file existence: %w", err)
 	}
@@ -96,7 +96,7 @@ func loadConfig() error {
 	binDir := filepath.Dir(binPath)
 	binConfigPath := filepath.Join(binDir, Cfg.configFileName)
 
-	exists, err = fileExists(binConfigPath)
+	exists, err = pathExists(binConfigPath)
 	if err != nil {
 		return fmt.Errorf("error checking binary config file existence: %w", err)
 	}

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -98,6 +99,11 @@ func GetOrCreateIfNotExists() (*Storage, error) {
 		return nil, err
 	}
 
+	err = initGitRepoIfNotExists()
+	if err != nil {
+		return nil, err
+	}
+
 	// when storage already exists, prompt for password to access
 	if !created && mainPass == "" {
 		mainPass, err = prmpt.PromptForMainPass(false)
@@ -157,10 +163,51 @@ func getRecords(storageJson string) ([]Record, error) {
 	return records, nil
 }
 
+func initGitRepoIfNotExists() error {
+	// Check if git is installed
+	if _, err := exec.LookPath("git"); err != nil {
+		fmt.Println(color.InRed("git is not installed. It is not recommended to use psw with storage outside of git repository"))
+		return nil
+	}
+
+	gitRepoExists, err := pathExists(filepath.Join(Cfg.storagePath, ".git"))
+	if err != nil {
+		return err
+	}
+
+	if gitRepoExists {
+		return nil
+	}
+
+	fmt.Printf(color.InGreen("Initilizing git repository in %s\n"), Cfg.storagePath)
+
+	cmd := exec.Command("git", "init")
+	cmd.Dir = Cfg.storagePath
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("Failed to run git init:\n%w", err)
+	}
+
+	cmd = exec.Command("git", "add", ".")
+	cmd.Dir = Cfg.storagePath
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("Failed to run git add:\n%w", err)
+	}
+
+	fmt.Println(color.InGreen("Making initial commit with main password set for storage"))
+
+	cmd = exec.Command("git", "commit", "--message=initial main password set")
+	cmd.Dir = Cfg.storagePath
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("Failed to run git commit:\n%w", err)
+	}
+
+	return nil
+}
+
 // returns true and password used to create storage if created storage
 // or false with empty string when error occured or storage already existed
 func createEncryptedStorageIfNotExists() (string, bool, error) {
-	storageFileExists, err := fileExists(Cfg.storageFilePath)
+	storageFileExists, err := pathExists(Cfg.storageFilePath)
 	if err != nil {
 		return "", false, err
 	}
