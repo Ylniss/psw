@@ -131,6 +131,10 @@ func Get(mainPass string) (*Storage, error) {
 }
 
 func GetRecordNameWithFzf(names []string) (string, error) {
+	if len(names) == 1 {
+		return names[0], nil
+	}
+
 	// Check if fzf is installed
 	if _, err := exec.LookPath("fzf"); err != nil {
 		return "", fmt.Errorf("fzf is not installed. Please install fzf to use this feature")
