@@ -17,11 +17,13 @@ type StorageCfg struct {
 	storageFileName string
 	configFilePath  string
 	configFileName  string
+	gitRepoExists   bool
 }
 
 var Cfg = StorageCfg{
 	storageFileName: "storage.psw",
 	configFileName:  "pswcfg.toml",
+	gitRepoExists:   false,
 }
 
 type Config struct {

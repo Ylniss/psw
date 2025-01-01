@@ -106,6 +106,8 @@ Arguments:
 		} else {
 			fmt.Printf("Username/password set successfuly in %s record\n", color.InGreen(recordName))
 		}
+
+		strg.GitCommit("added new record")
 	},
 }
 

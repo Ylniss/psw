@@ -65,5 +65,6 @@ Arguments:
 		}
 
 		fmt.Printf("Record %s successfully removed", color.InGreen(recordName))
+		strg.GitCommit("record removed")
 	},
 }

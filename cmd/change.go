@@ -25,8 +25,10 @@ Arguments:
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) == 1 && args[0] == "main" {
 			changeMainPass()
+			strg.GitCommit("main password changed")
 		} else {
 			changeRecord(args)
+			strg.GitCommit("record updated")
 		}
 	},
 }
