@@ -34,30 +34,23 @@
         gomod2nix.packages.${system}.default
       ];
     in {
-      # Package for the main application
-      packages.psw = pkgs.buildGoModule {
+  packages.psw = pkgs.buildGoModule {
         pname = "psw";
         inherit version;
         inherit src;
         modules = vendorFile;
         inherit vendorHash;
         nativeBuildInputs = nativeDeps;
-        ldflags = ["-X 'github.com/ylniss/psw/cmd.Version=${version}'"];
+
+        subPackages = [
+          "."          # for `psw`
+          "clipclean"  # for `clipclean`
+        ];
 
         postInstall = ''
+          mkdir -p $out/bin
           cp ${../pswcfg-template.toml} $out/bin/pswcfg.toml
         '';
-      };
-
-      # Package for clipclean binary
-      packages.clipclean = pkgs.buildGoModule {
-        pname = "clipclean";
-        inherit version;
-        inherit src;
-        modules = vendorFile;
-        subPackages = ["clipclean"];
-        inherit vendorHash;
-        nativeBuildInputs = nativeDeps;
       };
 
       devShells.default = pkgs.mkShell {

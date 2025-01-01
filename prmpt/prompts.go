@@ -3,11 +3,12 @@ package prmpt
 import (
 	"errors"
 	"fmt"
+	"os"
+
 	"github.com/TwiN/go-color"
 	"github.com/cqroot/prompt"
 	"github.com/cqroot/prompt/input"
 	"github.com/eiannone/keyboard"
-	"os"
 )
 
 var (
@@ -56,13 +57,38 @@ func YesOrNo(question string) bool {
 	}
 }
 
+func PromptForMainPassChange() (string, error) {
+	// when changing password by default ensure if new is correct (first true arg)
+	return promptForMainPass(true, true)
+}
+
 func PromptForMainPass(ensure bool) (string, error) {
+	return promptForMainPass(ensure, false)
+}
+
+func promptForMainPass(ensure bool, mainPassChange bool) (string, error) {
 	mainPass := "*"
 	repeatMainPass := ""
 
+	getFirstAskText := func(mainPassChange bool) string {
+		if mainPassChange {
+			return "New main password"
+		} else {
+			return "Main password"
+		}
+	}
+
+	getRepeatAskText := func(mainPassChange bool) string {
+		if mainPassChange {
+			return "Repeat new main password"
+		} else {
+			return "Repeat main password"
+		}
+	}
+
 	var err error
 	for mainPass != repeatMainPass || errors.Is(err, errMainPassLen) { // ask until passwords match and is valid length
-		mainPass, err = prompt.New().Ask("Main password").
+		mainPass, err = prompt.New().Ask(getFirstAskText(mainPassChange)).
 			Input("", input.WithEchoMode(input.EchoPassword), input.WithValidateFunc(validateMainPassLen))
 		if err != nil {
 			if errors.Is(err, prompt.ErrUserQuit) {
@@ -81,7 +107,7 @@ func PromptForMainPass(ensure bool) (string, error) {
 			return mainPass, nil
 		}
 
-		repeatMainPass, err = prompt.New().Ask("Repeat main password").
+		repeatMainPass, err = prompt.New().Ask(getRepeatAskText(mainPassChange)).
 			Input("", input.WithEchoMode(input.EchoPassword), input.WithValidateFunc(validateMainPassLen))
 		if err != nil {
 			if errors.Is(err, prompt.ErrUserQuit) {

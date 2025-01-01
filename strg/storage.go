@@ -29,6 +29,15 @@ func (s *Storage) GetNames() []string {
 	return lo.Map(s.Records, func(r Record, _ int) string { return r.Name })
 }
 
+type NameAndUser struct {
+	Name string
+	User string
+}
+
+func (s *Storage) GetNamesAndUsers() []NameAndUser {
+	return lo.Map(s.Records, func(r Record, _ int) NameAndUser { return NameAndUser{Name: r.Name, User: r.User} })
+}
+
 func (s *Storage) GetNamesWithPart(namePart string) []string {
 	names := s.GetNames()
 	return lo.FilterMap(names, func(name string, _ int) (string, bool) {
@@ -97,6 +106,10 @@ func GetOrCreateIfNotExists() (*Storage, error) {
 		}
 	}
 
+	return Get(mainPass)
+}
+
+func Get(mainPass string) (*Storage, error) {
 	storageJson, err := DecryptStringFromStorage(mainPass)
 	if err != nil {
 		return nil, err

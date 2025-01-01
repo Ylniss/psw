@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	easy "github.com/t-tomalak/logrus-easy-formatter"
 
@@ -21,12 +22,14 @@ func init() {
 var rootCmd = &cobra.Command{
 	Use: `psw        lists all stored record names
   psw`,
-	Short: "psw is a simple password manager",
-	Long: `psw is a simple password manager that employs AES SHA256 encryption to secure your passwords.
-It consolidates your passwords into a single file, safeguarded by a main password you choose.
-The initial interaction with any command prompts the setup of this main password. For added flexibility,
-you can customize the storage file's default directory by setting the PSW_STORAGE_DIR environment variable
-in your shell configuration file.`,
+	Short: "psw is the simplest password management tool",
+	Long: `psw is a simple password manager that secures your passwords using AES encryption with SHA256.
+
+The directory ~/.psw is created to store all necessary files:
+storage.psw: an encrypted file where your passwords are saved.
+pswcfg.toml: a configuration file for customizing app behavior.
+
+On first use, you’ll set a main password to protect your stored passwords.`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		setupLogger()
 		log.Debug("App started\n")
@@ -40,14 +43,32 @@ in your shell configuration file.`,
 			return
 		}
 
-		names := storage.GetNames()
-		if len(names) == 0 {
+		namesAndUsers := storage.GetNamesAndUsers()
+		if len(namesAndUsers) == 0 {
 			fmt.Printf("No secrets found. Use %s command first.\n", color.InCyan("add"))
 			return
 		}
 
-		for _, name := range names {
-			fmt.Println(color.InGreen(name))
+		longestNameLen := len(lo.MaxBy(namesAndUsers, func(a strg.NameAndUser, b strg.NameAndUser) bool {
+			return len(a.Name) > len(b.Name)
+		}).Name)
+
+		dotsPrinter := func(numOfDots int) string {
+			startString := ""
+			for i := 0; i < numOfDots; i++ {
+				startString += "."
+			}
+			return startString
+		}
+
+		for _, nameAndUser := range namesAndUsers {
+			currentNameLen := len(nameAndUser.Name)
+			dotsToPrint := longestNameLen + 5 - currentNameLen
+			if len(nameAndUser.User) > 0 {
+				fmt.Println(color.InGreen(nameAndUser.Name) + dotsPrinter(dotsToPrint) + color.InYellow("("+nameAndUser.User+")"))
+			} else {
+				fmt.Println(color.InGreen(nameAndUser.Name) + dotsPrinter(dotsToPrint) + color.InCyan("<value only>"))
+			}
 		}
 	},
 }
