@@ -30,13 +30,17 @@ Arguments:
 
 		var recordName string
 		if len(args) == 0 {
-			recordName, err = strg.GetRecordNameWithFzf(storage)
+			recordName, err = strg.GetRecordNameWithFzf(storage.GetNames())
 			if err != nil {
 				fmt.Println(err.Error())
 				return
 			}
 		} else {
-			recordName = args[0]
+			recordName, err = strg.GetRecordNameWithFzf(storage.GetNamesWithPart(args[0]))
+			if err != nil {
+				fmt.Println(err.Error())
+				return
+			}
 		}
 
 		if recordName == "main" {

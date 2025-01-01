@@ -29,6 +29,13 @@ func (s *Storage) GetNames() []string {
 	return lo.Map(s.Records, func(r Record, _ int) string { return r.Name })
 }
 
+func (s *Storage) GetNamesWithPart(namePart string) []string {
+	names := s.GetNames()
+	return lo.FilterMap(names, func(name string, _ int) (string, bool) {
+		return name, strings.Contains(name, namePart)
+	})
+}
+
 func (s *Storage) AddRecord(r *Record) {
 	s.Records = append(s.Records, *r)
 
@@ -105,16 +112,16 @@ func GetOrCreateIfNotExists() (*Storage, error) {
 	return &storage, nil
 }
 
-func GetRecordNameWithFzf(storage *Storage) (string, error) {
+func GetRecordNameWithFzf(names []string) (string, error) {
 	// Check if fzf is installed
 	if _, err := exec.LookPath("fzf"); err != nil {
-		return "", fmt.Errorf("fzf is not installed. Please install fzf to use this feature or use 'psw get <name>' instead")
+		return "", fmt.Errorf("fzf is not installed. Please install fzf to use this feature")
 	}
 
 	cmd := exec.Command("fzf")
 
 	var input bytes.Buffer
-	input.WriteString(strings.Join(storage.GetNames(), "\n"))
+	input.WriteString(strings.Join(names, "\n"))
 	cmd.Stdin = &input
 
 	var output bytes.Buffer
