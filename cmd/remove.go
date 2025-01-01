@@ -64,7 +64,11 @@ Arguments:
 			return
 		}
 
-		fmt.Printf("Record %s successfully removed", color.InGreen(recordName))
-		strg.GitCommit("record removed")
+		fmt.Printf("Record %s successfully removed\n", color.InGreen(recordName))
+		err = strg.GitSync("record removed")
+		if err != nil {
+			fmt.Println(err.Error())
+			return
+		}
 	},
 }

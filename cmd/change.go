@@ -23,12 +23,19 @@ Arguments:
 	Short: "Change chosen record data",
 	Args:  cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
+		var err error
+
 		if len(args) == 1 && args[0] == "main" {
 			changeMainPass()
-			strg.GitCommit("main password changed")
+			err = strg.GitSync("main password changed")
 		} else {
 			changeRecord(args)
-			strg.GitCommit("record updated")
+			err = strg.GitSync("record updated")
+		}
+
+		if err != nil {
+			fmt.Println(err.Error())
+			return
 		}
 	},
 }
@@ -164,5 +171,5 @@ func changeRecord(args []string) {
 		return
 	}
 
-	fmt.Printf(color.InGreen("Record updated\n"))
+	fmt.Println(color.InGreen("Record updated"))
 }

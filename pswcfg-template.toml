@@ -1,1 +1,5 @@
-clipboard_timeout = 20  # duration in seconds
+clipboard_timeout = 20 # duration in seconds
+
+[git]
+sync = false # Enable or disable automatic push/pull synchronization on data changes.
+url = ""     # Add the URL of your .psw repository here. For HTTPS, set an authentication token using 'config gitauth <YOUR_AUTH_TOKEN>' (securely stored in password storage).

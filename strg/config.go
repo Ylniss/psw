@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 
@@ -18,6 +19,7 @@ type StorageCfg struct {
 	configFilePath  string
 	configFileName  string
 	gitRepoExists   bool
+	gitSyncAuthType string
 }
 
 var Cfg = StorageCfg{
@@ -26,8 +28,14 @@ var Cfg = StorageCfg{
 	gitRepoExists:   false,
 }
 
+type GitConfig struct {
+	Sync bool   `toml:"sync"`
+	Url  string `toml:"url"`
+}
+
 type Config struct {
-	ClipboardTimeout int `toml:"clipboard_timeout"`
+	ClipboardTimeout int       `toml:"clipboard_timeout"`
+	Git              GitConfig `toml:"git"`
 }
 
 var AppConfig Config
@@ -52,7 +60,7 @@ func setStoragePath() error {
 		return fmt.Errorf("Error while retrieving home directory:\n%w", err)
 	}
 
-	// by default fallback to ~/.psw as a storage directory
+	// by default set ~/.psw as a storage directory, in future maybe could be set by env variable
 	path := filepath.Join(home, ".psw")
 
 	Cfg.storagePath, err = expandPathWithHomePrefix(path)
@@ -129,6 +137,18 @@ func readConfigFile() error {
 	}
 
 	log.Debugf("Config loaded: %#v\n", AppConfig)
+
+	gitUrl := AppConfig.Git.Url
+
+	if strings.HasPrefix(gitUrl, "https") {
+		Cfg.gitSyncAuthType = GitAuthType.Https
+	} else if strings.HasPrefix(gitUrl, "git@") {
+		Cfg.gitSyncAuthType = GitAuthType.Ssh
+	} else if strings.Contains(gitUrl, ":") && !strings.Contains(gitUrl, "://") {
+		Cfg.gitSyncAuthType = GitAuthType.Ssh
+	} else {
+		Cfg.gitSyncAuthType = GitAuthType.Unknown
+	}
 
 	return nil
 }
