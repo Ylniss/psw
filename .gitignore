@@ -30,3 +30,6 @@ go.work
 # Nix build artifacts
 /nix/result
 
+# Local planning notes (anything ending in plan.md)
+*plan.md
+
