@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/TwiN/go-color"
@@ -16,11 +17,17 @@ import (
 var (
 	singleValFlag bool
 	genPassFlag   bool
+	addUserFlag   string
+	addPassFlag   string
+	addValueFlag  string
 )
 
 func init() {
 	addCmd.Flags().BoolVarP(&singleValFlag, "single", "s", false, "add single value into a record instead of username/password")
 	addCmd.Flags().BoolVarP(&genPassFlag, "generate", "g", false, "auto generate random password")
+	addCmd.Flags().StringVarP(&addUserFlag, "username", "u", "", "username (skips username prompt)")
+	addCmd.Flags().StringVar(&addPassFlag, "password", "", "password (skips password prompt)")
+	addCmd.Flags().StringVar(&addValueFlag, "value", "", "value for --single records (skips value prompt)")
 	rootCmd.AddCommand(addCmd)
 }
 
@@ -39,6 +46,28 @@ Arguments:
 				color.InCyan("--generate"),
 				color.InCyan("--generate"))
 			return
+		}
+
+		userSet := cmd.Flags().Changed("username")
+		passSet := cmd.Flags().Changed("password")
+		valSet := cmd.Flags().Changed("value")
+
+		if singleValFlag && (userSet || passSet) {
+			fmt.Printf("Flags %s and %s cannot be combined with %s.\n",
+				color.InCyan("--username"),
+				color.InCyan("--password"),
+				color.InCyan("--single"))
+			os.Exit(1)
+		}
+		if valSet && !singleValFlag {
+			fmt.Printf("Flag %s requires %s.\n", color.InCyan("--value"), color.InCyan("--single"))
+			os.Exit(1)
+		}
+		if passSet && genPassFlag {
+			fmt.Printf("Flags %s and %s cannot be used together.\n",
+				color.InCyan("--password"),
+				color.InCyan("--generate"))
+			os.Exit(1)
 		}
 
 		storage, err := strg.GetOrCreateIfNotExists()
@@ -64,24 +93,39 @@ Arguments:
 		}
 
 		if singleValFlag {
-			recordVal, err := prmpt.PromptForName("Value")
-			if err != nil {
-				fmt.Println(err.Error())
-				return
+			var recordVal string
+			if valSet {
+				recordVal = addValueFlag
+			} else {
+				recordVal, err = prmpt.PromptForName("Value")
+				if err != nil {
+					fmt.Println(err.Error())
+					return
+				}
 			}
 
 			storage.AddRecord(&strg.Record{Name: recordName, Value: recordVal})
 		} else {
-			recordUser, err := prmpt.PromptForName("Username")
-			if err != nil {
-				fmt.Println(err.Error())
-				return
+			var recordUser string
+			if userSet {
+				recordUser = addUserFlag
+			} else {
+				recordUser, err = prmpt.PromptForName("Username")
+				if err != nil {
+					fmt.Println(err.Error())
+					return
+				}
 			}
 
-			recordPass, err := getOrGenerateRecordPass()
-			if err != nil {
-				fmt.Println(err.Error())
-				return
+			var recordPass string
+			if passSet {
+				recordPass = addPassFlag
+			} else {
+				recordPass, err = getOrGenerateRecordPass()
+				if err != nil {
+					fmt.Println(err.Error())
+					return
+				}
 			}
 
 			storage.AddRecord(&strg.Record{Name: recordName, User: recordUser, Pass: recordPass})
