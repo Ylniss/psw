@@ -67,6 +67,19 @@ func PromptForMainPass(ensure bool) (string, error) {
 }
 
 func promptForMainPass(ensure bool, mainPassChange bool) (string, error) {
+	// Env-var override for tests/scripting. Bypasses ensure/double-confirm
+	// since the env var is inherently authoritative.
+	envVar := "PSW_MAIN_PASSWORD"
+	if mainPassChange {
+		envVar = "PSW_NEW_MAIN_PASSWORD"
+	}
+	if envPass := os.Getenv(envVar); envPass != "" {
+		if err := validateMainPassLen(envPass); err != nil {
+			return "", fmt.Errorf("%s: %w", envVar, err)
+		}
+		return envPass, nil
+	}
+
 	mainPass := "*"
 	repeatMainPass := ""
 
