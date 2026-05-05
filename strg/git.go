@@ -2,6 +2,7 @@ package strg
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 
@@ -9,6 +10,11 @@ import (
 )
 
 func initGitRepoIfNotExists() error {
+	// PSW_GIT=0 opts out of git init/commit (intended for tests/scripting)
+	if os.Getenv("PSW_GIT") == "0" {
+		return nil
+	}
+
 	// Check if git is installed
 	if _, err := exec.LookPath("git"); err != nil {
 		fmt.Println(color.InRed("git is not installed. It is not recommended to use psw with storage outside of git repository"))
@@ -41,6 +47,10 @@ func initGitRepoIfNotExists() error {
 }
 
 func GitCommit(message string) error {
+	if os.Getenv("PSW_GIT") == "0" {
+		return nil
+	}
+
 	if !Cfg.gitRepoExists {
 		return nil
 	}
