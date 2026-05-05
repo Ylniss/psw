@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/TwiN/go-color"
 	log "github.com/sirupsen/logrus"
@@ -10,10 +11,20 @@ import (
 	"github.com/ylniss/psw/strg"
 )
 
-var changeExactFlag bool
+var (
+	changeExactFlag  bool
+	changeRenameFlag string
+	changeUserFlag   string
+	changePassFlag   string
+	changeValueFlag  string
+)
 
 func init() {
 	changeCmd.Flags().BoolVarP(&changeExactFlag, "exact", "e", false, "exact name match; skip fzf and substring search")
+	changeCmd.Flags().StringVar(&changeRenameFlag, "rename", "", "new record name (skips rename y/n + prompt)")
+	changeCmd.Flags().StringVarP(&changeUserFlag, "username", "u", "", "new username (skips username y/n + prompt)")
+	changeCmd.Flags().StringVar(&changePassFlag, "password", "", "new password (skips password y/n + prompt)")
+	changeCmd.Flags().StringVar(&changeValueFlag, "value", "", "new value for value-only records (skips value y/n + prompt)")
 	rootCmd.AddCommand(changeCmd)
 }
 
@@ -27,10 +38,15 @@ Arguments:
 	Args:  cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) == 1 && args[0] == "main" {
+			if cmd.Flags().Changed("rename") || cmd.Flags().Changed("username") ||
+				cmd.Flags().Changed("password") || cmd.Flags().Changed("value") {
+				fmt.Println("Record-level flags (--rename/--username/--password/--value) are not valid with 'change main'")
+				os.Exit(1)
+			}
 			changeMainPass()
 			strg.GitCommit("main password changed")
 		} else {
-			changeRecord(args)
+			changeRecord(cmd, args)
 			strg.GitCommit("record updated")
 		}
 	},
@@ -73,7 +89,16 @@ func changeMainPass() {
 	return
 }
 
-func changeRecord(args []string) {
+func changeRecord(cmd *cobra.Command, args []string) {
+	renameSet := cmd.Flags().Changed("rename")
+	userSet := cmd.Flags().Changed("username")
+	passSet := cmd.Flags().Changed("password")
+	valSet := cmd.Flags().Changed("value")
+
+	// If any field flag was passed, switch to non-interactive mode: only
+	// touch the fields whose flag is set; leave the rest unchanged.
+	anyFlagSet := renameSet || userSet || passSet || valSet
+
 	storage, err := strg.GetOrCreateIfNotExists()
 	if err != nil {
 		fmt.Println(err.Error())
@@ -94,50 +119,79 @@ func changeRecord(args []string) {
 		return
 	}
 
-	if yes := prmpt.YesOrNo("Do you want to change record name?"); yes {
-		newName, err := prmpt.PromptForName("New name")
-		if err != nil {
-			fmt.Println(err.Error())
+	if (userSet || passSet) && record.Value != "" {
+		fmt.Printf("Record %s is value-only; --username/--password not applicable\n", color.InGreen(recordName))
+		os.Exit(1)
+	}
+	if valSet && record.Value == "" {
+		fmt.Printf("Record %s is user/pass; --value not applicable\n", color.InGreen(recordName))
+		os.Exit(1)
+	}
+
+	if renameSet {
+		if storage.Exists(changeRenameFlag) {
+			fmt.Printf("Record with name %s already exists\n", color.InGreen(changeRenameFlag))
 			return
 		}
+		record.Name = changeRenameFlag
+	} else if !anyFlagSet {
+		if yes := prmpt.YesOrNo("Do you want to change record name?"); yes {
+			newName, err := prmpt.PromptForName("New name")
+			if err != nil {
+				fmt.Println(err.Error())
+				return
+			}
 
-		if storage.Exists(newName) {
-			fmt.Printf("Record with name %s already exists\n", color.InGreen(newName))
-			return
+			if storage.Exists(newName) {
+				fmt.Printf("Record with name %s already exists\n", color.InGreen(newName))
+				return
+			}
+
+			record.Name = newName
 		}
-
-		record.Name = newName
 	}
 
 	if record.Value == "" {
-		if yes := prmpt.YesOrNo("Do you want to change username?"); yes {
-			newUser, err := prmpt.PromptForName("New username")
-			if err != nil {
-				fmt.Println(err.Error())
-				return
-			}
+		if userSet {
+			record.User = changeUserFlag
+		} else if !anyFlagSet {
+			if yes := prmpt.YesOrNo("Do you want to change username?"); yes {
+				newUser, err := prmpt.PromptForName("New username")
+				if err != nil {
+					fmt.Println(err.Error())
+					return
+				}
 
-			record.User = newUser
+				record.User = newUser
+			}
 		}
 
-		if yes := prmpt.YesOrNo("Do you want to change password?"); yes {
-			newPass, err := prmpt.PromptForRecordPass()
-			if err != nil {
-				fmt.Println(err.Error())
-				return
-			}
+		if passSet {
+			record.Pass = changePassFlag
+		} else if !anyFlagSet {
+			if yes := prmpt.YesOrNo("Do you want to change password?"); yes {
+				newPass, err := prmpt.PromptForRecordPass()
+				if err != nil {
+					fmt.Println(err.Error())
+					return
+				}
 
-			record.Pass = newPass
+				record.Pass = newPass
+			}
 		}
 	} else {
-		if yes := prmpt.YesOrNo("Do you want to change value?"); yes {
-			newValue, err := prmpt.PromptForName("New value")
-			if err != nil {
-				fmt.Println(err.Error())
-				return
-			}
+		if valSet {
+			record.Value = changeValueFlag
+		} else if !anyFlagSet {
+			if yes := prmpt.YesOrNo("Do you want to change value?"); yes {
+				newValue, err := prmpt.PromptForName("New value")
+				if err != nil {
+					fmt.Println(err.Error())
+					return
+				}
 
-			record.Value = newValue
+				record.Value = newValue
+			}
 		}
 	}
 
