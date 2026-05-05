@@ -128,70 +128,20 @@ func changeRecord(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	if renameSet {
-		if storage.Exists(changeRenameFlag) {
-			fmt.Printf("Record with name %s already exists\n", color.InGreen(changeRenameFlag))
-			return
-		}
-		record.Name = changeRenameFlag
-	} else if !anyFlagSet {
-		if yes := prmpt.YesOrNo("Do you want to change record name?"); yes {
-			newName, err := prmpt.PromptForName("New name")
-			if err != nil {
-				fmt.Println(err.Error())
-				return
-			}
-
-			if storage.Exists(newName) {
-				fmt.Printf("Record with name %s already exists\n", color.InGreen(newName))
-				return
-			}
-
-			record.Name = newName
-		}
+	if !applyOrPromptRename(&record, storage, renameSet, anyFlagSet) {
+		return
 	}
 
 	if record.Value == "" {
-		if userSet {
-			record.User = changeUserFlag
-		} else if !anyFlagSet {
-			if yes := prmpt.YesOrNo("Do you want to change username?"); yes {
-				newUser, err := prmpt.PromptForName("New username")
-				if err != nil {
-					fmt.Println(err.Error())
-					return
-				}
-
-				record.User = newUser
-			}
+		if !applyOrPromptUsername(&record, userSet, anyFlagSet) {
+			return
 		}
-
-		if passSet {
-			record.Pass = changePassFlag
-		} else if !anyFlagSet {
-			if yes := prmpt.YesOrNo("Do you want to change password?"); yes {
-				newPass, err := prmpt.PromptForRecordPass()
-				if err != nil {
-					fmt.Println(err.Error())
-					return
-				}
-
-				record.Pass = newPass
-			}
+		if !applyOrPromptPassword(&record, passSet, anyFlagSet) {
+			return
 		}
 	} else {
-		if valSet {
-			record.Value = changeValueFlag
-		} else if !anyFlagSet {
-			if yes := prmpt.YesOrNo("Do you want to change value?"); yes {
-				newValue, err := prmpt.PromptForName("New value")
-				if err != nil {
-					fmt.Println(err.Error())
-					return
-				}
-
-				record.Value = newValue
-			}
+		if !applyOrPromptValue(&record, valSet, anyFlagSet) {
+			return
 		}
 	}
 
@@ -212,4 +162,95 @@ func changeRecord(cmd *cobra.Command, args []string) {
 	}
 
 	fmt.Printf(color.InGreen("Record updated\n"))
+}
+
+// applyOrPromptRename returns false when the caller should abort (error or
+// duplicate name); true means the field has been processed (either set,
+// skipped via flag-mode, or the user declined the prompt).
+func applyOrPromptRename(record *strg.Record, storage *strg.Storage, flagSet, anyFlagSet bool) bool {
+	if flagSet {
+		if storage.Exists(changeRenameFlag) {
+			fmt.Printf("Record with name %s already exists\n", color.InGreen(changeRenameFlag))
+			return false
+		}
+		record.Name = changeRenameFlag
+		return true
+	}
+	if anyFlagSet {
+		return true
+	}
+	if !prmpt.YesOrNo("Do you want to change record name?") {
+		return true
+	}
+	newName, err := prmpt.PromptForName("New name")
+	if err != nil {
+		fmt.Println(err.Error())
+		return false
+	}
+	if storage.Exists(newName) {
+		fmt.Printf("Record with name %s already exists\n", color.InGreen(newName))
+		return false
+	}
+	record.Name = newName
+	return true
+}
+
+func applyOrPromptUsername(record *strg.Record, flagSet, anyFlagSet bool) bool {
+	if flagSet {
+		record.User = changeUserFlag
+		return true
+	}
+	if anyFlagSet {
+		return true
+	}
+	if !prmpt.YesOrNo("Do you want to change username?") {
+		return true
+	}
+	newUser, err := prmpt.PromptForName("New username")
+	if err != nil {
+		fmt.Println(err.Error())
+		return false
+	}
+	record.User = newUser
+	return true
+}
+
+func applyOrPromptPassword(record *strg.Record, flagSet, anyFlagSet bool) bool {
+	if flagSet {
+		record.Pass = changePassFlag
+		return true
+	}
+	if anyFlagSet {
+		return true
+	}
+	if !prmpt.YesOrNo("Do you want to change password?") {
+		return true
+	}
+	newPass, err := prmpt.PromptForRecordPass()
+	if err != nil {
+		fmt.Println(err.Error())
+		return false
+	}
+	record.Pass = newPass
+	return true
+}
+
+func applyOrPromptValue(record *strg.Record, flagSet, anyFlagSet bool) bool {
+	if flagSet {
+		record.Value = changeValueFlag
+		return true
+	}
+	if anyFlagSet {
+		return true
+	}
+	if !prmpt.YesOrNo("Do you want to change value?") {
+		return true
+	}
+	newValue, err := prmpt.PromptForName("New value")
+	if err != nil {
+		fmt.Println(err.Error())
+		return false
+	}
+	record.Value = newValue
+	return true
 }

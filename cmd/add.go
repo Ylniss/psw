@@ -93,41 +93,23 @@ Arguments:
 		}
 
 		if singleValFlag {
-			var recordVal string
-			if valSet {
-				recordVal = addValueFlag
-			} else {
-				recordVal, err = prmpt.PromptForName("Value")
-				if err != nil {
-					fmt.Println(err.Error())
-					return
-				}
+			recordVal, err := getOrPromptValue(valSet)
+			if err != nil {
+				fmt.Println(err.Error())
+				return
 			}
-
 			storage.AddRecord(&strg.Record{Name: recordName, Value: recordVal})
 		} else {
-			var recordUser string
-			if userSet {
-				recordUser = addUserFlag
-			} else {
-				recordUser, err = prmpt.PromptForName("Username")
-				if err != nil {
-					fmt.Println(err.Error())
-					return
-				}
+			recordUser, err := getOrPromptUsername(userSet)
+			if err != nil {
+				fmt.Println(err.Error())
+				return
 			}
-
-			var recordPass string
-			if passSet {
-				recordPass = addPassFlag
-			} else {
-				recordPass, err = getOrGenerateRecordPass()
-				if err != nil {
-					fmt.Println(err.Error())
-					return
-				}
+			recordPass, err := getOrPromptPassword(passSet)
+			if err != nil {
+				fmt.Println(err.Error())
+				return
 			}
-
 			storage.AddRecord(&strg.Record{Name: recordName, User: recordUser, Pass: recordPass})
 		}
 
@@ -156,32 +138,36 @@ Arguments:
 }
 
 func getRecordName(args []string) (string, error) {
-	var recordName string
-	var err error
-	if len(args) == 0 {
-		recordName, err = prmpt.PromptForName("Record name")
-		if err != nil {
-			return "", err
-		}
-	} else {
-		recordName = args[0]
+	if len(args) > 0 {
+		return args[0], nil
 	}
-	return recordName, nil
+	return prmpt.PromptForName("Record name")
+}
+
+func getOrPromptUsername(flagSet bool) (string, error) {
+	if flagSet {
+		return addUserFlag, nil
+	}
+	return prmpt.PromptForName("Username")
+}
+
+func getOrPromptPassword(flagSet bool) (string, error) {
+	if flagSet {
+		return addPassFlag, nil
+	}
+	return getOrGenerateRecordPass()
+}
+
+func getOrPromptValue(flagSet bool) (string, error) {
+	if flagSet {
+		return addValueFlag, nil
+	}
+	return prmpt.PromptForName("Value")
 }
 
 func getOrGenerateRecordPass() (string, error) {
-	var recordPass string
-	var err error
-
 	if genPassFlag {
-		recordPass, err = passgen.Generate(16, 4, 6, false, true)
-	} else {
-		recordPass, err = prmpt.PromptForRecordPass()
+		return passgen.Generate(16, 4, 6, false, true)
 	}
-
-	if err != nil {
-		return "", err
-	}
-
-	return recordPass, nil
+	return prmpt.PromptForRecordPass()
 }
