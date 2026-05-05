@@ -73,3 +73,42 @@ The single-candidate short-circuit is intentional — prevents confirming a forc
 - Errors mostly surfaced by `fmt.Println(err.Error())` + `return`; no central handler. Match surrounding style.
 - `log.Debugf` (logrus) gated by `--verbose`/`-v` — the only place secret-adjacent data may log; never `fmt.Println` raw passwords.
 - Add subcommand: create `cmd/<name>.go` with a `*cobra.Command` and `rootCmd.AddCommand(...)` in `init()`.
+
+## Testing / scripting mode
+
+The CLI can be driven without any TUI prompts. Combine the env vars and flags below to run unattended.
+
+### Env vars
+
+- `PSW_HOME=<path>` — override storage dir (default `~/.psw`). Tests get a fresh `t.TempDir()` per case.
+- `PSW_MAIN_PASSWORD=<str>` — supplies the main password; bypasses the prompt and the double-confirm during vault creation. Length-validated (≥4); too short fails loudly instead of falling back to a prompt.
+- `PSW_NEW_MAIN_PASSWORD=<str>` — supplies the new main password for `change main`. Same validation as above.
+- `PSW_GIT=0` — skip auto `git init` and per-mutation `git commit` in the storage dir. Default behavior unchanged when unset.
+
+Caveat: env-var passwords are visible in `/proc/<pid>/environ`. Fine for tests/ephemeral scripts; not recommended for daily use. (We deliberately do not add a `--password` CLI flag — that would expose the password in `ps` output.)
+
+### Flags
+
+| Command  | Flag                              | Effect                                                              |
+|----------|-----------------------------------|---------------------------------------------------------------------|
+| `get`    | `--exact` / `-e`                  | Require literal name match; skip fzf and substring search           |
+| `get`    | `--stdout`                        | Print raw secret to stdout (pass for user/pass, value for value-only); skip clipboard and clipclean |
+| `add`    | `--username <s>` / `-u`           | Seed username; skip its prompt                                      |
+| `add`    | `--password <s>`                  | Seed password; skip its prompt. Mutually exclusive with `--generate` |
+| `add`    | `--value <s>`                     | Seed value (requires `--single`); skip its prompt                   |
+| `change` | `--exact` / `-e`                  | Require literal name match                                          |
+| `change` | `--rename <s>`                    | Set new name; skip rename y/n + prompt                              |
+| `change` | `--username <s>` / `-u`           | Set username; skip y/n + prompt (errors on value-only records)      |
+| `change` | `--password <s>`                  | Set password; skip y/n + prompt (errors on value-only records)      |
+| `change` | `--value <s>`                     | Set value; skip y/n + prompt (errors on user/pass records)          |
+| `remove` | `--exact` / `-e`                  | Require literal name match                                          |
+
+`change` quirk: when **any** of `--rename/--username/--password/--value` is passed, all unset-field y/n prompts are skipped too (those fields stay unchanged). This lets `change foo --password=new --exact` run unattended without prompting about rename, username, etc.
+
+### Exit codes
+
+Most existing error paths print and `return` (exit 0). The new scripting paths exit 1 explicitly:
+- `--exact` with missing arg or unknown name
+- `add` flag mutual-exclusion violations
+- `change` with field flag that doesn't match the record type
+- `change main` with record-level flags
