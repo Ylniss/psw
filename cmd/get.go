@@ -11,10 +11,14 @@ import (
 	"github.com/ylniss/psw/strg"
 )
 
-var revealFlag bool
+var (
+	revealFlag   bool
+	getExactFlag bool
+)
 
 func init() {
 	getCmd.Flags().BoolVarP(&revealFlag, "reveal", "r", false, "reveal secret inside terminal")
+	getCmd.Flags().BoolVarP(&getExactFlag, "exact", "e", false, "exact name match; skip fzf and substring search")
 	rootCmd.AddCommand(getCmd)
 }
 
@@ -34,19 +38,10 @@ Arguments:
 			return
 		}
 
-		var recordName string
-		if len(args) == 0 {
-			recordName, err = strg.GetRecordNameWithFzf(storage.GetNames())
-			if err != nil {
-				fmt.Println(err.Error())
-				return
-			}
-		} else {
-			recordName, err = strg.GetRecordNameWithFzf(storage.GetNamesWithPart(args[0]))
-			if err != nil {
-				fmt.Println(err.Error())
-				return
-			}
+		recordName, err := resolveRecordName(storage, args, getExactFlag)
+		if err != nil {
+			fmt.Println(err.Error())
+			return
 		}
 
 		record, isFound := storage.GetRecord(recordName)

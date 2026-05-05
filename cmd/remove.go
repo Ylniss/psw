@@ -9,7 +9,10 @@ import (
 	"github.com/ylniss/psw/strg"
 )
 
+var removeExactFlag bool
+
 func init() {
+	removeCmd.Flags().BoolVarP(&removeExactFlag, "exact", "e", false, "exact name match; skip fzf and substring search")
 	rootCmd.AddCommand(removeCmd)
 }
 
@@ -28,19 +31,10 @@ Arguments:
 			return
 		}
 
-		var recordName string
-		if len(args) == 0 {
-			recordName, err = strg.GetRecordNameWithFzf(storage.GetNames())
-			if err != nil {
-				fmt.Println(err.Error())
-				return
-			}
-		} else {
-			recordName, err = strg.GetRecordNameWithFzf(storage.GetNamesWithPart(args[0]))
-			if err != nil {
-				fmt.Println(err.Error())
-				return
-			}
+		recordName, err := resolveRecordName(storage, args, removeExactFlag)
+		if err != nil {
+			fmt.Println(err.Error())
+			return
 		}
 
 		if !storage.Exists(recordName) {
