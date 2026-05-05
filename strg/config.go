@@ -47,14 +47,20 @@ func InitConfig() {
 }
 
 func setStoragePath() error {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return fmt.Errorf("Error while retrieving home directory:\n%w", err)
+	var path string
+
+	// PSW_HOME overrides default storage dir (intended for tests/scripting)
+	if envHome := os.Getenv("PSW_HOME"); envHome != "" {
+		path = envHome
+	} else {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return fmt.Errorf("Error while retrieving home directory:\n%w", err)
+		}
+		path = filepath.Join(home, ".psw")
 	}
 
-	// by default fallback to ~/.psw as a storage directory
-	path := filepath.Join(home, ".psw")
-
+	var err error
 	Cfg.storagePath, err = expandPathWithHomePrefix(path)
 	if err != nil {
 		return err
