@@ -12,13 +12,15 @@ import (
 )
 
 var (
-	revealFlag   bool
-	getExactFlag bool
+	revealFlag    bool
+	getExactFlag  bool
+	getStdoutFlag bool
 )
 
 func init() {
 	getCmd.Flags().BoolVarP(&revealFlag, "reveal", "r", false, "reveal secret inside terminal")
 	getCmd.Flags().BoolVarP(&getExactFlag, "exact", "e", false, "exact name match; skip fzf and substring search")
+	getCmd.Flags().BoolVar(&getStdoutFlag, "stdout", false, "print secret to stdout instead of clipboard (no labels, no color)")
 	rootCmd.AddCommand(getCmd)
 }
 
@@ -50,6 +52,15 @@ Arguments:
 
 		if !isFound {
 			fmt.Printf("Record %s was not found\n", color.InGreen(recordName))
+			return
+		}
+
+		if getStdoutFlag {
+			if record.Value == "" {
+				fmt.Println(record.Pass)
+			} else {
+				fmt.Println(record.Value)
+			}
 			return
 		}
 
