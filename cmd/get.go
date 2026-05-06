@@ -32,19 +32,19 @@ Arguments:
   name    Optional name of the record to get. If omitted, you'll be prompted to select a record with fzf`,
 	Short: "Get secrets from record with specified name",
 	Args:  cobra.MaximumNArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		storage, err := strg.GetOrCreateIfNotExists()
 		clipDuration := strg.AppConfig.ClipboardTimeout
 
 		if err != nil {
 			fmt.Println(err.Error())
-			return
+			return nil
 		}
 
 		recordName, err := resolveRecordName(storage, args, getExactFlag)
 		if err != nil {
 			fmt.Println(err.Error())
-			return
+			return nil
 		}
 
 		record, isFound := storage.GetRecord(recordName)
@@ -53,7 +53,7 @@ Arguments:
 
 		if !isFound {
 			fmt.Printf("Record %s was not found\n", color.InGreen(recordName))
-			return
+			return nil
 		}
 
 		if getStdoutFlag {
@@ -62,7 +62,7 @@ Arguments:
 			} else {
 				fmt.Println(record.Value)
 			}
-			return
+			return nil
 		}
 
 		// Print and copy to clipboard user & pass or value,
@@ -71,7 +71,7 @@ Arguments:
 			err = clipboard.WriteAll(record.Pass)
 			if err != nil {
 				fmt.Println(fmt.Sprintf("Failed to copy value to clipboard: %s", err.Error()))
-				return
+				return nil
 			}
 
 			fmt.Println("Username")
@@ -87,7 +87,7 @@ Arguments:
 			err = clipboard.WriteAll(record.Value)
 			if err != nil {
 				fmt.Println(fmt.Sprintf("Failed to copy value to clipboard: %s", err.Error()))
-				return
+				return nil
 			}
 
 			fmt.Println("Value")
@@ -102,7 +102,8 @@ Arguments:
 		err = syscmd.Start()
 		if err != nil {
 			fmt.Println(fmt.Sprintf("clipclean error: %s", err.Error()))
-			return
+			return nil
 		}
+		return nil
 	},
 }

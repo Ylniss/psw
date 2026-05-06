@@ -80,17 +80,22 @@ func setStoragePath() error {
 func loadConfig() error {
 	Cfg.configFilePath = filepath.Join(Cfg.storagePath, Cfg.configFileName)
 
+	if err := ensureUserConfig(); err != nil {
+		return err
+	}
+
+	if err := readConfigFile(); err != nil {
+		return fmt.Errorf("error while reading config file: %w", err)
+	}
+	return nil
+}
+
+func ensureUserConfig() error {
 	exists, err := pathExists(Cfg.configFilePath)
 	if err != nil {
 		return fmt.Errorf("error checking config file existence: %w", err)
 	}
-
 	if exists {
-		err = readConfigFile()
-		if err != nil {
-			return fmt.Errorf("error while reading config file: %w", err)
-		}
-
 		return nil
 	}
 
@@ -98,26 +103,19 @@ func loadConfig() error {
 	if err != nil {
 		return fmt.Errorf("unable to determine executable path: %w", err)
 	}
-	binDir := filepath.Dir(binPath)
-	binConfigPath := filepath.Join(binDir, Cfg.configFileName)
+	binConfigPath := filepath.Join(filepath.Dir(binPath), Cfg.configFileName)
 
-	exists, err = pathExists(binConfigPath)
+	binExists, err := pathExists(binConfigPath)
 	if err != nil {
 		return fmt.Errorf("error checking binary config file existence: %w", err)
 	}
-	if !exists {
+	if !binExists {
 		return errors.New("config file does not exist in the binary location")
 	}
 
 	if err := copyFile(binConfigPath, Cfg.configFilePath); err != nil {
 		return fmt.Errorf("failed to copy config file from %s to %s: %w", binConfigPath, Cfg.configFilePath, err)
 	}
-
-	err = readConfigFile()
-	if err != nil {
-		return fmt.Errorf("error while reading config file: %w", err)
-	}
-
 	return nil
 }
 

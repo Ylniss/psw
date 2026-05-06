@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"log/slog"
@@ -40,13 +39,13 @@ Arguments:
 	Short: "Add new record with secrets",
 	Long:  `Add username/password or a value that will be stored in a record with provided name`,
 	Args:  cobra.MaximumNArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		if singleValFlag && genPassFlag {
 			fmt.Printf("Flags %s and %s cannot be used together. %s works only for passwords.\n",
 				color.InCyan("--single"),
 				color.InCyan("--generate"),
 				color.InCyan("--generate"))
-			os.Exit(1)
+			return errExit
 		}
 
 		userSet := cmd.Flags().Changed("username")
@@ -58,58 +57,58 @@ Arguments:
 				color.InCyan("--username"),
 				color.InCyan("--password"),
 				color.InCyan("--single"))
-			os.Exit(1)
+			return errExit
 		}
 		if valSet && !singleValFlag {
 			fmt.Printf("Flag %s requires %s.\n", color.InCyan("--value"), color.InCyan("--single"))
-			os.Exit(1)
+			return errExit
 		}
 		if passSet && genPassFlag {
 			fmt.Printf("Flags %s and %s cannot be used together.\n",
 				color.InCyan("--password"),
 				color.InCyan("--generate"))
-			os.Exit(1)
+			return errExit
 		}
 
 		storage, err := strg.GetOrCreateIfNotExists()
 		if err != nil {
 			fmt.Println(err.Error())
-			return
+			return nil
 		}
 
 		recordName, err := getRecordName(args)
 		if err != nil {
 			fmt.Println(err.Error())
-			return
+			return nil
 		}
 
 		if strings.ToLower(recordName) == "main" {
 			fmt.Printf("Name %s is reserved. %s command uses it for changing main password\n", color.InGreen("main"), color.InCyan("change"))
-			return
+			return nil
 		}
 
 		if storage.Exists(recordName) {
 			fmt.Printf("Record with name %s already exists\n", color.InGreen(recordName))
-			return
+			return nil
 		}
 
 		if singleValFlag {
 			recordVal, err := getOrPromptValue(valSet)
 			if err != nil {
 				fmt.Println(err.Error())
-				return
+				return nil
 			}
 			storage.AddRecord(&strg.Record{Name: recordName, Value: recordVal})
 		} else {
 			recordUser, err := getOrPromptUsername(userSet)
 			if err != nil {
 				fmt.Println(err.Error())
-				return
+				return nil
 			}
 			recordPass, err := getOrPromptPassword(passSet)
 			if err != nil {
 				fmt.Println(err.Error())
-				return
+				return nil
 			}
 			storage.AddRecord(&strg.Record{Name: recordName, User: recordUser, Pass: recordPass})
 		}
@@ -117,7 +116,7 @@ Arguments:
 		storageJson, err := storage.ToJson()
 		if err != nil {
 			fmt.Println(err.Error())
-			return
+			return nil
 		}
 
 		slog.Debug(fmt.Sprintf("new storage content:\n%s", storageJson))
@@ -125,7 +124,7 @@ Arguments:
 		err = strg.EncryptStringToStorage(storageJson, storage.MainPass)
 		if err != nil {
 			fmt.Println(err.Error())
-			return
+			return nil
 		}
 
 		if singleValFlag {
@@ -135,6 +134,7 @@ Arguments:
 		}
 
 		strg.GitCommit("added new record")
+		return nil
 	},
 }
 

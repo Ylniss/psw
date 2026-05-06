@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -44,6 +45,7 @@ func runPsw(t *testing.T, vault string, args ...string) pswResult {
 }
 
 // extraEnv keys override the helper defaults.
+// Allow-list (not os.Environ()) prevents stray PSW_* leaking into subprocesses.
 func runPswEnv(t *testing.T, vault string, extraEnv map[string]string, args ...string) pswResult {
 	t.Helper()
 	env := map[string]string{
@@ -69,7 +71,8 @@ func runPswEnv(t *testing.T, vault string, extraEnv map[string]string, args ...s
 	err := cmd.Run()
 	code := 0
 	if err != nil {
-		if ee, ok := err.(*exec.ExitError); ok {
+		var ee *exec.ExitError
+		if errors.As(err, &ee) {
 			code = ee.ExitCode()
 		} else {
 			t.Fatalf("running psw %v: %v", args, err)

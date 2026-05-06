@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+	"slices"
 	"sort"
 	"strings"
 
 	color "github.com/TwiN/go-color"
-	"github.com/samber/lo"
 	"github.com/ylniss/psw/prmpt"
 )
 
@@ -26,7 +26,11 @@ type Storage struct {
 }
 
 func (s *Storage) GetNames() []string {
-	return lo.Map(s.Records, func(r Record, _ int) string { return r.Name })
+	names := make([]string, len(s.Records))
+	for i, r := range s.Records {
+		names[i] = r.Name
+	}
+	return names
 }
 
 type NameAndUser struct {
@@ -35,14 +39,21 @@ type NameAndUser struct {
 }
 
 func (s *Storage) GetNamesAndUsers() []NameAndUser {
-	return lo.Map(s.Records, func(r Record, _ int) NameAndUser { return NameAndUser{Name: r.Name, User: r.User} })
+	out := make([]NameAndUser, len(s.Records))
+	for i, r := range s.Records {
+		out[i] = NameAndUser{Name: r.Name, User: r.User}
+	}
+	return out
 }
 
 func (s *Storage) GetNamesWithPart(namePart string) []string {
-	names := s.GetNames()
-	return lo.FilterMap(names, func(name string, _ int) (string, bool) {
-		return name, strings.Contains(name, namePart)
-	})
+	var matched []string
+	for _, name := range s.GetNames() {
+		if strings.Contains(name, namePart) {
+			matched = append(matched, name)
+		}
+	}
+	return matched
 }
 
 func (s *Storage) AddRecord(r *Record) {
@@ -55,32 +66,34 @@ func (s *Storage) AddRecord(r *Record) {
 }
 
 func (s *Storage) GetRecord(name string) (Record, bool) {
-	return lo.Find(s.Records, func(r Record) bool { return r.Name == name })
+	for _, r := range s.Records {
+		if r.Name == name {
+			return r, true
+		}
+	}
+	return Record{}, false
 }
 
 func (s *Storage) UpdateRecord(name string, updatedRecord Record) {
-	records := lo.Map(s.Records, func(r Record, _ int) Record {
-		if r.Name != name {
-			return r
-		} else {
-			return updatedRecord
+	for i, r := range s.Records {
+		if r.Name == name {
+			s.Records[i] = updatedRecord
+			return
 		}
-	})
-
-	s.Records = records
+	}
 }
 
 func (s *Storage) RemoveRecord(name string) {
-	records := lo.Filter(s.Records, func(r Record, _ int) bool {
-		return r.Name != name
-	})
-
-	s.Records = records
+	s.Records = slices.DeleteFunc(s.Records, func(r Record) bool { return r.Name == name })
 }
 
 func (s *Storage) Exists(name string) bool {
-	names := lo.Map(s.GetNames(), func(n string, _ int) string { return strings.ToLower(n) })
-	return lo.Contains(names, strings.ToLower(name))
+	for _, n := range s.GetNames() {
+		if strings.EqualFold(n, name) {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Storage) ToJson() (string, error) {

@@ -25,22 +25,22 @@ Arguments:
 	Short: "Remove chosen record",
 	Long:  `Remove chosen record, all its data will be lost permanently`,
 	Args:  cobra.MaximumNArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		storage, err := strg.GetOrCreateIfNotExists()
 		if err != nil {
 			fmt.Println(err.Error())
-			return
+			return nil
 		}
 
 		recordName, err := resolveRecordName(storage, args, removeExactFlag)
 		if err != nil {
 			fmt.Println(err.Error())
-			return
+			return nil
 		}
 
 		if !storage.Exists(recordName) {
 			fmt.Printf("Record with name %s doesn't exists\n", color.InGreen(recordName))
-			return
+			return nil
 		}
 
 		storage.RemoveRecord(recordName)
@@ -48,7 +48,7 @@ Arguments:
 		storageJson, err := storage.ToJson()
 		if err != nil {
 			fmt.Println(err.Error())
-			return
+			return nil
 		}
 
 		slog.Debug(fmt.Sprintf("new storage content:\n%s", storageJson))
@@ -56,10 +56,11 @@ Arguments:
 		err = strg.EncryptStringToStorage(storageJson, storage.MainPass)
 		if err != nil {
 			fmt.Println(err.Error())
-			return
+			return nil
 		}
 
 		fmt.Printf("Record %s successfully removed", color.InGreen(recordName))
 		strg.GitCommit("record removed")
+		return nil
 	},
 }

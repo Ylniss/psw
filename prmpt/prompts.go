@@ -15,7 +15,6 @@ var (
 	passwordsDontMatchMsg = "Passwords don't match, try again"
 	errMainPassLen        = errors.New("main password must be at least 4 characters long")
 	errRequired           = errors.New("input required")
-	errInvalidYesNo       = errors.New("input must be one of the following: y, yes, n, no")
 )
 
 func validateMainPassLen(content string) error {
@@ -38,6 +37,10 @@ func YesOrNo(question string) bool {
 	fmt.Printf("%s (y/n)\n", question)
 
 	fd := int(os.Stdin.Fd())
+	if !term.IsTerminal(fd) {
+		// Non-TTY stdin: default to "no" for safety.
+		return false
+	}
 	oldState, err := term.MakeRaw(fd)
 	if err != nil {
 		panic(err)
@@ -56,8 +59,8 @@ func YesOrNo(question string) bool {
 			return true
 		case 'n':
 			return false
-		case 0x03: // Ctrl-C — raw mode disables SIGINT, so handle explicitly
-			term.Restore(fd, oldState)
+		case 0x03: // Ctrl-C; raw mode disables SIGINT
+			term.Restore(fd, oldState) // os.Exit skips defer
 			os.Exit(1)
 		}
 	}
@@ -89,25 +92,16 @@ func promptForMainPass(ensure bool, mainPassChange bool) (string, error) {
 	mainPass := "*"
 	repeatMainPass := ""
 
-	getFirstAskText := func(mainPassChange bool) string {
-		if mainPassChange {
-			return "New main password"
-		} else {
-			return "Main password"
-		}
-	}
-
-	getRepeatAskText := func(mainPassChange bool) string {
-		if mainPassChange {
-			return "Repeat new main password"
-		} else {
-			return "Repeat main password"
-		}
+	askText := "Main password"
+	repeatText := "Repeat main password"
+	if mainPassChange {
+		askText = "New main password"
+		repeatText = "Repeat new main password"
 	}
 
 	var err error
 	for mainPass != repeatMainPass || errors.Is(err, errMainPassLen) { // ask until passwords match and is valid length
-		mainPass, err = prompt.New().Ask(getFirstAskText(mainPassChange)).
+		mainPass, err = prompt.New().Ask(askText).
 			Input("", input.WithEchoMode(input.EchoPassword), input.WithValidateFunc(validateMainPassLen))
 		if err != nil {
 			if errors.Is(err, prompt.ErrUserQuit) {
@@ -126,7 +120,7 @@ func promptForMainPass(ensure bool, mainPassChange bool) (string, error) {
 			return mainPass, nil
 		}
 
-		repeatMainPass, err = prompt.New().Ask(getRepeatAskText(mainPassChange)).
+		repeatMainPass, err = prompt.New().Ask(repeatText).
 			Input("", input.WithEchoMode(input.EchoPassword), input.WithValidateFunc(validateMainPassLen))
 		if err != nil {
 			if errors.Is(err, prompt.ErrUserQuit) {

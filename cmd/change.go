@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
 	"log/slog"
 
@@ -37,19 +36,22 @@ Arguments:
           You can also change your main password with this command, just pass 'main' as name`,
 	Short: "Change chosen record data",
 	Args:  cobra.MaximumNArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		if len(args) == 1 && args[0] == "main" {
 			if cmd.Flags().Changed("rename") || cmd.Flags().Changed("username") ||
 				cmd.Flags().Changed("password") || cmd.Flags().Changed("value") {
 				fmt.Println("Record-level flags (--rename/--username/--password/--value) are not valid with 'change main'")
-				os.Exit(1)
+				return errExit
 			}
 			changeMainPass()
 			strg.GitCommit("main password changed")
-		} else {
-			changeRecord(cmd, args)
-			strg.GitCommit("record updated")
+			return nil
 		}
+		if err := changeRecord(cmd, args); err != nil {
+			return err
+		}
+		strg.GitCommit("record updated")
+		return nil
 	},
 }
 
@@ -90,7 +92,7 @@ func changeMainPass() {
 	return
 }
 
-func changeRecord(cmd *cobra.Command, args []string) {
+func changeRecord(cmd *cobra.Command, args []string) error {
 	renameSet := cmd.Flags().Changed("rename")
 	userSet := cmd.Flags().Changed("username")
 	passSet := cmd.Flags().Changed("password")
@@ -103,13 +105,13 @@ func changeRecord(cmd *cobra.Command, args []string) {
 	storage, err := strg.GetOrCreateIfNotExists()
 	if err != nil {
 		fmt.Println(err.Error())
-		return
+		return nil
 	}
 
 	recordName, err := resolveRecordName(storage, args, changeExactFlag)
 	if err != nil {
 		fmt.Println(err.Error())
-		return
+		return nil
 	}
 	record, isFound := storage.GetRecord(recordName)
 
@@ -117,32 +119,32 @@ func changeRecord(cmd *cobra.Command, args []string) {
 
 	if !isFound {
 		fmt.Printf("Record %s was not found\n", color.InGreen(recordName))
-		return
+		return nil
 	}
 
 	if (userSet || passSet) && record.Value != "" {
 		fmt.Printf("Record %s is value-only; --username/--password not applicable\n", color.InGreen(recordName))
-		os.Exit(1)
+		return errExit
 	}
 	if valSet && record.Value == "" {
 		fmt.Printf("Record %s is user/pass; --value not applicable\n", color.InGreen(recordName))
-		os.Exit(1)
+		return errExit
 	}
 
 	if !applyOrPromptRename(&record, storage, renameSet, anyFlagSet) {
-		return
+		return nil
 	}
 
 	if record.Value == "" {
 		if !applyOrPromptUsername(&record, userSet, anyFlagSet) {
-			return
+			return nil
 		}
 		if !applyOrPromptPassword(&record, passSet, anyFlagSet) {
-			return
+			return nil
 		}
 	} else {
 		if !applyOrPromptValue(&record, valSet, anyFlagSet) {
-			return
+			return nil
 		}
 	}
 
@@ -151,7 +153,7 @@ func changeRecord(cmd *cobra.Command, args []string) {
 	storageJson, err := storage.ToJson()
 	if err != nil {
 		fmt.Println(err.Error())
-		return
+		return nil
 	}
 
 	slog.Debug(fmt.Sprintf("updated storage content:\n%s", storageJson))
@@ -159,10 +161,11 @@ func changeRecord(cmd *cobra.Command, args []string) {
 	err = strg.EncryptStringToStorage(storageJson, storage.MainPass)
 	if err != nil {
 		fmt.Println(err.Error())
-		return
+		return nil
 	}
 
 	fmt.Printf(color.InGreen("Record updated\n"))
+	return nil
 }
 
 // applyOrPromptRename returns false when the caller should abort (error or
