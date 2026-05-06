@@ -45,7 +45,7 @@ Arguments:
 				color.InCyan("--single"),
 				color.InCyan("--generate"),
 				color.InCyan("--generate"))
-			return
+			os.Exit(1)
 		}
 
 		userSet := cmd.Flags().Changed("username")
@@ -128,9 +128,9 @@ Arguments:
 		}
 
 		if singleValFlag {
-			fmt.Printf("Value set successfuly in %s record\n", color.InGreen(recordName))
+			fmt.Printf("Value set successfully in %s record\n", color.InGreen(recordName))
 		} else {
-			fmt.Printf("Username/password set successfuly in %s record\n", color.InGreen(recordName))
+			fmt.Printf("Username/password set successfully in %s record\n", color.InGreen(recordName))
 		}
 
 		strg.GitCommit("added new record")

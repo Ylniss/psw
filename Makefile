@@ -1,4 +1,4 @@
-.PHONY: build install clean b i c
+.PHONY: build install clean test b i c t
 
 BIN_DIR := ./bin
 CONFIG_FILE_TEMPLATE := pswcfg-template.toml
@@ -23,8 +23,13 @@ install: build
 # Clean up build artifacts
 clean:
 	@rm -rf $(BIN_DIR)/*
-	
+
+# Run integration tests
+test:
+	go test -v ./tests/...
+
 # Shortcuts
 b: build
 i: install
 c: clean
+t: test
