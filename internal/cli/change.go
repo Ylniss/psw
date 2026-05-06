@@ -1,4 +1,4 @@
-package cmd
+package cli
 
 import (
 	"fmt"
@@ -7,8 +7,8 @@ import (
 
 	"github.com/TwiN/go-color"
 	"github.com/spf13/cobra"
-	"github.com/ylniss/psw/prmpt"
-	"github.com/ylniss/psw/strg"
+	"github.com/ylniss/psw/internal/prmpt"
+	"github.com/ylniss/psw/internal/strg"
 )
 
 var (

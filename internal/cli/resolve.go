@@ -1,11 +1,11 @@
-package cmd
+package cli
 
 import (
 	"fmt"
 	"os"
 
 	"github.com/TwiN/go-color"
-	"github.com/ylniss/psw/strg"
+	"github.com/ylniss/psw/internal/strg"
 )
 
 // resolveRecordName returns the name of the record selected by the user.

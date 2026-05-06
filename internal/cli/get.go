@@ -1,4 +1,4 @@
-package cmd
+package cli
 
 import (
 	"fmt"
@@ -9,7 +9,7 @@ import (
 	"github.com/TwiN/go-color"
 	"github.com/atotto/clipboard"
 	"github.com/spf13/cobra"
-	"github.com/ylniss/psw/strg"
+	"github.com/ylniss/psw/internal/strg"
 )
 
 var (

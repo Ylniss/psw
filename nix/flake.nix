@@ -43,8 +43,8 @@
         nativeBuildInputs = nativeDeps;
 
         subPackages = [
-          "."          # for `psw`
-          "clipclean"  # for `clipclean`
+          "cmd/psw"
+          "cmd/clipclean"
         ];
 
         postInstall = ''

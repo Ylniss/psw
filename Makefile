@@ -7,8 +7,8 @@ VERSION := $(shell cat VERSION | tr -d '[:space:]')
 
 build:
 	go mod tidy
-	go build -ldflags="-X 'github.com/ylniss/psw/cmd.Version=$(VERSION)'" -o $(BIN_DIR)/psw
-	go build -o $(BIN_DIR)/clipclean ./clipclean/
+	go build -ldflags="-X 'github.com/ylniss/psw/internal/cli.Version=$(VERSION)'" -o $(BIN_DIR)/psw ./cmd/psw
+	go build -o $(BIN_DIR)/clipclean ./cmd/clipclean
 	@if [ ! -f $(BIN_DIR)/$(CONFIG_FILE) ]; then \
 		echo "$(CONFIG_FILE) does not exist in $(BIN_DIR). Copying..."; \
 		cp $(CONFIG_FILE_TEMPLATE) $(BIN_DIR)/$(CONFIG_FILE); \
@@ -17,8 +17,8 @@ build:
 	fi
 
 install: build
-	go install -ldflags="-X 'github.com/ylniss/psw/cmd.Version=$(VERSION)'" 
-	go install ./clipclean
+	go install -ldflags="-X 'github.com/ylniss/psw/internal/cli.Version=$(VERSION)'" ./cmd/psw
+	go install ./cmd/clipclean
 
 # Clean up build artifacts
 clean:

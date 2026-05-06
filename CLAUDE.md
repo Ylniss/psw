@@ -1,52 +1,37 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code in this repo.
 
 ## Build & install
 
-Makefile (shortcuts `b`/`i`/`c`):
+- `make build` — builds `./bin/{psw,clipclean}` with `psw` ldflags `-X 'github.com/ylniss/psw/internal/cli.Version=$(VERSION)'` (top-level `VERSION` file = source of truth).
 
-- `make build` — `go mod tidy`, then build `./bin/psw` and `./bin/clipclean`. Copies `pswcfg-template.toml` → `./bin/pswcfg.toml` on first build (skipped if present). `psw` is built with `-ldflags="-X 'github.com/ylniss/psw/cmd.Version=$(VERSION)'"` — top-level `VERSION` file is the source of truth.
-- `make install` — runs `build`, then `go install` for both binaries.
-- `make clean` — wipes `./bin/`.
+Nix flake (`nix/flake.nix`): update `gomod2nix.toml` + `vendorHash` on dep changes.
 
-Nix flake (`nix/flake.nix`) builds both binaries via `gomod2nix` and copies `pswcfg-template.toml` → `$out/bin/pswcfg.toml`. Update `gomod2nix.toml` + `vendorHash` on dep changes.
-
-CI (`.github/workflows/go.yml`): `make build`, sha256 the binaries, package `psw-$VERSION.tar.gz`, create a GitHub release tagged with `VERSION`.
-
-No tests exist (`go test ./...` is a no-op).
+Integration tests under `tests/` (`make test`): `TestMain` builds `psw` once into `t.TempDir`; each test shells out against its own `PSW_HOME=t.TempDir()` vault with `PSW_GIT=0`.
 
 ## Two binaries, one repo
 
-- `psw` (root `main.go` → `cmd.Execute`) is the CLI. `joho/godotenv/autoload` import → `.env` in CWD loaded at startup.
-- `clipclean` (`clipclean/main.go`) is spawned in background by `psw get` after copying a secret. Snapshots clipboard, sleeps `clipboard_timeout` seconds (argv[1]), clears clipboard only if still matches snapshot. Must be on `PATH` for `psw get` — `make install` covers it.
+- `psw` (`cmd/psw/main.go` → `cli.Execute`) — the CLI. `joho/godotenv/autoload` → `.env` in CWD loaded at startup.
+- `clipclean` (`cmd/clipclean/main.go`) — backgrounded by `psw get` to clear clipboard after timeout. Must be on `PATH` (covered by `make install`).
 
 ## Architecture
 
 ### Package layout
 
-- `cmd/` — Cobra commands. Each file self-registers with `rootCmd` via `init()`. `rootCmd` (`root.go`) lists all record names when invoked bare. `PersistentPreRun` calls `setupLogger()` + `strg.InitConfig()`.
-- `strg/` — storage, encryption, config, git, filesys. Package-level singletons populated by `InitConfig`: `Cfg` (paths), `AppConfig` (parsed TOML).
-- `prmpt/` — TUI prompts (cqroot/prompt for inputs, eiannone/keyboard for single-key y/n).
+- `cmd/<binary>/main.go` — entry points. Thin wrappers; real logic under `internal/`.
+- `internal/cli/` — Cobra commands (`package cli`); each file self-registers with `rootCmd` via `init()`. `rootCmd` (`root.go`) lists records when called bare; its `PersistentPreRun` runs `setupLogger()` + `strg.InitConfig()`. `Version` = ldflag target (see Build & install).
+- `internal/strg/` — storage + encryption. `InitConfig` populates package-level singletons `Cfg` (paths) and `AppConfig` (parsed TOML).
+- `internal/prmpt/` — TUI prompts. `YesOrNo` returns `false` on non-TTY stdin (no panic) — scripting-safe.
+- `plans/` — design notes for in-flight or completed reshapes.
 
-### Data dir lifecycle (`~/.psw/`)
+### Data dir (`~/.psw/`)
 
-`strg.InitConfig` (from `rootCmd.PersistentPreRun`):
+`strg.InitConfig` (from `rootCmd.PersistentPreRun`) ensures `~/.psw/` and loads `pswcfg.toml` (seeded from beside the executable on first run — why `make build` copies `pswcfg-template.toml` → `bin/`). On first storage access (`strg.GetOrCreateIfNotExists`), prompts for main password and (if `git` on `PATH`) `git init`s; `Cfg.gitRepoExists` gates per-mutation `GitCommit` calls. No-op when git unavailable.
 
-1. Ensures `~/.psw/` exists.
-2. Loads `~/.psw/pswcfg.toml`; if missing, copies `pswcfg.toml` from beside the executable into `~/.psw/`, then reads it. (Why `make build` seeds `bin/pswcfg.toml` from `pswcfg-template.toml`.)
+### Encryption (`internal/strg/encryption.go`)
 
-On first storage access (`strg.GetOrCreateIfNotExists`):
-
-3. If `~/.psw/storage.psw` missing → prompt for new main password, write encrypted `[]`.
-4. If `~/.psw/.git` missing and `git` on `PATH` → `git init` + initial commit. Missing git → warn, continue. `Cfg.gitRepoExists` gates later commits.
-5. Decrypt storage with main password.
-
-Every successful `add`/`change`/`remove` → `strg.GitCommit(message)` (`git add . && git commit -m <message>` in `~/.psw/`). No-op when git unavailable.
-
-### Encryption (`strg/encryption.go`)
-
-AES-256-GCM, key = `sha256(mainPass)`. Each write: fresh random nonce → prepended to ciphertext → base64 → `storage.psw`. Any decryption failure → `"Wrong password."`. Format changes must keep `EncryptStringToStorage`/`DecryptStringFromStorage` aligned; existing storage becomes unreadable, no migration path.
+AES-256-GCM, key = `sha256(mainPass)`. Each write: fresh nonce → prepended to ciphertext → base64 → `storage.psw`. Decrypt failure → `"Wrong password."`. Format changes must keep `EncryptStringToStorage`/`DecryptStringFromStorage` aligned; existing storage becomes unreadable, no migration.
 
 ### Record model
 
@@ -59,55 +44,35 @@ AES-256-GCM, key = `sha256(mainPass)`. Each write: fresh random nonce → prepen
 
 ### fzf record selection
 
-`get`/`change`/`remove` use `strg.GetRecordNameWithFzf`:
-
-- Positional name given → candidates filtered by substring (`GetNamesWithPart`); else all names.
-- Exactly one candidate → returned without fzf (recent "fzf fix when only 1 obj", commit `2691c58`).
-- Else `fzf` spawned over stdin/stdout; must be on `PATH` or command errors.
-
-The single-candidate short-circuit is intentional — prevents confirming a forced choice. Keep before changing selection logic.
+`get`/`change`/`remove` resolve via `strg.GetRecordNameWithFzf` (`fzf` must be on `PATH`). Single-candidate short-circuit (returned without fzf) is intentional — prevents confirming a forced choice. Keep before changing selection logic.
 
 ## Conventions
 
 - Output colorized via `github.com/TwiN/go-color`: record names green, hints/commands cyan, warnings yellow, errors red.
-- Errors mostly surfaced by `fmt.Println(err.Error())` + `return`; no central handler. Match surrounding style.
-- `log.Debugf` (logrus) gated by `--verbose`/`-v` — the only place secret-adjacent data may log; never `fmt.Println` raw passwords.
-- Add subcommand: create `cmd/<name>.go` with a `*cobra.Command` and `rootCmd.AddCommand(...)` in `init()`.
+- Errors via cobra `RunE`: return `errExit` (empty-message sentinel in `internal/cli/root.go`) → exit 1 without usage dump; `SilenceErrors`/`SilenceUsage` on `rootCmd` keep prior UX (command already printed its colored error). Flag-validation/resolve paths still use `fmt.Println` + `os.Exit(1)`. Match surrounding style.
+- `slog.Debug` gated by `--verbose`/`-v` is the only place secret-adjacent data may log; never `fmt.Println` raw passwords.
+- Add subcommand: create `internal/cli/<name>.go` with a `*cobra.Command` and `rootCmd.AddCommand(...)` in `init()`.
 
 ## Testing / scripting mode
 
-The CLI can be driven without any TUI prompts. Combine the env vars and flags below to run unattended.
+CLI can run unattended (no TUI prompts) via the env vars and flags below.
 
 ### Env vars
 
 - `PSW_HOME=<path>` — override storage dir (default `~/.psw`). Tests get a fresh `t.TempDir()` per case.
-- `PSW_MAIN_PASSWORD=<str>` — supplies the main password; bypasses the prompt and the double-confirm during vault creation. Length-validated (≥4); too short fails loudly instead of falling back to a prompt.
-- `PSW_NEW_MAIN_PASSWORD=<str>` — supplies the new main password for `change main`. Same validation as above.
-- `PSW_GIT=0` — skip auto `git init` and per-mutation `git commit` in the storage dir. Default behavior unchanged when unset.
+- `PSW_MAIN_PASSWORD=<str>` — supplies main password; bypasses prompt + double-confirm on vault creation. Length-validated (≥4); too short fails loudly, no prompt fallback.
+- `PSW_NEW_MAIN_PASSWORD=<str>` — new main password for `change main`. Same validation.
+- `PSW_GIT=0` — skip auto `git init` + per-mutation `git commit` in the storage dir. Default behavior unchanged when unset.
 
-Caveat: env-var passwords are visible in `/proc/<pid>/environ`. Fine for tests/ephemeral scripts; not recommended for daily use. (We deliberately do not add a `--password` CLI flag — that would expose the password in `ps` output.)
+Caveat: env-var passwords visible in `/proc/<pid>/environ`. Fine for tests/ephemeral scripts; not for daily use. No `--password` CLI flag (would expose via `ps`).
 
 ### Flags
 
-| Command  | Flag                              | Effect                                                              |
-|----------|-----------------------------------|---------------------------------------------------------------------|
-| `get`    | `--exact` / `-e`                  | Require literal name match; skip fzf and substring search           |
-| `get`    | `--stdout`                        | Print raw secret to stdout (pass for user/pass, value for value-only); skip clipboard and clipclean |
-| `add`    | `--username <s>` / `-u`           | Seed username; skip its prompt                                      |
-| `add`    | `--password <s>`                  | Seed password; skip its prompt. Mutually exclusive with `--generate` |
-| `add`    | `--value <s>`                     | Seed value (requires `--single`); skip its prompt                   |
-| `change` | `--exact` / `-e`                  | Require literal name match                                          |
-| `change` | `--rename <s>`                    | Set new name; skip rename y/n + prompt                              |
-| `change` | `--username <s>` / `-u`           | Set username; skip y/n + prompt (errors on value-only records)      |
-| `change` | `--password <s>`                  | Set password; skip y/n + prompt (errors on value-only records)      |
-| `change` | `--value <s>`                     | Set value; skip y/n + prompt (errors on user/pass records)          |
-| `remove` | `--exact` / `-e`                  | Require literal name match                                          |
-
-`change` quirk: when **any** of `--rename/--username/--password/--value` is passed, all unset-field y/n prompts are skipped too (those fields stay unchanged). This lets `change foo --password=new --exact` run unattended without prompting about rename, username, etc.
+Per-command flags: `psw <cmd> --help`. Notable quirk: when **any** of `change`'s `--rename/--username/--password/--value` is set, all unset-field y/n prompts are also skipped (those fields stay unchanged). Lets `change foo --password=new --exact` run unattended.
 
 ### Exit codes
 
-Most existing error paths print and `return` (exit 0). The new scripting paths exit 1 explicitly:
+Most error paths print and `return` (exit 0). Scripting paths exit 1 explicitly:
 - `--exact` with missing arg or unknown name
 - `add` flag mutual-exclusion violations
 - `change` with field flag that doesn't match the record type

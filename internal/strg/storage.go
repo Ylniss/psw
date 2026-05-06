@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	color "github.com/TwiN/go-color"
-	"github.com/ylniss/psw/prmpt"
+	"github.com/ylniss/psw/internal/prmpt"
 )
 
 type Record struct {

@@ -32,7 +32,7 @@ func buildAndRun(m *testing.M) (int, error) {
 	defer os.RemoveAll(dir)
 
 	pswBin = filepath.Join(dir, "psw")
-	cmd := exec.Command("go", "build", "-o", pswBin, ".")
+	cmd := exec.Command("go", "build", "-o", pswBin, "./cmd/psw")
 	cmd.Dir = root
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

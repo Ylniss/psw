@@ -1,4 +1,4 @@
-package cmd
+package cli
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 
 	"github.com/TwiN/go-color"
 	"github.com/spf13/cobra"
-	"github.com/ylniss/psw/strg"
+	"github.com/ylniss/psw/internal/strg"
 )
 
 // errExit: caller already printed; signals exit 1. cobra silenced in Execute.
