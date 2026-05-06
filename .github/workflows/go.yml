@@ -20,11 +20,6 @@ jobs:
         with:
           go-version: "1.26"
 
-      - name: Install Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libx11-dev xorg-dev
-
       - name: Extract Version
         id: get_version
         run: |
@@ -41,8 +36,8 @@ jobs:
 
       - name: Generate SHA256 Checksums
         run: |
-          sha256sum ./bin/psw > ./bin/psw.sha256
-          sha256sum ./bin/clipclean > ./bin/clipclean.sha256
+          cd ./bin
+          sha256sum psw clipclean > checksums.txt
 
       - name: Archive Binaries
         env:
@@ -51,11 +46,34 @@ jobs:
           tar -czvf ./bin/psw-${VERSION}.tar.gz -C ./bin psw clipclean pswcfg.toml
           rm ./bin/psw ./bin/clipclean ./bin/*.toml
 
-      - name: Create GitHub Release and Upload Assets
+      - name: Create GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ env.version }}
         run: |
-          gh release create $VERSION ./bin/* \
-            --title "Release $VERSION" \
-            --notes "Package of psw and clipclean binaries."
+          if ! gh release view "$VERSION" >/dev/null 2>&1; then
+            gh release create "$VERSION" \
+              --title "Release $VERSION" \
+              --notes "Package of psw and clipclean binaries."
+          fi
+
+      - name: Upload Release Assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ env.version }}
+        run: |
+          for asset in ./bin/*; do
+            uploaded=false
+            for attempt in 1 2 3; do
+              if gh release upload "$VERSION" "$asset" --clobber; then
+                uploaded=true
+                break
+              fi
+              echo "Upload of $asset failed (attempt $attempt/3); retrying in 5s..."
+              sleep 5
+            done
+            if [ "$uploaded" = false ]; then
+              echo "Upload of $asset failed after 3 attempts" >&2
+              exit 1
+            fi
+          done
