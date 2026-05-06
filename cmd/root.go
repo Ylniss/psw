@@ -1,12 +1,15 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
+	"io"
+	"log/slog"
 	"os"
+	"strings"
+	"sync"
 
 	"github.com/samber/lo"
-	log "github.com/sirupsen/logrus"
-	easy "github.com/t-tomalak/logrus-easy-formatter"
 
 	"github.com/TwiN/go-color"
 	"github.com/spf13/cobra"
@@ -32,7 +35,7 @@ pswcfg.toml: a configuration file for customizing app behavior.
 On first use, you’ll set a main password to protect your stored passwords.`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		setupLogger()
-		log.Debug("App started\n")
+		slog.Debug("App started")
 		strg.InitConfig()
 	},
 	Run: func(cmd *cobra.Command, args []string) {
@@ -75,20 +78,41 @@ On first use, you’ll set a main password to protect your stored passwords.`,
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		log.Debug("App finished with errors\n")
+		slog.Debug("App finished with errors")
 		fmt.Println(err)
 		os.Exit(1)
 	}
-	log.Debug("App finished\n")
+	slog.Debug("App finished")
 }
 
-func setupLogger() {
-	log.SetFormatter(&easy.Formatter{
-		TimestampFormat: "2006-01-02 15:04:05",
-		LogFormat:       "%time% [%lvl%]: %msg%",
-	})
+type easyHandler struct {
+	out   io.Writer
+	level slog.Level
+	mu    sync.Mutex
+}
 
+func (h *easyHandler) Enabled(_ context.Context, level slog.Level) bool {
+	return level >= h.level
+}
+
+func (h *easyHandler) Handle(_ context.Context, r slog.Record) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	_, err := fmt.Fprintf(h.out, "%s [%s]: %s\n",
+		r.Time.Format("2006-01-02 15:04:05"),
+		strings.ToLower(r.Level.String()),
+		strings.TrimRight(r.Message, "\n"),
+	)
+	return err
+}
+
+func (h *easyHandler) WithAttrs(_ []slog.Attr) slog.Handler { return h }
+func (h *easyHandler) WithGroup(_ string) slog.Handler      { return h }
+
+func setupLogger() {
+	level := slog.LevelInfo
 	if verboseFlag {
-		log.SetLevel(log.DebugLevel)
+		level = slog.LevelDebug
 	}
+	slog.SetDefault(slog.New(&easyHandler{out: os.Stderr, level: level}))
 }

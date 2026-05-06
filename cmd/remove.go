@@ -3,8 +3,9 @@ package cmd
 import (
 	"fmt"
 
+	"log/slog"
+
 	"github.com/TwiN/go-color"
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/ylniss/psw/strg"
 )
@@ -50,7 +51,7 @@ Arguments:
 			return
 		}
 
-		log.Debugf("new storage content:\n%s\n", storageJson)
+		slog.Debug(fmt.Sprintf("new storage content:\n%s", storageJson))
 
 		err = strg.EncryptStringToStorage(storageJson, storage.MainPass)
 		if err != nil {

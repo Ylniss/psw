@@ -8,7 +8,7 @@ import (
 	"github.com/TwiN/go-color"
 	"github.com/cqroot/prompt"
 	"github.com/cqroot/prompt/input"
-	"github.com/eiannone/keyboard"
+	"golang.org/x/term"
 )
 
 var (
@@ -37,22 +37,28 @@ func validateRequired(content string) error {
 func YesOrNo(question string) bool {
 	fmt.Printf("%s (y/n)\n", question)
 
-	if err := keyboard.Open(); err != nil {
+	fd := int(os.Stdin.Fd())
+	oldState, err := term.MakeRaw(fd)
+	if err != nil {
 		panic(err)
 	}
-	defer keyboard.Close()
+	defer term.Restore(fd, oldState)
 
+	buf := make([]byte, 1)
 	for {
-		char, _, err := keyboard.GetSingleKey()
-		if err != nil {
+		if _, err := os.Stdin.Read(buf); err != nil {
 			fmt.Println("Error reading key. Please try again.")
 			continue
 		}
 
-		if char == 'y' {
+		switch buf[0] {
+		case 'y':
 			return true
-		} else if char == 'n' {
+		case 'n':
 			return false
+		case 0x03: // Ctrl-C — raw mode disables SIGINT, so handle explicitly
+			term.Restore(fd, oldState)
+			os.Exit(1)
 		}
 	}
 }

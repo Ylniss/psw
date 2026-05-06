@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"os"
 
+	"log/slog"
+
 	"github.com/TwiN/go-color"
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/ylniss/psw/prmpt"
 	"github.com/ylniss/psw/strg"
@@ -112,7 +113,7 @@ func changeRecord(cmd *cobra.Command, args []string) {
 	}
 	record, isFound := storage.GetRecord(recordName)
 
-	log.Debugf("cmd/change - record: %#v\n", record)
+	slog.Debug(fmt.Sprintf("cmd/change - record: %#v", record))
 
 	if !isFound {
 		fmt.Printf("Record %s was not found\n", color.InGreen(recordName))
@@ -153,7 +154,7 @@ func changeRecord(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	log.Debugf("updated storage content:\n%s\n", storageJson)
+	slog.Debug(fmt.Sprintf("updated storage content:\n%s", storageJson))
 
 	err = strg.EncryptStringToStorage(storageJson, storage.MainPass)
 	if err != nil {

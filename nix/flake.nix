@@ -2,7 +2,7 @@
   description = "Flake for psw and clipclean Go binaries";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
     flake-utils.url = "github:numtide/flake-utils";
     gomod2nix = {
       url = "github:nix-community/gomod2nix";
@@ -30,7 +30,7 @@
       src = ../.;
 
       nativeDeps = with pkgs; [
-        go
+        go_1_26
         gomod2nix.packages.${system}.default
       ];
     in {

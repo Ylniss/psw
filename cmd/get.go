@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"os/exec"
 
+	"log/slog"
+
 	"github.com/TwiN/go-color"
 	"github.com/atotto/clipboard"
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/ylniss/psw/strg"
 )
@@ -48,7 +49,7 @@ Arguments:
 
 		record, isFound := storage.GetRecord(recordName)
 
-		log.Debugf("cmd/get - record: %#v\n", record)
+		slog.Debug(fmt.Sprintf("cmd/get - record: %#v", record))
 
 		if !isFound {
 			fmt.Printf("Record %s was not found\n", color.InGreen(recordName))

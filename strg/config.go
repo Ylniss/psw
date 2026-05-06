@@ -6,9 +6,9 @@ import (
 	"os"
 	"path/filepath"
 
-	log "github.com/sirupsen/logrus"
+	"log/slog"
 
-	"github.com/pelletier/go-toml"
+	"github.com/pelletier/go-toml/v2"
 )
 
 type StorageCfg struct {
@@ -131,7 +131,7 @@ func readConfigFile() error {
 		return fmt.Errorf("error parsing config file: %w", err)
 	}
 
-	log.Debugf("Config loaded: %#v\n", AppConfig)
+	slog.Debug(fmt.Sprintf("Config loaded: %#v", AppConfig))
 
 	return nil
 }

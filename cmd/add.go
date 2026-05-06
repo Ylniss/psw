@@ -5,9 +5,10 @@ import (
 	"os"
 	"strings"
 
+	"log/slog"
+
 	"github.com/TwiN/go-color"
 	passgen "github.com/sethvargo/go-password/password"
-	log "github.com/sirupsen/logrus"
 	"github.com/ylniss/psw/prmpt"
 	"github.com/ylniss/psw/strg"
 
@@ -119,7 +120,7 @@ Arguments:
 			return
 		}
 
-		log.Debugf("new storage content:\n%s\n", storageJson)
+		slog.Debug(fmt.Sprintf("new storage content:\n%s", storageJson))
 
 		err = strg.EncryptStringToStorage(storageJson, storage.MainPass)
 		if err != nil {

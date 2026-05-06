@@ -2,10 +2,9 @@ package strg
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
-
-	log "github.com/sirupsen/logrus"
 )
 
 func ensureDirExists(path string) error {
@@ -14,7 +13,7 @@ func ensureDirExists(path string) error {
 		if err != nil {
 			return fmt.Errorf("Error when trying to create directory:\n%w", err)
 		}
-		log.Debugf("Directory created: %s\n", path)
+		slog.Debug(fmt.Sprintf("Directory created: %s", path))
 	} else if err != nil {
 		return fmt.Errorf("Error when trying to check directory:\n%w", err)
 	}
