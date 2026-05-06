@@ -3,8 +3,6 @@ package cli
 import (
 	"fmt"
 
-	"log/slog"
-
 	"github.com/TwiN/go-color"
 	"github.com/spf13/cobra"
 	"github.com/ylniss/psw/internal/strg"
@@ -45,16 +43,7 @@ Arguments:
 
 		storage.RemoveRecord(recordName)
 
-		storageJson, err := storage.ToJson()
-		if err != nil {
-			fmt.Println(err.Error())
-			return nil
-		}
-
-		slog.Debug(fmt.Sprintf("new storage content:\n%s", storageJson))
-
-		err = strg.EncryptStringToStorage(storageJson, storage.MainPass)
-		if err != nil {
+		if err := storage.Save(); err != nil {
 			fmt.Println(err.Error())
 			return nil
 		}

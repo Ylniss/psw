@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os/exec"
 	"slices"
 	"sort"
@@ -103,6 +104,18 @@ func (s *Storage) ToJson() (string, error) {
 	}
 
 	return string(jsonData), nil
+}
+
+// Save serializes records to JSON and writes them encrypted under the
+// storage's current MainPass. Use ToJson + EncryptStringToStorage directly
+// when re-encrypting under a different password (e.g. 'change main').
+func (s *Storage) Save() error {
+	storageJson, err := s.ToJson()
+	if err != nil {
+		return err
+	}
+	slog.Debug(fmt.Sprintf("saved storage content:\n%s", storageJson))
+	return EncryptStringToStorage(storageJson, s.MainPass)
 }
 
 func GetOrCreateIfNotExists() (*Storage, error) {

@@ -150,16 +150,7 @@ func changeRecord(cmd *cobra.Command, args []string) error {
 
 	storage.UpdateRecord(recordName, record)
 
-	storageJson, err := storage.ToJson()
-	if err != nil {
-		fmt.Println(err.Error())
-		return nil
-	}
-
-	slog.Debug(fmt.Sprintf("updated storage content:\n%s", storageJson))
-
-	err = strg.EncryptStringToStorage(storageJson, storage.MainPass)
-	if err != nil {
+	if err := storage.Save(); err != nil {
 		fmt.Println(err.Error())
 		return nil
 	}

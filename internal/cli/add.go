@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"log/slog"
-
 	"github.com/TwiN/go-color"
 	passgen "github.com/sethvargo/go-password/password"
 	"github.com/ylniss/psw/internal/prmpt"
@@ -113,16 +111,7 @@ Arguments:
 			storage.AddRecord(&strg.Record{Name: recordName, User: recordUser, Pass: recordPass})
 		}
 
-		storageJson, err := storage.ToJson()
-		if err != nil {
-			fmt.Println(err.Error())
-			return nil
-		}
-
-		slog.Debug(fmt.Sprintf("new storage content:\n%s", storageJson))
-
-		err = strg.EncryptStringToStorage(storageJson, storage.MainPass)
-		if err != nil {
+		if err := storage.Save(); err != nil {
 			fmt.Println(err.Error())
 			return nil
 		}
