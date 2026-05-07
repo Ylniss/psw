@@ -20,7 +20,7 @@ var (
 )
 
 func init() {
-	changeCmd.Flags().BoolVarP(&changeExactFlag, "exact", "e", false, "exact name match; skip fzf and substring search")
+	changeCmd.Flags().BoolVarP(&changeExactFlag, "exact", "e", false, "exact name match; skip interactive picker and substring search")
 	changeCmd.Flags().StringVar(&changeRenameFlag, "rename", "", "new record name (skips rename y/n + prompt)")
 	changeCmd.Flags().StringVarP(&changeUserFlag, "username", "u", "", "new username (skips username y/n + prompt)")
 	changeCmd.Flags().StringVar(&changePassFlag, "password", "", "new password (skips password y/n + prompt)")
@@ -111,6 +111,9 @@ func changeRecord(cmd *cobra.Command, args []string) error {
 	recordName, err := resolveRecordName(storage, args, changeExactFlag)
 	if err != nil {
 		fmt.Println(err.Error())
+		return nil
+	}
+	if recordName == "" {
 		return nil
 	}
 	record, isFound := storage.GetRecord(recordName)

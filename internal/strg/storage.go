@@ -1,11 +1,9 @@
 package strg
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"os/exec"
 	"slices"
 	"sort"
 	"strings"
@@ -154,32 +152,6 @@ func Get(mainPass string) (*Storage, error) {
 	storage := Storage{Records: records, MainPass: mainPass}
 
 	return &storage, nil
-}
-
-func GetRecordNameWithFzf(names []string) (string, error) {
-	if len(names) == 1 {
-		return names[0], nil
-	}
-
-	// Check if fzf is installed
-	if _, err := exec.LookPath("fzf"); err != nil {
-		return "", fmt.Errorf("fzf is not installed. Please install fzf to use this feature")
-	}
-
-	cmd := exec.Command("fzf")
-
-	var input bytes.Buffer
-	input.WriteString(strings.Join(names, "\n"))
-	cmd.Stdin = &input
-
-	var output bytes.Buffer
-	cmd.Stdout = &output
-
-	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("Failed to run fzf:\n%w", err)
-	}
-
-	return strings.TrimSpace(output.String()), nil
 }
 
 func getRecords(storageJson string) ([]Record, error) {

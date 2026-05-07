@@ -42,9 +42,9 @@ AES-256-GCM, key = `sha256(mainPass)`. Each write: fresh nonce → prepended to 
 
 `"main"` is reserved: `psw add main` rejected; `psw change main` re-encrypts entire storage under a new main password (does not modify any record).
 
-### fzf record selection
+### Interactive record selection
 
-`get`/`change`/`remove` resolve via `strg.GetRecordNameWithFzf` (`fzf` must be on `PATH`). Single-candidate short-circuit (returned without fzf) is intentional — prevents confirming a forced choice. Keep before changing selection logic.
+`get`/`change`/`remove` resolve via `strg.GetRecordNameInteractive` (`internal/strg/picker.go`) — in-process `bubbles/list` fuzzy picker, no `PATH` deps. When there's only one matching record, it's returned without launching the TUI — intentional, prevents confirming a forced choice; keep before changing selection logic. On Esc/Ctrl-C the picker returns `ErrPickerCancelled`, and `helpers.go` translates that to a silent exit.
 
 ## Conventions
 

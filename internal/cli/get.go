@@ -20,7 +20,7 @@ var (
 
 func init() {
 	getCmd.Flags().BoolVarP(&revealFlag, "reveal", "r", false, "reveal secret inside terminal")
-	getCmd.Flags().BoolVarP(&getExactFlag, "exact", "e", false, "exact name match; skip fzf and substring search")
+	getCmd.Flags().BoolVarP(&getExactFlag, "exact", "e", false, "exact name match; skip interactive picker and substring search")
 	getCmd.Flags().BoolVar(&getStdoutFlag, "stdout", false, "print secret to stdout instead of clipboard (no labels, no color)")
 	rootCmd.AddCommand(getCmd)
 }
@@ -29,7 +29,7 @@ var getCmd = &cobra.Command{
 	Use: `get [name] [flags]
 
 Arguments:
-  name    Optional name of the record to get. If omitted, you'll be prompted to select a record with fzf`,
+  name    Optional name of the record to get. If omitted, you'll be prompted to select a record interactively`,
 	Short: "Get secrets from record with specified name",
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -44,6 +44,9 @@ Arguments:
 		recordName, err := resolveRecordName(storage, args, getExactFlag)
 		if err != nil {
 			fmt.Println(err.Error())
+			return nil
+		}
+		if recordName == "" {
 			return nil
 		}
 
