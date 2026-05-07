@@ -13,17 +13,8 @@ import (
 
 var (
 	passwordsDontMatchMsg = "Passwords don't match, try again"
-	errMainPassLen        = errors.New("main password must be at least 4 characters long")
 	errRequired           = errors.New("input required")
 )
-
-func validateMainPassLen(content string) error {
-	if len(content) < 4 {
-		return errMainPassLen
-	}
-
-	return nil
-}
 
 func validateRequired(content string) error {
 	if len(content) < 1 {
@@ -83,9 +74,6 @@ func promptForMainPass(ensure bool, mainPassChange bool) (string, error) {
 		envVar = "PSW_NEW_MAIN_PASSWORD"
 	}
 	if envPass := os.Getenv(envVar); envPass != "" {
-		if err := validateMainPassLen(envPass); err != nil {
-			return "", fmt.Errorf("%s: %w", envVar, err)
-		}
 		return envPass, nil
 	}
 
@@ -99,20 +87,14 @@ func promptForMainPass(ensure bool, mainPassChange bool) (string, error) {
 		repeatText = "Repeat new main password"
 	}
 
-	var err error
-	for mainPass != repeatMainPass || errors.Is(err, errMainPassLen) { // ask until passwords match and is valid length
+	for mainPass != repeatMainPass {
+		var err error
 		mainPass, err = prompt.New().Ask(askText).
-			Input("", input.WithEchoMode(input.EchoPassword), input.WithValidateFunc(validateMainPassLen))
+			Input("", input.WithEchoMode(input.EchoPassword), input.WithValidateFunc(validateRequired))
 		if err != nil {
 			if errors.Is(err, prompt.ErrUserQuit) {
 				os.Exit(1)
 			}
-
-			if errors.Is(err, errMainPassLen) {
-				fmt.Println(color.InYellow(errMainPassLen.Error()))
-				continue
-			}
-
 			return "", err
 		}
 
@@ -121,17 +103,11 @@ func promptForMainPass(ensure bool, mainPassChange bool) (string, error) {
 		}
 
 		repeatMainPass, err = prompt.New().Ask(repeatText).
-			Input("", input.WithEchoMode(input.EchoPassword), input.WithValidateFunc(validateMainPassLen))
+			Input("", input.WithEchoMode(input.EchoPassword), input.WithValidateFunc(validateRequired))
 		if err != nil {
 			if errors.Is(err, prompt.ErrUserQuit) {
 				os.Exit(1)
 			}
-
-			if errors.Is(err, errMainPassLen) {
-				fmt.Println(color.InYellow(errMainPassLen.Error()))
-				continue
-			}
-
 			return "", err
 		}
 

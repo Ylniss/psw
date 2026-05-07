@@ -60,8 +60,8 @@ CLI can run unattended (no TUI prompts) via the env vars and flags below.
 ### Env vars
 
 - `PSW_HOME=<path>` — override storage dir (default `~/.psw`). Tests get a fresh `t.TempDir()` per case.
-- `PSW_MAIN_PASSWORD=<str>` — supplies main password; bypasses prompt + double-confirm on vault creation. Length-validated (≥4); too short fails loudly, no prompt fallback.
-- `PSW_NEW_MAIN_PASSWORD=<str>` — new main password for `change main`. Same validation.
+- `PSW_MAIN_PASSWORD=<str>` — supplies main password; bypasses prompt + double-confirm on vault creation. Empty value treated as unset (falls through to prompt).
+- `PSW_NEW_MAIN_PASSWORD=<str>` — new main password for `change main`. Same handling.
 - `PSW_GIT=0` — skip auto `git init` + per-mutation `git commit` in the storage dir. Default behavior unchanged when unset.
 
 Caveat: env-var passwords visible in `/proc/<pid>/environ`. Fine for tests/ephemeral scripts; not for daily use. No `--password` CLI flag (would expose via `ps`).

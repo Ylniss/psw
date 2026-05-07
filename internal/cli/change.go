@@ -180,6 +180,7 @@ func applyOrPromptRename(record *strg.Record, storage *strg.Storage, flagSet, an
 	if !prmpt.YesOrNo("Do you want to change record name?") {
 		return true
 	}
+	fmt.Printf("Current name: %s\n", color.InGreen(record.Name))
 	newName, err := prmpt.PromptForName("New name")
 	if err != nil {
 		fmt.Println(err.Error())
