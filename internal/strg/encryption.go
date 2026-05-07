@@ -4,12 +4,22 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+
+	"golang.org/x/crypto/argon2"
+)
+
+const (
+	magicV1      = "PSW1"
+	saltLen      = 16
+	keyLen       = 32
+	argonTime    = 2
+	argonMemory  = 64 * 1024
+	argonThreads = 4
 )
 
 func EncryptStringToStorage(plainText, password string) error {
@@ -20,74 +30,75 @@ func DecryptStringFromStorage(password string) (string, error) {
 	return decryptStringFromFile(Cfg.storageFilePath, password)
 }
 
-func generateSha256Key(password string) []byte {
-	hasher := sha256.New()
-	hasher.Write([]byte(password))
-	return hasher.Sum(nil)
+func deriveKey(password string, salt []byte) []byte {
+	return argon2.IDKey([]byte(password), salt, argonTime, argonMemory, argonThreads, keyLen)
 }
 
-// encrypts a plain text string and writes the encrypted data as base64 encoded string to a file.
 func encryptStringToFile(filePath, plainText, password string) error {
-	key := generateSha256Key(password)
+	salt := make([]byte, saltLen)
+	if _, err := io.ReadFull(rand.Reader, salt); err != nil {
+		return fmt.Errorf("failed to generate salt: %w", err)
+	}
+
+	key := deriveKey(password, salt)
 	block, err := aes.NewCipher(key)
 	if err != nil {
-		return fmt.Errorf("Error when acquiring new cipher block:\n%w", err)
+		return fmt.Errorf("failed to create cipher: %w", err)
 	}
-
-	gcm, err := cipher.NewGCM(block)
+	gcm, err := cipher.NewGCMWithRandomNonce(block)
 	if err != nil {
-		return fmt.Errorf("Error when acquiring new GCM:\n%w", err)
+		return fmt.Errorf("failed to create GCM: %w", err)
 	}
 
-	nonce := make([]byte, gcm.NonceSize())
-	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
-		return fmt.Errorf("Error when acquiring nonce size:\n%w", err)
+	sealed := gcm.Seal(nil, nil, []byte(plainText), nil)
+
+	payload := make([]byte, 0, len(magicV1)+saltLen+len(sealed))
+	payload = append(payload, magicV1...)
+	payload = append(payload, salt...)
+	payload = append(payload, sealed...)
+
+	encoded := base64.StdEncoding.EncodeToString(payload)
+	if err := os.WriteFile(filePath, []byte(encoded), 0600); err != nil {
+		return fmt.Errorf("failed to write encrypted file: %w", err)
 	}
-
-	encryptedData := gcm.Seal(nonce, nonce, []byte(plainText), nil)
-	encodedData := base64.StdEncoding.EncodeToString(encryptedData)
-
-	err = os.WriteFile(filePath, []byte(encodedData), 0644)
-	if err != nil {
-		return fmt.Errorf("Error when writing encypted file:\n%w", err)
+	if err := os.Chmod(filePath, 0600); err != nil {
+		return fmt.Errorf("failed to chmod encrypted file: %w", err)
 	}
-
 	return nil
 }
 
-// reads encrypted data from a file, decrypts it, and returns the plain text string.
 func decryptStringFromFile(filePath, password string) (string, error) {
-	encodedData, err := os.ReadFile(filePath)
+	encoded, err := os.ReadFile(filePath)
 	if err != nil {
-		return "", fmt.Errorf("Error when reading file to decrypt:\n%w", err)
+		return "", fmt.Errorf("failed to read storage file: %w", err)
+	}
+	payload, err := base64.StdEncoding.DecodeString(string(encoded))
+	if err != nil {
+		return "", fmt.Errorf("failed to decode storage: %w", err)
 	}
 
-	encryptedData, err := base64.StdEncoding.DecodeString(string(encodedData))
-	if err != nil {
-		return "", fmt.Errorf("Error when decoding string to data:\n%w", err)
+	if len(payload) < len(magicV1)+saltLen {
+		return "", errors.New("storage file is corrupted or unrecognized")
+	}
+	if string(payload[:len(magicV1)]) != magicV1 {
+		return "", errors.New("unrecognized storage format; expected PSW1")
 	}
 
-	key := generateSha256Key(password)
+	salt := payload[len(magicV1) : len(magicV1)+saltLen]
+	sealed := payload[len(magicV1)+saltLen:]
+
+	key := deriveKey(password, salt)
 	block, err := aes.NewCipher(key)
 	if err != nil {
-		return "", fmt.Errorf("Error when acquiring new cipher block:\n%w", err)
+		return "", fmt.Errorf("failed to create cipher: %w", err)
 	}
-
-	gcm, err := cipher.NewGCM(block)
+	gcm, err := cipher.NewGCMWithRandomNonce(block)
 	if err != nil {
-		return "", fmt.Errorf("Error when acquiring new GCM:\n%w", err)
+		return "", fmt.Errorf("failed to create GCM: %w", err)
 	}
-
-	nonceSize := gcm.NonceSize()
-	if len(encryptedData) < nonceSize {
-		return "", errors.New("Encrypted data is too short compared to the nonce size")
-	}
-
-	nonce, ciphertext := encryptedData[:nonceSize], encryptedData[nonceSize:]
-	decryptedData, err := gcm.Open(nil, nonce, ciphertext, nil)
+	plain, err := gcm.Open(nil, nil, sealed, nil)
 	if err != nil {
 		return "", errors.New("Wrong password.")
 	}
-
-	return string(decryptedData), nil
+	return string(plain), nil
 }

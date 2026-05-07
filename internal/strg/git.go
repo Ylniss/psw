@@ -55,7 +55,7 @@ func GitCommit(message string) error {
 		return nil
 	}
 
-	cmd := exec.Command("git", "add", ".")
+	cmd := exec.Command("git", "add", "storage.psw", "pswcfg.toml")
 	cmd.Dir = Cfg.storagePath
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("Failed to run git add:\n%w", err)

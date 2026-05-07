@@ -9,7 +9,7 @@ import (
 
 func ensureDirExists(path string) error {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
-		err := os.MkdirAll(path, 0755)
+		err := os.MkdirAll(path, 0700)
 		if err != nil {
 			return fmt.Errorf("Error when trying to create directory:\n%w", err)
 		}
@@ -52,8 +52,11 @@ func copyFile(src, dst string) error {
 		return fmt.Errorf("failed to read source file: %w", err)
 	}
 
-	if err := os.WriteFile(dst, input, 0644); err != nil {
+	if err := os.WriteFile(dst, input, 0600); err != nil {
 		return fmt.Errorf("failed to write file to destination: %w", err)
+	}
+	if err := os.Chmod(dst, 0600); err != nil {
+		return fmt.Errorf("failed to chmod destination file: %w", err)
 	}
 
 	return nil
