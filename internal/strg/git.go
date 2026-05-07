@@ -2,12 +2,54 @@ package strg
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
+	"strings"
+	"time"
 
 	color "github.com/TwiN/go-color"
 )
+
+type LogEntry struct {
+	ShortSHA string
+	Time     time.Time
+	Message  string
+}
+
+func IsGitRepo() (bool, error) {
+	return pathExists(filepath.Join(Cfg.storagePath, ".git"))
+}
+
+func GitLog() ([]LogEntry, error) {
+	out, err := exec.Command("git", "-C", Cfg.storagePath, "log", "--reverse", "--format=%h %ct %s").Output()
+	if err != nil {
+		return nil, fmt.Errorf("git log: %w", err)
+	}
+	var entries []LogEntry
+	for _, line := range strings.Split(strings.TrimRight(string(out), "\n"), "\n") {
+		if line == "" {
+			continue
+		}
+		parts := strings.SplitN(line, " ", 3)
+		if len(parts) < 3 {
+			continue
+		}
+		secs, err := strconv.ParseInt(parts[1], 10, 64)
+		if err != nil {
+			continue
+		}
+		entries = append(entries, LogEntry{
+			ShortSHA: parts[0],
+			Time:     time.Unix(secs, 0),
+			Message:  parts[2],
+		})
+	}
+	slog.Debug("git log read", "count", len(entries))
+	return entries, nil
+}
 
 func initGitRepoIfNotExists() error {
 	// PSW_GIT=0 opts out of git init/commit (intended for tests/scripting)
