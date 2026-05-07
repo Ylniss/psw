@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -69,12 +70,18 @@ Arguments:
 		}
 
 		storage, err := strg.GetOrCreateIfNotExists()
+		if errors.Is(err, prmpt.ErrPromptCancelled) {
+			return nil
+		}
 		if err != nil {
 			fmt.Println(err.Error())
 			return nil
 		}
 
 		recordName, err := getRecordName(args)
+		if errors.Is(err, prmpt.ErrPromptCancelled) {
+			return nil
+		}
 		if err != nil {
 			fmt.Println(err.Error())
 			return nil
@@ -92,6 +99,9 @@ Arguments:
 
 		if singleValFlag {
 			recordVal, err := getOrPromptValue(valSet)
+			if errors.Is(err, prmpt.ErrPromptCancelled) {
+				return nil
+			}
 			if err != nil {
 				fmt.Println(err.Error())
 				return nil
@@ -99,11 +109,17 @@ Arguments:
 			storage.AddRecord(&strg.Record{Name: recordName, Value: recordVal})
 		} else {
 			recordUser, err := getOrPromptUsername(userSet)
+			if errors.Is(err, prmpt.ErrPromptCancelled) {
+				return nil
+			}
 			if err != nil {
 				fmt.Println(err.Error())
 				return nil
 			}
 			recordPass, err := getOrPromptPassword(passSet)
+			if errors.Is(err, prmpt.ErrPromptCancelled) {
+				return nil
+			}
 			if err != nil {
 				fmt.Println(err.Error())
 				return nil

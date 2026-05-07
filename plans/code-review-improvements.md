@@ -1,6 +1,6 @@
 # Code review improvements
 
-_Last updated: 2026-05-07 — Phase 1 done. Re-verify cited files against current HEAD before each phase._
+_Last updated: 2026-05-07 — Phases 1, 2, 3 done. Re-verify cited files against current HEAD before each phase._
 
 ## Goal
 Land a multi-phase improvement pass on the psw codebase derived from a full review session. The headline change is moving from single-pass SHA-256 password derivation to Argon2id with a per-vault salt (security hardening), plus tightened file permissions and a surgical git-commit policy. Subsequent phases fix latent correctness bugs, consolidate two prompt frameworks down to one, and clean up Go style/idioms. "Done" means the encrypted vault uses Argon2id, the codebase has only one prompt framework (charmbracelet/bubbles), CI is green, the bug list from the review is empty, and CLAUDE.md reflects the new state.
@@ -29,16 +29,15 @@ Land a multi-phase improvement pass on the psw codebase derived from a full revi
 
 - **Single-binary CLI plus a `clipclean` helper.** `cmd/psw/main.go` → `internal/cli`. `cmd/clipclean/main.go` is backgrounded by `psw get` to clear the clipboard after a timeout.
 - **Storage location.** `~/.psw/` (overridable via `PSW_HOME`). Contains `storage.psw` (encrypted vault), `pswcfg.toml` (config), and a `.git/` repo when git is available.
-- **Git integration is auto-init on first vault use.** `internal/strg/git.go` runs `git init` and commits per mutation. `PSW_GIT=0` opts out (used by tests). The `git add` line at `internal/strg/git.go:58` is currently `git add .` — Phase 1 changes it to `git add storage.psw pswcfg.toml`.
-- **Storage format today.** `internal/strg/encryption.go`: `base64( nonce[12] || ciphertext_with_tag )`, key = `sha256(mainPass)`. No salt. Phase 1 replaces this entirely.
+- **Git integration is auto-init on first vault use.** `internal/strg/git.go` runs `git init` and commits per mutation. `PSW_GIT=0` opts out (used by tests). Mutations stage with surgical `git add storage.psw pswcfg.toml` (Phase 1, replacing the original `git add .`).
+- **Storage format.** `internal/strg/encryption.go`: `base64("PSW1" || salt[16] || gcm_seal_output)` using `cipher.NewGCMWithRandomNonce`; key = `argon2.IDKey(pass, salt, t=2, m=64MiB, p=4, keylen=32)`. Files written 0600, dir 0700. (Phase 1 replaced single-pass SHA-256 + manual-nonce GCM.)
 - **Two binaries built with same Make target.** `make build` produces `./bin/psw` (with version ldflag) and `./bin/clipclean`, plus copies `pswcfg-template.toml` → `bin/pswcfg.toml`.
 - **Integration tests rebuild psw once per run.** `tests/main_test.go:TestMain` builds into `t.TempDir()`. Each test gets a fresh `PSW_HOME` via `newVault(t)`. Tests set `PSW_MAIN_PASSWORD=testpass`, `PSW_GIT=0`. They use `cmd.Env` directly (no .env file), so removing `joho/godotenv/autoload` does not affect tests.
-- **Two prompt frameworks in use.** `internal/prmpt/prompts.go` uses `cqroot/prompt` for password and name input, and a hand-rolled raw-mode `YesOrNo`. `internal/strg/picker.go` uses `bubbletea` + `bubbles/list` for record selection. Phase 3 collapses everything onto bubbletea/bubbles.
-- **Scripting/test mode escape hatches.** `PSW_HOME`, `PSW_MAIN_PASSWORD`, `PSW_NEW_MAIN_PASSWORD`, `PSW_GIT=0`. Documented in CLAUDE.md. Phase 3's prompt rewrite must preserve these — bubbletea on a non-TTY must fail loudly with a clear message, NOT hang. The env-var bypass should short-circuit the prompt entirely.
-- **`prmpt.YesOrNo` non-TTY behavior.** Returns `false` on non-TTY stdin (scripting-safe). Phase 3 must preserve this.
+- **Single prompt framework.** `internal/prmpt/prompts.go` and `internal/strg/picker.go` both use `bubbletea` + `bubbles` (`textinput` for inputs, `list` for the record picker). After each input prompt's `tea.NewProgram(...).Run()` returns, `prmpt` re-emits `<label>: <value-or-mask>\n` so answered prompts persist in scrollback (bubbletea wipes its inline render region on exit).
+- **Scripting/test mode escape hatches.** `PSW_HOME`, `PSW_MAIN_PASSWORD`, `PSW_NEW_MAIN_PASSWORD`, `PSW_GIT=0`. Documented in CLAUDE.md. Env-var bypass short-circuits before any bubbletea program runs. On non-TTY stdin without a bypass, input prompts return a clear "interactive prompt required" error; `YesOrNo` defaults to `false`.
+- **Prompt cancel contract.** Esc/Ctrl-C inside an input prompt returns `prmpt.ErrPromptCancelled`; CLI callers translate it via `errors.Is` to a silent `return nil` (exit 0). `YesOrNo` cancel = false.
+- **Storage lookups are case-insensitive.** `Exists`, `GetRecord`, `UpdateRecord`, `RemoveRecord`, and `GetNamesWithPart` all match via `strings.EqualFold` / lowercase substring (Phase 2). Records cannot collide on case.
 - **Cobra error conventions.** `errExit = errors.New("")` is the sentinel for "exit 1, but I already printed the error" — used in `RunE` returns. `SilenceErrors`/`SilenceUsage` are set on rootCmd. Some paths print + `return nil` (exit 0), others `return errExit` (exit 1), others `os.Exit(1)` directly. Phase 4 narrows the third category.
-- **`storage.psw.legacy-bak` is never auto-deleted.** Belt-and-suspenders for the migration.
-- **Migration runbook is the unusual bit.** See Phase 1 for the exact local-only workflow. The `upgrade.go` file must NEVER be committed.
 
 ## Phases
 
@@ -75,7 +74,7 @@ Land a multi-phase improvement pass on the psw codebase derived from a full revi
 - **Risk:** low.
 - **Depends on:** Phase 1 (so the encryption module is settled before any storage refactors land).
 
-### [ ] Phase 3: Library consolidation (cqroot → bubbles)
+### [x] Phase 3: Library consolidation (cqroot → bubbles)
 - **Goal:** Single prompt framework. `cqroot/prompt` + `cqroot/multichoose` removed from `go.mod`. `prmpt.YesOrNo` rewritten on bubbletea. All five `os.Exit(1)` sites in `internal/prmpt/prompts.go` become normal error returns.
 - **Scope:**
   - Reimplement `PromptForName`, `PromptForRecordPass`, `PromptForMainPass`, `PromptForMainPassChange` on `bubbles/textinput` with `EchoMode = EchoPassword` for password fields. Match the existing API surface so callers don't change.
@@ -136,6 +135,11 @@ _Append-only. Format: `YYYY-MM-DD — decision — why`._
 - 2026-05-07 — Phase 2: kept case-sensitive sort (`<`) — records cannot collide on case (`Exists` is `EqualFold`), so order is deterministic. Phase 4 will revisit when switching to `slices.SortFunc`.
 - 2026-05-07 — Phase 2: skipped a B3 regression test — exercising the fall-through requires TTY-injected prompt errors; covered indirectly by the existing `TestChange_Main` happy path.
 - 2026-05-07 — Phase 2: kept `YesOrNo` signature `(string) bool` — Phase 3 will rewrite this on bubbletea entirely, so any signature change now is wasted churn.
+- 2026-05-07 — Phase 3: kept `(string) bool` for `YesOrNo`; cancel maps to `false` rather than promoting to `(bool, error)`. Same UX as the prior raw-mode impl, no caller updates needed at the four `change.go` y/n sites.
+- 2026-05-07 — Phase 3: re-emit `<label>: <value>\n` after each `tea.NewProgram(...).Run()` returns (passwords masked with `*`). Without this, answered prompts vanish because bubbletea wipes its inline render region on Quit, and the user just sees the next prompt with no record of what they typed.
+- 2026-05-07 — Phase 3: handled `ErrPromptCancelled` inline at every CLI callsite (15 `errors.Is` early-returns) rather than threading through a shared helper. Mirrors the picker's `ErrPickerCancelled` pattern in `helpers.go`.
+- 2026-05-07 — Phase 3: kept the existing `fmt.Println(err.Error()); return nil` (exit 0) pattern for non-TTY `errNoTTY` errors. Detail plan suggested non-zero exit; deferred to Phase 4 since changing exit semantics for prompt-time failures should be done alongside the broader `os.Exit` cleanup.
+- 2026-05-07 — Phase 3: rendered prompts to default stdout, not stderr. The detail plan flagged stderr as a minor improvement; deferred — no test harness motivation, and a behavior change in this PR isn't worth the risk.
 
 ## Open questions
 None.

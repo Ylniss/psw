@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 
 	"log/slog"
@@ -59,6 +60,9 @@ func changeMainPass() {
 	fmt.Println(color.InCyan("You are changing your main password!\nFirst enter your current password"))
 
 	mainPass, err := prmpt.PromptForMainPass(true) // prompt with ensure
+	if errors.Is(err, prmpt.ErrPromptCancelled) {
+		return
+	}
 	if err != nil {
 		fmt.Println(err.Error())
 		return
@@ -71,6 +75,9 @@ func changeMainPass() {
 	}
 
 	newMainPass, err := prmpt.PromptForMainPassChange()
+	if errors.Is(err, prmpt.ErrPromptCancelled) {
+		return
+	}
 	if err != nil {
 		fmt.Println(err.Error())
 		return
@@ -96,6 +103,9 @@ func changeRecord(cmd *cobra.Command, args []string) error {
 	anyFlagSet := renameSet || userSet || passSet || valSet
 
 	storage, err := strg.GetOrCreateIfNotExists()
+	if errors.Is(err, prmpt.ErrPromptCancelled) {
+		return nil
+	}
 	if err != nil {
 		fmt.Println(err.Error())
 		return nil
@@ -175,6 +185,9 @@ func applyOrPromptRename(record *strg.Record, storage *strg.Storage, flagSet, an
 	}
 	fmt.Printf("Current name: %s\n", color.InGreen(record.Name))
 	newName, err := prmpt.PromptForName("New name")
+	if errors.Is(err, prmpt.ErrPromptCancelled) {
+		return false
+	}
 	if err != nil {
 		fmt.Println(err.Error())
 		return false
@@ -199,6 +212,9 @@ func applyOrPromptUsername(record *strg.Record, flagSet, anyFlagSet bool) bool {
 		return true
 	}
 	newUser, err := prmpt.PromptForName("New username")
+	if errors.Is(err, prmpt.ErrPromptCancelled) {
+		return false
+	}
 	if err != nil {
 		fmt.Println(err.Error())
 		return false
@@ -219,6 +235,9 @@ func applyOrPromptPassword(record *strg.Record, flagSet, anyFlagSet bool) bool {
 		return true
 	}
 	newPass, err := prmpt.PromptForRecordPass()
+	if errors.Is(err, prmpt.ErrPromptCancelled) {
+		return false
+	}
 	if err != nil {
 		fmt.Println(err.Error())
 		return false
@@ -239,6 +258,9 @@ func applyOrPromptValue(record *strg.Record, flagSet, anyFlagSet bool) bool {
 		return true
 	}
 	newValue, err := prmpt.PromptForName("New value")
+	if errors.Is(err, prmpt.ErrPromptCancelled) {
+		return false
+	}
 	if err != nil {
 		fmt.Println(err.Error())
 		return false

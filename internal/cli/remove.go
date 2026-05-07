@@ -1,10 +1,12 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/TwiN/go-color"
 	"github.com/spf13/cobra"
+	"github.com/ylniss/psw/internal/prmpt"
 	"github.com/ylniss/psw/internal/strg"
 )
 
@@ -25,6 +27,9 @@ Arguments:
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		storage, err := strg.GetOrCreateIfNotExists()
+		if errors.Is(err, prmpt.ErrPromptCancelled) {
+			return nil
+		}
 		if err != nil {
 			fmt.Println(err.Error())
 			return nil

@@ -13,6 +13,7 @@ import (
 
 	"github.com/TwiN/go-color"
 	"github.com/spf13/cobra"
+	"github.com/ylniss/psw/internal/prmpt"
 	"github.com/ylniss/psw/internal/strg"
 )
 
@@ -46,6 +47,9 @@ On first use, you’ll set a main password to protect your stored passwords.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// list all record names on 'psw' command
 		storage, err := strg.GetOrCreateIfNotExists()
+		if errors.Is(err, prmpt.ErrPromptCancelled) {
+			return nil
+		}
 		if err != nil {
 			fmt.Println(err.Error())
 			return nil

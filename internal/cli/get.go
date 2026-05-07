@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"os/exec"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/TwiN/go-color"
 	"github.com/atotto/clipboard"
 	"github.com/spf13/cobra"
+	"github.com/ylniss/psw/internal/prmpt"
 	"github.com/ylniss/psw/internal/strg"
 )
 
@@ -36,6 +38,9 @@ Arguments:
 		storage, err := strg.GetOrCreateIfNotExists()
 		clipDuration := strg.AppConfig.ClipboardTimeout
 
+		if errors.Is(err, prmpt.ErrPromptCancelled) {
+			return nil
+		}
 		if err != nil {
 			fmt.Println(err.Error())
 			return nil
