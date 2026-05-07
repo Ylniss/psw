@@ -31,12 +31,13 @@ func initGitRepoIfNotExists() error {
 		return nil
 	}
 
-	fmt.Printf(color.InGreen("Initializing git repository in %s\n"), Cfg.storagePath)
+	msg := fmt.Sprintf("Initializing git repository in %s", Cfg.storagePath)
+	fmt.Println(color.InGreen(msg))
 
 	cmd := exec.Command("git", "init")
 	cmd.Dir = Cfg.storagePath
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("Failed to run git init:\n%w", err)
+		return fmt.Errorf("git init: %w", err)
 	}
 
 	Cfg.gitRepoExists = true
@@ -58,13 +59,13 @@ func GitCommit(message string) error {
 	cmd := exec.Command("git", "add", "storage.psw", "pswcfg.toml")
 	cmd.Dir = Cfg.storagePath
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("Failed to run git add:\n%w", err)
+		return fmt.Errorf("git add: %w", err)
 	}
 
 	cmd = exec.Command("git", "commit", "--message="+message)
 	cmd.Dir = Cfg.storagePath
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("Failed to run git commit:\n%w", err)
+		return fmt.Errorf("git commit: %w", err)
 	}
 
 	return nil

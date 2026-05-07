@@ -12,7 +12,7 @@ Integration tests under `tests/` (`make test`): `TestMain` builds `psw` once int
 
 ## Two binaries, one repo
 
-- `psw` (`cmd/psw/main.go` → `cli.Execute`) — the CLI. `joho/godotenv/autoload` → `.env` in CWD loaded at startup.
+- `psw` (`cmd/psw/main.go` → `cli.Execute`) — the CLI. No `.env` autoload at startup.
 - `clipclean` (`cmd/clipclean/main.go`) — backgrounded by `psw get` to clear clipboard after timeout. Must be on `PATH` (covered by `make install`).
 
 ## Architecture
@@ -20,18 +20,18 @@ Integration tests under `tests/` (`make test`): `TestMain` builds `psw` once int
 ### Package layout
 
 - `cmd/<binary>/main.go` — entry points. Thin wrappers; real logic under `internal/`.
-- `internal/cli/` — Cobra commands (`package cli`); each file self-registers with `rootCmd` via `init()`. `rootCmd` (`root.go`) lists records when called bare; its `PersistentPreRun` runs `setupLogger()` + `strg.InitConfig()`. `Version` = ldflag target (see Build & install).
+- `internal/cli/` — Cobra commands (`package cli`); each file self-registers with `rootCmd` via `init()`. `rootCmd` (`root.go`) lists records when bare; its `PersistentPreRunE` runs `setupLogger()` + `strg.InitConfig()` (errors propagate through cobra → `Execute` → exit 1). `Version` = ldflag target (see Build & install).
 - `internal/strg/` — storage + encryption. `InitConfig` populates package-level singletons `Cfg` (paths) and `AppConfig` (parsed TOML).
 - `internal/prmpt/` — TUI prompts. `YesOrNo` returns `false` on non-TTY stdin (no panic) — scripting-safe.
 - `plans/` — design notes for in-flight or completed reshapes.
 
 ### Data dir (`~/.psw/`)
 
-`strg.InitConfig` (from `rootCmd.PersistentPreRun`) ensures `~/.psw/` and loads `pswcfg.toml` (seeded from beside the executable on first run — why `make build` copies `pswcfg-template.toml` → `bin/`). On first storage access (`strg.GetOrCreateIfNotExists`), prompts for main password and (if `git` on `PATH`) `git init`s; `Cfg.gitRepoExists` gates per-mutation `GitCommit` calls. No-op when git unavailable.
+`strg.InitConfig` (from `rootCmd.PersistentPreRunE`) ensures `~/.psw/` and loads `pswcfg.toml` (seeded from beside the executable on first run — hence `make build` copies `pswcfg-template.toml` → `bin/`). On first storage access (`strg.GetOrCreateIfNotExists`): prompts for main password and `git init`s if `git` on `PATH`; `Cfg.gitRepoExists` gates per-mutation `GitCommit` (no-op when git unavailable). `GitCommit` stages surgically (`git add storage.psw pswcfg.toml`, not `git add .`) — keeps stray dotfiles and backups (e.g. `storage.psw.legacy-bak` from Phase 1's one-time upgrade) out of history.
 
 ### Encryption (`internal/strg/encryption.go`)
 
-AES-256-GCM, key = `sha256(mainPass)`. Each write: fresh nonce → prepended to ciphertext → base64 → `storage.psw`. Decrypt failure → `"Wrong password."`. Format changes must keep `EncryptStringToStorage`/`DecryptStringFromStorage` aligned; existing storage becomes unreadable, no migration.
+AES-256-GCM via `cipher.NewGCMWithRandomNonce` (Go 1.24+; nonce generated and prepended internally per seal). Key = Argon2id over main password + 16-byte per-vault salt (m=64 MiB, t=2, p=4, keylen=32; OWASP "balanced for desktop"); fresh salt per write. On-disk: `base64("PSW1" || salt[16] || gcm_seal_output)`, mode 0600. Decrypt validates the `"PSW1"` magic and rejects anything else; failure → `"Wrong password."`. Format changes must bump the magic and keep `EncryptStringToStorage`/`DecryptStringFromStorage` aligned — existing storage becomes unreadable, no migration code in shipped tree.
 
 ### Record model
 
@@ -49,7 +49,7 @@ AES-256-GCM, key = `sha256(mainPass)`. Each write: fresh nonce → prepended to 
 ## Conventions
 
 - Output colorized via `github.com/TwiN/go-color`: record names green, hints/commands cyan, warnings yellow, errors red.
-- Errors via cobra `RunE`: return `errExit` (empty-message sentinel in `internal/cli/root.go`) → exit 1 without usage dump; `SilenceErrors`/`SilenceUsage` on `rootCmd` keep prior UX (command already printed its colored error). Flag-validation/resolve paths still use `fmt.Println` + `os.Exit(1)`. Match surrounding style.
+- Errors via cobra `RunE`: print user-facing message, then `return errExit` (empty-message sentinel in `internal/cli/root.go`) → exit 1 without cobra usage dump. `SilenceErrors`/`SilenceUsage` on `rootCmd` keep prior UX. Flag-validation (e.g. `add`'s mutual-exclusion) and `resolveRecordName` `--exact` paths return `errExit`; callers thread it via `if errors.Is(err, errExit) { return errExit }`. Only `os.Exit(1)` outside `main`/tests is `cli.Execute`'s cobra-error fallback. Match surrounding style.
 - `slog.Debug` gated by `--verbose`/`-v` is the only place secret-adjacent data may log; never `fmt.Println` raw passwords.
 - Add subcommand: create `internal/cli/<name>.go` with a `*cobra.Command` and `rootCmd.AddCommand(...)` in `init()`.
 

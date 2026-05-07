@@ -39,10 +39,10 @@ pswcfg.toml: a configuration file for customizing app behavior.
 On first use, you’ll set a main password to protect your stored passwords.`,
 	SilenceErrors: true,
 	SilenceUsage:  true,
-	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		setupLogger()
 		slog.Debug("App started")
-		strg.InitConfig()
+		return strg.InitConfig()
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// list all record names on 'psw' command
@@ -110,10 +110,16 @@ func (h *easyHandler) Handle(_ context.Context, r slog.Record) error {
 	if !r.Time.IsZero() {
 		prefix = r.Time.Format("2006-01-02 15:04:05") + " "
 	}
-	_, err := fmt.Fprintf(h.out, "%s[%s]: %s\n",
+	var attrs strings.Builder
+	r.Attrs(func(a slog.Attr) bool {
+		fmt.Fprintf(&attrs, " %s=%v", a.Key, a.Value.Any())
+		return true
+	})
+	_, err := fmt.Fprintf(h.out, "%s[%s]: %s%s\n",
 		prefix,
 		strings.ToLower(r.Level.String()),
 		strings.TrimRight(r.Message, "\n"),
+		attrs.String(),
 	)
 	return err
 }

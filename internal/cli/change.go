@@ -3,7 +3,6 @@ package cli
 import (
 	"errors"
 	"fmt"
-
 	"log/slog"
 
 	"github.com/TwiN/go-color"
@@ -112,6 +111,9 @@ func changeRecord(cmd *cobra.Command, args []string) error {
 	}
 
 	recordName, err := resolveRecordName(storage, args, changeExactFlag)
+	if errors.Is(err, errExit) {
+		return errExit
+	}
 	if err != nil {
 		fmt.Println(err.Error())
 		return nil
@@ -121,7 +123,7 @@ func changeRecord(cmd *cobra.Command, args []string) error {
 	}
 	record, isFound := storage.GetRecord(recordName)
 
-	slog.Debug(fmt.Sprintf("cmd/change - record: %#v", record))
+	slog.Debug("cmd/change", "record", fmt.Sprintf("%#v", record))
 
 	if !isFound {
 		fmt.Printf("Record %s was not found\n", color.InGreen(recordName))
@@ -161,7 +163,7 @@ func changeRecord(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	fmt.Printf(color.InGreen("Record updated\n"))
+	fmt.Println(color.InGreen("Record updated"))
 	return nil
 }
 

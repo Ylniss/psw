@@ -16,6 +16,9 @@ func main() {
 	if err != nil {
 		return // duration in incorrect format
 	}
+	if duration <= 0 {
+		return // non-positive duration: nothing to wait for
+	}
 
 	pass, err := clipboard.ReadAll()
 	if err != nil {

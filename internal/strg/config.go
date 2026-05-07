@@ -32,18 +32,14 @@ type Config struct {
 
 var AppConfig Config
 
-func InitConfig() {
-	err := setStoragePath()
-	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
+func InitConfig() error {
+	if err := setStoragePath(); err != nil {
+		return err
 	}
-
-	err = loadConfig()
-	if err != nil {
-		fmt.Println("Failed to load configuration:", err.Error())
-		os.Exit(1)
+	if err := loadConfig(); err != nil {
+		return fmt.Errorf("load configuration: %w", err)
 	}
+	return nil
 }
 
 func setStoragePath() error {
@@ -52,7 +48,7 @@ func setStoragePath() error {
 	if path == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
-			return fmt.Errorf("Error while retrieving home directory:\n%w", err)
+			return fmt.Errorf("retrieve home directory: %w", err)
 		}
 		path = filepath.Join(home, ".psw")
 	}
@@ -129,7 +125,7 @@ func readConfigFile() error {
 		return fmt.Errorf("error parsing config file: %w", err)
 	}
 
-	slog.Debug(fmt.Sprintf("Config loaded: %#v", AppConfig))
+	slog.Debug("config loaded", "config", fmt.Sprintf("%#v", AppConfig))
 
 	return nil
 }

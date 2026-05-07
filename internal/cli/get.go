@@ -3,9 +3,8 @@ package cli
 import (
 	"errors"
 	"fmt"
-	"os/exec"
-
 	"log/slog"
+	"os/exec"
 
 	"github.com/TwiN/go-color"
 	"github.com/atotto/clipboard"
@@ -47,6 +46,9 @@ Arguments:
 		}
 
 		recordName, err := resolveRecordName(storage, args, getExactFlag)
+		if errors.Is(err, errExit) {
+			return errExit
+		}
 		if err != nil {
 			fmt.Println(err.Error())
 			return nil
@@ -57,7 +59,7 @@ Arguments:
 
 		record, isFound := storage.GetRecord(recordName)
 
-		slog.Debug(fmt.Sprintf("cmd/get - record: %#v", record))
+		slog.Debug("cmd/get", "record", fmt.Sprintf("%#v", record))
 
 		if !isFound {
 			fmt.Printf("Record %s was not found\n", color.InGreen(recordName))
@@ -73,45 +75,39 @@ Arguments:
 			return nil
 		}
 
-		// Print and copy to clipboard user & pass or value,
-		// depending on what is stored in the record
 		if record.Value == "" {
-			err = clipboard.WriteAll(record.Pass)
-			if err != nil {
-				fmt.Println(fmt.Sprintf("Failed to copy value to clipboard: %s", err.Error()))
+			if err := clipboard.WriteAll(record.Pass); err != nil {
+				fmt.Printf("Failed to copy value to clipboard: %s\n", err)
 				return nil
 			}
-
 			fmt.Println("Username")
 			fmt.Println(color.InYellow(record.User))
 			fmt.Println()
-			fmt.Println("Password")
-			if revealFlag {
-				fmt.Println(color.InYellow(record.Pass))
-			} else {
-				fmt.Println(color.InYellow(fmt.Sprintf("*********** - copied to the clipboard, it will be cleared in %d seconds", clipDuration)))
-			}
+			printSecret("Password", record.Pass, revealFlag, clipDuration)
 		} else {
-			err = clipboard.WriteAll(record.Value)
-			if err != nil {
-				fmt.Println(fmt.Sprintf("Failed to copy value to clipboard: %s", err.Error()))
+			if err := clipboard.WriteAll(record.Value); err != nil {
+				fmt.Printf("Failed to copy value to clipboard: %s\n", err)
 				return nil
 			}
-
-			fmt.Println("Value")
-			if revealFlag {
-				fmt.Println(color.InYellow(record.Value))
-			} else {
-				fmt.Println(color.InYellow(fmt.Sprintf("*********** - copied to the clipboard, it will be cleared in %d seconds", clipDuration)))
-			}
+			printSecret("Value", record.Value, revealFlag, clipDuration)
 		}
 
 		syscmd := exec.Command("clipclean", fmt.Sprint(clipDuration))
 		err = syscmd.Start()
 		if err != nil {
-			fmt.Println(fmt.Sprintf("clipclean error: %s", err.Error()))
+			fmt.Printf("clipclean error: %s\n", err)
 			return nil
 		}
 		return nil
 	},
+}
+
+func printSecret(label, secret string, reveal bool, clipDur int) {
+	fmt.Println(label)
+	if reveal {
+		fmt.Println(color.InYellow(secret))
+		return
+	}
+	msg := fmt.Sprintf("*********** - copied to the clipboard, it will be cleared in %d seconds", clipDur)
+	fmt.Println(color.InYellow(msg))
 }

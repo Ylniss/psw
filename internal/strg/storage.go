@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
-	"sort"
 	"strings"
 
 	color "github.com/TwiN/go-color"
@@ -48,17 +47,17 @@ func (s *Storage) GetNamesAndUsers() []NameAndUser {
 func (s *Storage) GetNamesWithPart(namePart string) []string {
 	lp := strings.ToLower(namePart)
 	var matched []string
-	for _, name := range s.GetNames() {
-		if strings.Contains(strings.ToLower(name), lp) {
-			matched = append(matched, name)
+	for _, r := range s.Records {
+		if strings.Contains(strings.ToLower(r.Name), lp) {
+			matched = append(matched, r.Name)
 		}
 	}
 	return matched
 }
 
 func (s *Storage) sortRecords() {
-	sort.Slice(s.Records, func(i, j int) bool {
-		return s.Records[i].Name < s.Records[j].Name
+	slices.SortFunc(s.Records, func(a, b Record) int {
+		return strings.Compare(a.Name, b.Name)
 	})
 }
 
@@ -93,8 +92,8 @@ func (s *Storage) RemoveRecord(name string) {
 }
 
 func (s *Storage) Exists(name string) bool {
-	for _, n := range s.GetNames() {
-		if strings.EqualFold(n, name) {
+	for _, r := range s.Records {
+		if strings.EqualFold(r.Name, name) {
 			return true
 		}
 	}
@@ -118,7 +117,7 @@ func (s *Storage) Save() error {
 	if err != nil {
 		return err
 	}
-	slog.Debug(fmt.Sprintf("saved storage content:\n%s", storageJson))
+	slog.Debug("saved storage content", "json", storageJson)
 	return EncryptStringToStorage(storageJson, s.MainPass)
 }
 

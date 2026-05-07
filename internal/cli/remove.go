@@ -36,6 +36,9 @@ Arguments:
 		}
 
 		recordName, err := resolveRecordName(storage, args, removeExactFlag)
+		if errors.Is(err, errExit) {
+			return errExit
+		}
 		if err != nil {
 			fmt.Println(err.Error())
 			return nil
