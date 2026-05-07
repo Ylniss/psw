@@ -61,15 +61,10 @@ func changeMainPass() {
 	mainPass, err := prmpt.PromptForMainPass(true) // prompt with ensure
 	if err != nil {
 		fmt.Println(err.Error())
-	}
-
-	storage, err := strg.Get(mainPass)
-	if err != nil {
-		fmt.Println(err.Error())
 		return
 	}
 
-	storageJson, err := storage.ToJson()
+	storage, err := strg.Get(mainPass)
 	if err != nil {
 		fmt.Println(err.Error())
 		return
@@ -81,15 +76,13 @@ func changeMainPass() {
 		return
 	}
 
-	err = strg.EncryptStringToStorage(storageJson, newMainPass)
-	if err != nil {
+	storage.MainPass = newMainPass
+	if err := storage.Save(); err != nil {
 		fmt.Println(err.Error())
 		return
 	}
 
 	fmt.Println(color.InGreen("Main password changed"))
-
-	return
 }
 
 func changeRecord(cmd *cobra.Command, args []string) error {

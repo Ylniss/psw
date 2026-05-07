@@ -40,7 +40,7 @@ Arguments:
 		}
 
 		if !storage.Exists(recordName) {
-			fmt.Printf("Record with name %s doesn't exists\n", color.InGreen(recordName))
+			fmt.Printf("Record with name %s doesn't exist\n", color.InGreen(recordName))
 			return nil
 		}
 

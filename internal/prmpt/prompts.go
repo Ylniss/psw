@@ -34,7 +34,9 @@ func YesOrNo(question string) bool {
 	}
 	oldState, err := term.MakeRaw(fd)
 	if err != nil {
-		panic(err)
+		fmt.Fprintln(os.Stderr, color.InYellow(
+			"warning: cannot enter raw mode for y/n prompt; defaulting to no"))
+		return false
 	}
 	defer term.Restore(fd, oldState)
 

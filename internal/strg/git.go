@@ -31,7 +31,7 @@ func initGitRepoIfNotExists() error {
 		return nil
 	}
 
-	fmt.Printf(color.InGreen("Initilizing git repository in %s\n"), Cfg.storagePath)
+	fmt.Printf(color.InGreen("Initializing git repository in %s\n"), Cfg.storagePath)
 
 	cmd := exec.Command("git", "init")
 	cmd.Dir = Cfg.storagePath

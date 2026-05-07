@@ -60,3 +60,15 @@ func TestGet_WrongMainPassword(t *testing.T) {
 	mustExit(t, r, 0)
 	mustContain(t, r.stdout, "Wrong password.")
 }
+
+func TestGet_CaseInsensitiveLookup(t *testing.T) {
+	t.Parallel()
+	// Arrange
+	v := newVault(t)
+	runPsw(t, v, "add", "Foo", "-u", "u", "--password=secret")
+	// Act
+	r := runPsw(t, v, "get", "FOO", "--exact", "--stdout")
+	// Assert
+	mustExit(t, r, 0)
+	mustEqual(t, trimmed(r), "secret")
+}

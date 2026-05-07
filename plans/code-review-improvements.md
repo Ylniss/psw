@@ -62,7 +62,7 @@ Land a multi-phase improvement pass on the psw codebase derived from a full revi
 - **Risk:** high — irreversible format change, manual local-only step, single-user vault is the only test target.
 - **Depends on:** none. Must go first.
 
-### [ ] Phase 2: Correctness / latent bugs
+### [x] Phase 2: Correctness / latent bugs
 - **Goal:** Six known bugs fixed, including the ones that cause user-visible weirdness (out-of-order listings after rename, case-sensitivity surprises, silent fall-through after a prompt error).
 - **Scope:**
   - `internal/strg/storage.go`: `UpdateRecord` re-sorts records after writing back (fixes out-of-order listing after `change foo --rename=zzz`).
@@ -131,6 +131,11 @@ _Append-only. Format: `YYYY-MM-DD — decision — why`._
 - 2026-05-07 — Phase 1: skipped `.tmp`+rename atomic write in `upgrade.go` — `.legacy-bak` is the recovery path, matches the rest of the codebase's in-place-write semantics.
 - 2026-05-07 — Phase 1: `upgrade.go` reads `PSW_HOME` directly instead of `strg.Cfg.storagePath` — keeps the never-committed file fully self-contained for a single-`rm` cleanup.
 - 2026-05-07 — Phase 1: added `os.Chmod` after `os.WriteFile` in `encryptStringToFile` and `filesys.copyFile` — Go's `WriteFile` does not change the mode of an existing file.
+- 2026-05-07 — Phase 2: skipped the parent plan's `encypted → encrypted` typo bullet — Phase 1's encryption.go rewrite already used the correct spelling.
+- 2026-05-07 — Phase 2: extracted `Storage.sortRecords()` helper instead of inlining sort in two callsites — shared by `AddRecord` and `UpdateRecord`, clearer intent.
+- 2026-05-07 — Phase 2: kept case-sensitive sort (`<`) — records cannot collide on case (`Exists` is `EqualFold`), so order is deterministic. Phase 4 will revisit when switching to `slices.SortFunc`.
+- 2026-05-07 — Phase 2: skipped a B3 regression test — exercising the fall-through requires TTY-injected prompt errors; covered indirectly by the existing `TestChange_Main` happy path.
+- 2026-05-07 — Phase 2: kept `YesOrNo` signature `(string) bool` — Phase 3 will rewrite this on bubbletea entirely, so any signature change now is wasted churn.
 
 ## Open questions
 None.

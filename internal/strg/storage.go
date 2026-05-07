@@ -46,27 +46,30 @@ func (s *Storage) GetNamesAndUsers() []NameAndUser {
 }
 
 func (s *Storage) GetNamesWithPart(namePart string) []string {
+	lp := strings.ToLower(namePart)
 	var matched []string
 	for _, name := range s.GetNames() {
-		if strings.Contains(name, namePart) {
+		if strings.Contains(strings.ToLower(name), lp) {
 			matched = append(matched, name)
 		}
 	}
 	return matched
 }
 
-func (s *Storage) AddRecord(r *Record) {
-	s.Records = append(s.Records, *r)
-
-	// Sort Records alphabetically by Name
+func (s *Storage) sortRecords() {
 	sort.Slice(s.Records, func(i, j int) bool {
 		return s.Records[i].Name < s.Records[j].Name
 	})
 }
 
+func (s *Storage) AddRecord(r *Record) {
+	s.Records = append(s.Records, *r)
+	s.sortRecords()
+}
+
 func (s *Storage) GetRecord(name string) (Record, bool) {
 	for _, r := range s.Records {
-		if r.Name == name {
+		if strings.EqualFold(r.Name, name) {
 			return r, true
 		}
 	}
@@ -75,15 +78,18 @@ func (s *Storage) GetRecord(name string) (Record, bool) {
 
 func (s *Storage) UpdateRecord(name string, updatedRecord Record) {
 	for i, r := range s.Records {
-		if r.Name == name {
+		if strings.EqualFold(r.Name, name) {
 			s.Records[i] = updatedRecord
+			s.sortRecords()
 			return
 		}
 	}
 }
 
 func (s *Storage) RemoveRecord(name string) {
-	s.Records = slices.DeleteFunc(s.Records, func(r Record) bool { return r.Name == name })
+	s.Records = slices.DeleteFunc(s.Records, func(r Record) bool {
+		return strings.EqualFold(r.Name, name)
+	})
 }
 
 func (s *Storage) Exists(name string) bool {
@@ -105,8 +111,8 @@ func (s *Storage) ToJson() (string, error) {
 }
 
 // Save serializes records to JSON and writes them encrypted under the
-// storage's current MainPass. Use ToJson + EncryptStringToStorage directly
-// when re-encrypting under a different password (e.g. 'change main').
+// storage's current MainPass. To change the main password, mutate
+// storage.MainPass before calling Save.
 func (s *Storage) Save() error {
 	storageJson, err := s.ToJson()
 	if err != nil {
