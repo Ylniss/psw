@@ -7,23 +7,23 @@ import (
 
 	"github.com/TwiN/go-color"
 	"github.com/spf13/cobra"
-	"github.com/ylniss/psw/internal/prmpt"
-	"github.com/ylniss/psw/internal/strg"
+	"github.com/ylniss/psw/internal/prompt"
+	"github.com/ylniss/psw/internal/storage"
 )
 
 var (
-	changeExactFlag  bool
-	changeRenameFlag string
-	changeUserFlag   string
-	changePassFlag   string
-	changeValueFlag  string
+	changeExactFlag    bool
+	changeRenameFlag   string
+	changeUsernameFlag string
+	changePasswordFlag string
+	changeValueFlag    string
 )
 
 func init() {
 	changeCmd.Flags().BoolVarP(&changeExactFlag, "exact", "e", false, "exact name match; skip interactive picker and substring search")
 	changeCmd.Flags().StringVar(&changeRenameFlag, "rename", "", "new record name (skips rename y/n + prompt)")
-	changeCmd.Flags().StringVarP(&changeUserFlag, "username", "u", "", "new username (skips username y/n + prompt)")
-	changeCmd.Flags().StringVar(&changePassFlag, "password", "", "new password (skips password y/n + prompt)")
+	changeCmd.Flags().StringVarP(&changeUsernameFlag, "username", "u", "", "new username (skips username y/n + prompt)")
+	changeCmd.Flags().StringVar(&changePasswordFlag, "password", "", "new password (skips password y/n + prompt)")
 	changeCmd.Flags().StringVar(&changeValueFlag, "value", "", "new value for value-only records (skips value y/n + prompt)")
 	rootCmd.AddCommand(changeCmd)
 }
@@ -43,23 +43,23 @@ Arguments:
 				fmt.Println("Record-level flags (--rename/--username/--password/--value) are not valid with 'change main'")
 				return errExit
 			}
-			changeMainPass()
-			strg.GitCommit("main password changed")
+			changeMainPassword()
+			storage.GitCommit("main password changed")
 			return nil
 		}
 		if err := changeRecord(cmd, args); err != nil {
 			return err
 		}
-		strg.GitCommit("record updated")
+		storage.GitCommit("record updated")
 		return nil
 	},
 }
 
-func changeMainPass() {
+func changeMainPassword() {
 	fmt.Println(color.InCyan("You are changing your main password!\nFirst enter your current password"))
 
-	mainPass, err := prmpt.PromptForMainPass(true) // prompt with ensure
-	if errors.Is(err, prmpt.ErrPromptCancelled) {
+	mainPassword, err := prompt.PromptForMainPassword(true) // prompt with ensure
+	if errors.Is(err, prompt.ErrPromptCancelled) {
 		return
 	}
 	if err != nil {
@@ -67,14 +67,14 @@ func changeMainPass() {
 		return
 	}
 
-	storage, err := strg.Get(mainPass)
+	store, err := storage.Get(mainPassword)
 	if err != nil {
 		fmt.Println(err.Error())
 		return
 	}
 
-	newMainPass, err := prmpt.PromptForMainPassChange()
-	if errors.Is(err, prmpt.ErrPromptCancelled) {
+	newMainPassword, err := prompt.PromptForMainPasswordChange()
+	if errors.Is(err, prompt.ErrPromptCancelled) {
 		return
 	}
 	if err != nil {
@@ -82,8 +82,8 @@ func changeMainPass() {
 		return
 	}
 
-	storage.MainPass = newMainPass
-	if err := storage.Save(); err != nil {
+	store.MainPassword = newMainPassword
+	if err := store.Save(); err != nil {
 		fmt.Println(err.Error())
 		return
 	}
@@ -93,16 +93,16 @@ func changeMainPass() {
 
 func changeRecord(cmd *cobra.Command, args []string) error {
 	renameSet := cmd.Flags().Changed("rename")
-	userSet := cmd.Flags().Changed("username")
-	passSet := cmd.Flags().Changed("password")
-	valSet := cmd.Flags().Changed("value")
+	usernameSet := cmd.Flags().Changed("username")
+	passwordSet := cmd.Flags().Changed("password")
+	valueSet := cmd.Flags().Changed("value")
 
 	// If any field flag was passed, switch to non-interactive mode: only
 	// touch the fields whose flag is set; leave the rest unchanged.
-	anyFlagSet := renameSet || userSet || passSet || valSet
+	anyFlagSet := renameSet || usernameSet || passwordSet || valueSet
 
-	storage, err := strg.GetOrCreateIfNotExists()
-	if errors.Is(err, prmpt.ErrPromptCancelled) {
+	store, err := storage.GetOrCreateIfNotExists()
+	if errors.Is(err, prompt.ErrPromptCancelled) {
 		return nil
 	}
 	if err != nil {
@@ -110,7 +110,7 @@ func changeRecord(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	recordName, err := resolveRecordName(storage, args, changeExactFlag)
+	recordName, err := resolveRecordName(store, args, changeExactFlag)
 	if errors.Is(err, errExit) {
 		return errExit
 	}
@@ -121,7 +121,7 @@ func changeRecord(cmd *cobra.Command, args []string) error {
 	if recordName == "" {
 		return nil
 	}
-	record, isFound := storage.GetRecord(recordName)
+	record, isFound := store.GetRecord(recordName)
 
 	slog.Debug("cmd/change", "record", fmt.Sprintf("%#v", record))
 
@@ -130,35 +130,35 @@ func changeRecord(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if (userSet || passSet) && record.Value != "" {
+	if (usernameSet || passwordSet) && record.Value != "" {
 		fmt.Printf("Record %s is value-only; --username/--password not applicable\n", color.InGreen(recordName))
 		return errExit
 	}
-	if valSet && record.Value == "" {
+	if valueSet && record.Value == "" {
 		fmt.Printf("Record %s is user/pass; --value not applicable\n", color.InGreen(recordName))
 		return errExit
 	}
 
-	if !applyOrPromptRename(&record, storage, renameSet, anyFlagSet) {
+	if !applyOrPromptRename(&record, store, renameSet, anyFlagSet) {
 		return nil
 	}
 
 	if record.Value == "" {
-		if !applyOrPromptUsername(&record, userSet, anyFlagSet) {
+		if !applyOrPromptUsername(&record, usernameSet, anyFlagSet) {
 			return nil
 		}
-		if !applyOrPromptPassword(&record, passSet, anyFlagSet) {
+		if !applyOrPromptPassword(&record, passwordSet, anyFlagSet) {
 			return nil
 		}
 	} else {
-		if !applyOrPromptValue(&record, valSet, anyFlagSet) {
+		if !applyOrPromptValue(&record, valueSet, anyFlagSet) {
 			return nil
 		}
 	}
 
-	storage.UpdateRecord(recordName, record)
+	store.UpdateRecord(recordName, record)
 
-	if err := storage.Save(); err != nil {
+	if err := store.Save(); err != nil {
 		fmt.Println(err.Error())
 		return nil
 	}
@@ -170,9 +170,9 @@ func changeRecord(cmd *cobra.Command, args []string) error {
 // applyOrPromptRename returns false when the caller should abort (error or
 // duplicate name); true means the field has been processed (either set,
 // skipped via flag-mode, or the user declined the prompt).
-func applyOrPromptRename(record *strg.Record, storage *strg.Storage, flagSet, anyFlagSet bool) bool {
+func applyOrPromptRename(record *storage.Record, store *storage.Storage, flagSet, anyFlagSet bool) bool {
 	if flagSet {
-		if storage.Exists(changeRenameFlag) {
+		if store.Exists(changeRenameFlag) {
 			fmt.Printf("Record with name %s already exists\n", color.InGreen(changeRenameFlag))
 			return false
 		}
@@ -182,19 +182,19 @@ func applyOrPromptRename(record *strg.Record, storage *strg.Storage, flagSet, an
 	if anyFlagSet {
 		return true
 	}
-	if !prmpt.YesOrNo("Do you want to change record name?") {
+	if !prompt.YesOrNo("Do you want to change record name?") {
 		return true
 	}
 	fmt.Printf("Current name: %s\n", color.InGreen(record.Name))
-	newName, err := prmpt.PromptForName("New name")
-	if errors.Is(err, prmpt.ErrPromptCancelled) {
+	newName, err := prompt.PromptForName("New name")
+	if errors.Is(err, prompt.ErrPromptCancelled) {
 		return false
 	}
 	if err != nil {
 		fmt.Println(err.Error())
 		return false
 	}
-	if storage.Exists(newName) {
+	if store.Exists(newName) {
 		fmt.Printf("Record with name %s already exists\n", color.InGreen(newName))
 		return false
 	}
@@ -202,53 +202,53 @@ func applyOrPromptRename(record *strg.Record, storage *strg.Storage, flagSet, an
 	return true
 }
 
-func applyOrPromptUsername(record *strg.Record, flagSet, anyFlagSet bool) bool {
+func applyOrPromptUsername(record *storage.Record, flagSet, anyFlagSet bool) bool {
 	if flagSet {
-		record.User = changeUserFlag
+		record.Username = changeUsernameFlag
 		return true
 	}
 	if anyFlagSet {
 		return true
 	}
-	if !prmpt.YesOrNo("Do you want to change username?") {
+	if !prompt.YesOrNo("Do you want to change username?") {
 		return true
 	}
-	newUser, err := prmpt.PromptForName("New username")
-	if errors.Is(err, prmpt.ErrPromptCancelled) {
+	newUsername, err := prompt.PromptForName("New username")
+	if errors.Is(err, prompt.ErrPromptCancelled) {
 		return false
 	}
 	if err != nil {
 		fmt.Println(err.Error())
 		return false
 	}
-	record.User = newUser
+	record.Username = newUsername
 	return true
 }
 
-func applyOrPromptPassword(record *strg.Record, flagSet, anyFlagSet bool) bool {
+func applyOrPromptPassword(record *storage.Record, flagSet, anyFlagSet bool) bool {
 	if flagSet {
-		record.Pass = changePassFlag
+		record.Password = changePasswordFlag
 		return true
 	}
 	if anyFlagSet {
 		return true
 	}
-	if !prmpt.YesOrNo("Do you want to change password?") {
+	if !prompt.YesOrNo("Do you want to change password?") {
 		return true
 	}
-	newPass, err := prmpt.PromptForRecordPass()
-	if errors.Is(err, prmpt.ErrPromptCancelled) {
+	newPassword, err := prompt.PromptForRecordPassword()
+	if errors.Is(err, prompt.ErrPromptCancelled) {
 		return false
 	}
 	if err != nil {
 		fmt.Println(err.Error())
 		return false
 	}
-	record.Pass = newPass
+	record.Password = newPassword
 	return true
 }
 
-func applyOrPromptValue(record *strg.Record, flagSet, anyFlagSet bool) bool {
+func applyOrPromptValue(record *storage.Record, flagSet, anyFlagSet bool) bool {
 	if flagSet {
 		record.Value = changeValueFlag
 		return true
@@ -256,11 +256,11 @@ func applyOrPromptValue(record *strg.Record, flagSet, anyFlagSet bool) bool {
 	if anyFlagSet {
 		return true
 	}
-	if !prmpt.YesOrNo("Do you want to change value?") {
+	if !prompt.YesOrNo("Do you want to change value?") {
 		return true
 	}
-	newValue, err := prmpt.PromptForName("New value")
-	if errors.Is(err, prmpt.ErrPromptCancelled) {
+	newValue, err := prompt.PromptForName("New value")
+	if errors.Is(err, prompt.ErrPromptCancelled) {
 		return false
 	}
 	if err != nil {

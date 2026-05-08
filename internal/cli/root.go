@@ -13,8 +13,8 @@ import (
 
 	"github.com/TwiN/go-color"
 	"github.com/spf13/cobra"
-	"github.com/ylniss/psw/internal/prmpt"
-	"github.com/ylniss/psw/internal/strg"
+	"github.com/ylniss/psw/internal/prompt"
+	"github.com/ylniss/psw/internal/storage"
 )
 
 // errExit: caller already printed; signals exit 1. cobra silenced in Execute.
@@ -42,12 +42,12 @@ On first use, you’ll set a main password to protect your stored passwords.`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		setupLogger()
 		slog.Debug("App started")
-		return strg.InitConfig()
+		return storage.InitConfig()
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// list all record names on 'psw' command
-		storage, err := strg.GetOrCreateIfNotExists()
-		if errors.Is(err, prmpt.ErrPromptCancelled) {
+		store, err := storage.GetOrCreateIfNotExists()
+		if errors.Is(err, prompt.ErrPromptCancelled) {
 			return nil
 		}
 		if err != nil {
@@ -55,16 +55,16 @@ On first use, you’ll set a main password to protect your stored passwords.`,
 			return nil
 		}
 
-		namesAndUsers := storage.GetNamesAndUsers()
+		namesAndUsers := store.GetNamesAndUsers()
 		if len(namesAndUsers) == 0 {
 			fmt.Printf("No secrets found. Use %s command first.\n", color.InCyan("add"))
 			return nil
 		}
 
-		longest := slices.MaxFunc(namesAndUsers, func(a, b strg.NameAndUser) int {
+		recordWithLongestName := slices.MaxFunc(namesAndUsers, func(a, b storage.NameAndUser) int {
 			return len(a.Name) - len(b.Name)
 		})
-		longestNameLen := len(longest.Name)
+		longestNameLen := len(recordWithLongestName.Name)
 
 		for _, nameAndUser := range namesAndUsers {
 			fmt.Println(formatRecordLine(nameAndUser, longestNameLen))
@@ -73,13 +73,13 @@ On first use, you’ll set a main password to protect your stored passwords.`,
 	},
 }
 
-func formatRecordLine(nu strg.NameAndUser, longestNameLen int) string {
-	dots := strings.Repeat(".", longestNameLen+5-len(nu.Name))
+func formatRecordLine(nameAndUser storage.NameAndUser, longestNameLen int) string {
+	dots := strings.Repeat(".", longestNameLen+5-len(nameAndUser.Name))
 	suffix := color.InCyan("<value only>")
-	if len(nu.User) > 0 {
-		suffix = color.InYellow("(" + nu.User + ")")
+	if len(nameAndUser.Username) > 0 {
+		suffix = color.InYellow("(" + nameAndUser.Username + ")")
 	}
-	return color.InGreen(nu.Name) + dots + suffix
+	return color.InGreen(nameAndUser.Name) + dots + suffix
 }
 
 func Execute() {
@@ -93,17 +93,17 @@ func Execute() {
 	slog.Debug("App finished")
 }
 
-type easyHandler struct {
+type simpleSlogHandler struct {
 	out   io.Writer
 	level slog.Level
 	mu    sync.Mutex
 }
 
-func (h *easyHandler) Enabled(_ context.Context, level slog.Level) bool {
+func (h *simpleSlogHandler) Enabled(_ context.Context, level slog.Level) bool {
 	return level >= h.level
 }
 
-func (h *easyHandler) Handle(_ context.Context, r slog.Record) error {
+func (h *simpleSlogHandler) Handle(_ context.Context, r slog.Record) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	var prefix string
@@ -125,13 +125,13 @@ func (h *easyHandler) Handle(_ context.Context, r slog.Record) error {
 }
 
 // No-op: binary doesn't use slog.With(); attrs would be silently dropped.
-func (h *easyHandler) WithAttrs(_ []slog.Attr) slog.Handler { return h }
-func (h *easyHandler) WithGroup(_ string) slog.Handler      { return h }
+func (h *simpleSlogHandler) WithAttrs(_ []slog.Attr) slog.Handler { return h }
+func (h *simpleSlogHandler) WithGroup(_ string) slog.Handler      { return h }
 
 func setupLogger() {
 	level := slog.LevelInfo
 	if verboseFlag {
 		level = slog.LevelDebug
 	}
-	slog.SetDefault(slog.New(&easyHandler{out: os.Stderr, level: level}))
+	slog.SetDefault(slog.New(&simpleSlogHandler{out: os.Stderr, level: level}))
 }

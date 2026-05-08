@@ -1,4 +1,4 @@
-package strg
+package storage
 
 import (
 	"errors"
@@ -40,8 +40,8 @@ type pickerDelegate struct{}
 func (pickerDelegate) Height() int                             { return 1 }
 func (pickerDelegate) Spacing() int                            { return 0 }
 func (pickerDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
-func (pickerDelegate) Render(w io.Writer, m list.Model, index int, it list.Item) {
-	name := string(it.(pickerItem))
+func (pickerDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
+	name := string(item.(pickerItem))
 	style := lipgloss.NewStyle().PaddingLeft(itemPaddingLeft)
 	if index == m.Index() {
 		style = style.Foreground(selectedColor).Bold(true)
@@ -76,8 +76,8 @@ func (m pickerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// user is still typing the filter. Without this, bubbles/list
 			// treats Enter in Filtering state as "apply filter" and the user
 			// would have to press Enter twice to actually select.
-			if it, ok := m.list.SelectedItem().(pickerItem); ok {
-				m.chosen = string(it)
+			if item, ok := m.list.SelectedItem().(pickerItem); ok {
+				m.chosen = string(item)
 				return m, tea.Quit
 			}
 		case "up", "ctrl+p":
@@ -122,17 +122,17 @@ func GetRecordNameInteractive(names []string) (string, error) {
 	l.SetShowHelp(false) // we render our own footer that matches the actual keybindings
 	l.SetFilteringEnabled(true)
 
-	p := tea.NewProgram(pickerModel{list: l}, tea.WithAltScreen())
-	final, err := p.Run()
+	program := tea.NewProgram(pickerModel{list: l}, tea.WithAltScreen())
+	final, err := program.Run()
 	if err != nil {
 		return "", fmt.Errorf("interactive picker failed: %w", err)
 	}
-	fm, ok := final.(pickerModel)
+	finalModel, ok := final.(pickerModel)
 	if !ok {
 		return "", fmt.Errorf("interactive picker returned unexpected model type %T", final)
 	}
-	if fm.chosen == "" {
+	if finalModel.chosen == "" {
 		return "", ErrPickerCancelled
 	}
-	return fm.chosen, nil
+	return finalModel.chosen, nil
 }

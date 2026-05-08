@@ -1,4 +1,4 @@
-package strg
+package storage
 
 import (
 	"encoding/json"
@@ -8,19 +8,19 @@ import (
 	"strings"
 
 	color "github.com/TwiN/go-color"
-	"github.com/ylniss/psw/internal/prmpt"
+	"github.com/ylniss/psw/internal/prompt"
 )
 
 type Record struct {
-	Name  string `json:"name"`
-	User  string `json:"user"`
-	Pass  string `json:"pass"`
-	Value string `json:"value"`
+	Name     string `json:"name"`
+	Username string `json:"user"`
+	Password string `json:"pass"`
+	Value    string `json:"value"`
 }
 
 type Storage struct {
-	MainPass string
-	Records  []Record
+	MainPassword string
+	Records      []Record
 }
 
 func (s *Storage) GetNames() []string {
@@ -32,23 +32,23 @@ func (s *Storage) GetNames() []string {
 }
 
 type NameAndUser struct {
-	Name string
-	User string
+	Name     string
+	Username string
 }
 
 func (s *Storage) GetNamesAndUsers() []NameAndUser {
-	out := make([]NameAndUser, len(s.Records))
+	nameAndUsers := make([]NameAndUser, len(s.Records))
 	for i, r := range s.Records {
-		out[i] = NameAndUser{Name: r.Name, User: r.User}
+		nameAndUsers[i] = NameAndUser{Name: r.Name, Username: r.Username}
 	}
-	return out
+	return nameAndUsers
 }
 
 func (s *Storage) GetNamesWithPart(namePart string) []string {
-	lp := strings.ToLower(namePart)
+	lowercaseNamePart := strings.ToLower(namePart)
 	var matched []string
 	for _, r := range s.Records {
-		if strings.Contains(strings.ToLower(r.Name), lp) {
+		if strings.Contains(strings.ToLower(r.Name), lowercaseNamePart) {
 			matched = append(matched, r.Name)
 		}
 	}
@@ -110,19 +110,19 @@ func (s *Storage) ToJson() (string, error) {
 }
 
 // Save serializes records to JSON and writes them encrypted under the
-// storage's current MainPass. To change the main password, mutate
-// storage.MainPass before calling Save.
+// storage's current MainPassword. To change the main password, mutate
+// storage.MainPassword before calling Save.
 func (s *Storage) Save() error {
 	storageJson, err := s.ToJson()
 	if err != nil {
 		return err
 	}
 	slog.Debug("saved storage content", "json", storageJson)
-	return EncryptStringToStorage(storageJson, s.MainPass)
+	return EncryptStringToStorage(storageJson, s.MainPassword)
 }
 
 func GetOrCreateIfNotExists() (*Storage, error) {
-	mainPass, created, err := createEncryptedStorageIfNotExists()
+	mainPassword, created, err := createEncryptedStorageIfNotExists()
 	if err != nil {
 		return nil, err
 	}
@@ -133,18 +133,18 @@ func GetOrCreateIfNotExists() (*Storage, error) {
 	}
 
 	// when storage already exists, prompt for password to access
-	if !created && mainPass == "" {
-		mainPass, err = prmpt.PromptForMainPass(false)
+	if !created && mainPassword == "" {
+		mainPassword, err = prompt.PromptForMainPassword(false)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	return Get(mainPass)
+	return Get(mainPassword)
 }
 
-func Get(mainPass string) (*Storage, error) {
-	storageJson, err := DecryptStringFromStorage(mainPass)
+func Get(mainPassword string) (*Storage, error) {
+	storageJson, err := DecryptStringFromStorage(mainPassword)
 	if err != nil {
 		return nil, err
 	}
@@ -154,7 +154,7 @@ func Get(mainPass string) (*Storage, error) {
 		return nil, err
 	}
 
-	storage := Storage{Records: records, MainPass: mainPass}
+	storage := Storage{Records: records, MainPassword: mainPassword}
 
 	return &storage, nil
 }
@@ -172,7 +172,7 @@ func getRecords(storageJson string) ([]Record, error) {
 // returns true and password used to create storage if created storage
 // or false with empty string when error occured or storage already existed
 func createEncryptedStorageIfNotExists() (string, bool, error) {
-	storageFileExists, err := pathExists(Cfg.storageFilePath)
+	storageFileExists, err := pathExists(Paths.storageFilePath)
 	if err != nil {
 		return "", false, err
 	}
@@ -183,12 +183,12 @@ func createEncryptedStorageIfNotExists() (string, bool, error) {
 
 	fmt.Println("No encrypted storage found. Set your main password that will be used to decrypt your secrets.")
 
-	mainPass, err := prmpt.PromptForMainPass(true)
+	mainPassword, err := prompt.PromptForMainPassword(true)
 	if err != nil {
 		return "", false, err
 	}
 
-	err = EncryptStringToStorage("[]", mainPass)
+	err = EncryptStringToStorage("[]", mainPassword)
 	if err != nil {
 		return "", false, err
 	}
@@ -198,5 +198,5 @@ func createEncryptedStorageIfNotExists() (string, bool, error) {
 		color.InCyan("change main"),
 		color.InGreen("command"))
 
-	return mainPass, true, nil
+	return mainPassword, true, nil
 }

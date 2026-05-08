@@ -1,4 +1,4 @@
-package prmpt
+package prompt
 
 import (
 	"errors"
@@ -18,10 +18,10 @@ import (
 var ErrPromptCancelled = errors.New("prompt cancelled")
 
 var (
-	passwordsDontMatchMsg = "Passwords don't match, try again"
-	errRequired           = errors.New("input required")
-	errNoTTY              = errors.New("interactive prompt required: stdin is not a terminal")
-	promptErrStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("203"))
+	passwordsDontMatchMessage = "Passwords don't match, try again"
+	errRequired               = errors.New("input required")
+	errNoTTY                  = errors.New("interactive prompt required: stdin is not a terminal")
+	promptErrorStyle          = lipgloss.NewStyle().Foreground(lipgloss.Color("203"))
 )
 
 func validateRequired(content string) error {
@@ -44,13 +44,13 @@ type inputModel struct {
 }
 
 func newInputModel(label string, password bool) inputModel {
-	ti := textinput.New()
-	ti.Prompt = ""
-	ti.Focus()
+	textInput := textinput.New()
+	textInput.Prompt = ""
+	textInput.Focus()
 	if password {
-		ti.EchoMode = textinput.EchoPassword
+		textInput.EchoMode = textinput.EchoPassword
 	}
-	return inputModel{label: label, input: ti}
+	return inputModel{label: label, input: textInput}
 }
 
 func (m inputModel) Init() tea.Cmd {
@@ -83,7 +83,7 @@ func (m inputModel) View() string {
 	}
 	view := fmt.Sprintf("%s: %s", m.label, m.input.View())
 	if m.errMsg != "" {
-		view += "\n" + promptErrStyle.Render(m.errMsg)
+		view += "\n" + promptErrorStyle.Render(m.errMsg)
 	}
 	return view
 }
@@ -96,14 +96,14 @@ func runInput(label string, password bool) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("prompt failed: %w", err)
 	}
-	fm, ok := final.(inputModel)
+	finalModel, ok := final.(inputModel)
 	if !ok {
 		return "", fmt.Errorf("prompt returned unexpected model type %T", final)
 	}
-	if fm.cancelled {
+	if finalModel.cancelled {
 		return "", ErrPromptCancelled
 	}
-	val := fm.input.Value()
+	val := finalModel.input.Value()
 	// Bubbletea wipes its inline render region on exit. Re-emit the answered
 	// prompt so it persists in scrollback above the next prompt.
 	display := val
@@ -155,11 +155,11 @@ func YesOrNo(question string) bool {
 	if err != nil {
 		return false
 	}
-	fm, ok := final.(yesNoModel)
+	finalModel, ok := final.(yesNoModel)
 	if !ok {
 		return false
 	}
-	answer := fm.decided && fm.answer
+	answer := finalModel.decided && finalModel.answer
 	ans := "n"
 	if answer {
 		ans = "y"
@@ -172,7 +172,7 @@ func PromptForName(promptText string) (string, error) {
 	return runInput(promptText, false)
 }
 
-func PromptForRecordPass() (string, error) {
+func PromptForRecordPassword() (string, error) {
 	for {
 		first, err := runInput("Password", true)
 		if err != nil {
@@ -185,21 +185,21 @@ func PromptForRecordPass() (string, error) {
 		if first == repeat {
 			return first, nil
 		}
-		fmt.Println(color.InCyan(passwordsDontMatchMsg))
+		fmt.Println(color.InCyan(passwordsDontMatchMessage))
 	}
 }
 
-func PromptForMainPassChange() (string, error) {
-	return promptForMainPass(true, true)
+func PromptForMainPasswordChange() (string, error) {
+	return promptForMainPassword(true, true)
 }
 
-func PromptForMainPass(ensure bool) (string, error) {
-	return promptForMainPass(ensure, false)
+func PromptForMainPassword(ensure bool) (string, error) {
+	return promptForMainPassword(ensure, false)
 }
 
-func promptForMainPass(ensure bool, mainPassChange bool) (string, error) {
+func promptForMainPassword(ensure bool, mainPasswordChange bool) (string, error) {
 	envVar := "PSW_MAIN_PASSWORD"
-	if mainPassChange {
+	if mainPasswordChange {
 		envVar = "PSW_NEW_MAIN_PASSWORD"
 	}
 	if envPass := os.Getenv(envVar); envPass != "" {
@@ -208,7 +208,7 @@ func promptForMainPass(ensure bool, mainPassChange bool) (string, error) {
 
 	askText := "Main password"
 	repeatText := "Repeat main password"
-	if mainPassChange {
+	if mainPasswordChange {
 		askText = "New main password"
 		repeatText = "Repeat new main password"
 	}
@@ -228,6 +228,6 @@ func promptForMainPass(ensure bool, mainPassChange bool) (string, error) {
 		if first == repeat {
 			return first, nil
 		}
-		fmt.Println(color.InYellow(passwordsDontMatchMsg))
+		fmt.Println(color.InYellow(passwordsDontMatchMessage))
 	}
 }

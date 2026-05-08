@@ -1,4 +1,4 @@
-package strg
+package storage
 
 import (
 	"fmt"
@@ -20,16 +20,16 @@ type LogEntry struct {
 }
 
 func IsGitRepo() (bool, error) {
-	return pathExists(filepath.Join(Cfg.storagePath, ".git"))
+	return pathExists(filepath.Join(Paths.storagePath, ".git"))
 }
 
 func GitLog() ([]LogEntry, error) {
-	out, err := exec.Command("git", "-C", Cfg.storagePath, "log", "--reverse", "--format=%h %ct %s").Output()
+	output, err := exec.Command("git", "-C", Paths.storagePath, "log", "--reverse", "--format=%h %ct %s").Output()
 	if err != nil {
 		return nil, fmt.Errorf("git log: %w", err)
 	}
 	var entries []LogEntry
-	for _, line := range strings.Split(strings.TrimRight(string(out), "\n"), "\n") {
+	for _, line := range strings.Split(strings.TrimRight(string(output), "\n"), "\n") {
 		if line == "" {
 			continue
 		}
@@ -37,13 +37,13 @@ func GitLog() ([]LogEntry, error) {
 		if len(parts) < 3 {
 			continue
 		}
-		secs, err := strconv.ParseInt(parts[1], 10, 64)
+		seconds, err := strconv.ParseInt(parts[1], 10, 64)
 		if err != nil {
 			continue
 		}
 		entries = append(entries, LogEntry{
 			ShortSHA: parts[0],
-			Time:     time.Unix(secs, 0),
+			Time:     time.Unix(seconds, 0),
 			Message:  parts[2],
 		})
 	}
@@ -63,26 +63,26 @@ func initGitRepoIfNotExists() error {
 		return nil
 	}
 
-	gitRepoExists, err := pathExists(filepath.Join(Cfg.storagePath, ".git"))
+	gitRepoExists, err := pathExists(filepath.Join(Paths.storagePath, ".git"))
 	if err != nil {
 		return err
 	}
 
 	if gitRepoExists {
-		Cfg.gitRepoExists = true
+		Paths.gitRepoExists = true
 		return nil
 	}
 
-	msg := fmt.Sprintf("Initializing git repository in %s", Cfg.storagePath)
+	msg := fmt.Sprintf("Initializing git repository in %s", Paths.storagePath)
 	fmt.Println(color.InGreen(msg))
 
 	cmd := exec.Command("git", "init")
-	cmd.Dir = Cfg.storagePath
+	cmd.Dir = Paths.storagePath
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("git init: %w", err)
 	}
 
-	Cfg.gitRepoExists = true
+	Paths.gitRepoExists = true
 
 	fmt.Println(color.InGreen("Making initial commit with main password set for storage"))
 	fmt.Println(color.InGreen("Every add/change/remove action will also commit to repository"))
@@ -94,18 +94,18 @@ func GitCommit(message string) error {
 		return nil
 	}
 
-	if !Cfg.gitRepoExists {
+	if !Paths.gitRepoExists {
 		return nil
 	}
 
 	cmd := exec.Command("git", "add", "storage.psw", "pswcfg.toml")
-	cmd.Dir = Cfg.storagePath
+	cmd.Dir = Paths.storagePath
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("git add: %w", err)
 	}
 
 	cmd = exec.Command("git", "commit", "--message="+message)
-	cmd.Dir = Cfg.storagePath
+	cmd.Dir = Paths.storagePath
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("git commit: %w", err)
 	}

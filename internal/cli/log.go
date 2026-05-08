@@ -6,7 +6,7 @@ import (
 
 	color "github.com/TwiN/go-color"
 	"github.com/spf13/cobra"
-	"github.com/ylniss/psw/internal/strg"
+	"github.com/ylniss/psw/internal/storage"
 )
 
 func init() {
@@ -19,7 +19,7 @@ var logCmd = &cobra.Command{
 	Long:  "Prints commits from the storage git repository: short SHA, date and message, colorized by action type.",
 	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		ok, err := strg.IsGitRepo()
+		ok, err := storage.IsGitRepo()
 		if err != nil {
 			fmt.Println(color.InRed(err.Error()))
 			return errExit
@@ -28,16 +28,16 @@ var logCmd = &cobra.Command{
 			fmt.Println(color.InRed("Storage is not a git repository, no log to show."))
 			return errExit
 		}
-		entries, err := strg.GitLog()
+		entries, err := storage.GitLog()
 		if err != nil {
 			fmt.Println(color.InRed(err.Error()))
 			return errExit
 		}
-		for _, e := range entries {
+		for _, entry := range entries {
 			fmt.Printf("%s  %s  %s\n",
-				color.InCyan(e.ShortSHA),
-				e.Time.Format("2006-01-02 15:04"),
-				colorizeLogMessage(e.Message),
+				color.InCyan(entry.ShortSHA),
+				entry.Time.Format("2006-01-02 15:04"),
+				colorizeLogMessage(entry.Message),
 			)
 		}
 		return nil

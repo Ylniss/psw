@@ -1,4 +1,4 @@
-package strg
+package storage
 
 import (
 	"errors"
@@ -11,7 +11,7 @@ import (
 	"github.com/pelletier/go-toml/v2"
 )
 
-type StorageCfg struct {
+type StorageConfig struct {
 	storagePath     string
 	storageFilePath string
 	storageFileName string
@@ -20,7 +20,7 @@ type StorageCfg struct {
 	gitRepoExists   bool
 }
 
-var Cfg = StorageCfg{
+var Paths = StorageConfig{
 	storageFileName: "storage.psw",
 	configFileName:  "pswcfg.toml",
 	gitRepoExists:   false,
@@ -54,27 +54,27 @@ func setStoragePath() error {
 	}
 
 	var err error
-	Cfg.storagePath, err = expandPathWithHomePrefix(path)
+	Paths.storagePath, err = expandPathWithHomePrefix(path)
 	if err != nil {
 		return err
 	}
 
-	err = ensureDirExists(Cfg.storagePath)
+	err = ensureDirExists(Paths.storagePath)
 	if err != nil {
 		return err
 	}
 
-	if Cfg.storageFileName == "" {
+	if Paths.storageFileName == "" {
 		return errors.New("error when setting storage path, storage file name is not set")
 	}
 
-	Cfg.storageFilePath = filepath.Join(Cfg.storagePath, Cfg.storageFileName)
+	Paths.storageFilePath = filepath.Join(Paths.storagePath, Paths.storageFileName)
 
 	return nil
 }
 
 func loadConfig() error {
-	Cfg.configFilePath = filepath.Join(Cfg.storagePath, Cfg.configFileName)
+	Paths.configFilePath = filepath.Join(Paths.storagePath, Paths.configFileName)
 
 	if err := ensureUserConfig(); err != nil {
 		return err
@@ -87,7 +87,7 @@ func loadConfig() error {
 }
 
 func ensureUserConfig() error {
-	exists, err := pathExists(Cfg.configFilePath)
+	exists, err := pathExists(Paths.configFilePath)
 	if err != nil {
 		return fmt.Errorf("error checking config file existence: %w", err)
 	}
@@ -99,7 +99,7 @@ func ensureUserConfig() error {
 	if err != nil {
 		return fmt.Errorf("unable to determine executable path: %w", err)
 	}
-	binConfigPath := filepath.Join(filepath.Dir(binPath), Cfg.configFileName)
+	binConfigPath := filepath.Join(filepath.Dir(binPath), Paths.configFileName)
 
 	binExists, err := pathExists(binConfigPath)
 	if err != nil {
@@ -109,14 +109,14 @@ func ensureUserConfig() error {
 		return errors.New("config file does not exist in the binary location")
 	}
 
-	if err := copyFile(binConfigPath, Cfg.configFilePath); err != nil {
-		return fmt.Errorf("failed to copy config file from %s to %s: %w", binConfigPath, Cfg.configFilePath, err)
+	if err := copyFile(binConfigPath, Paths.configFilePath); err != nil {
+		return fmt.Errorf("failed to copy config file from %s to %s: %w", binConfigPath, Paths.configFilePath, err)
 	}
 	return nil
 }
 
 func readConfigFile() error {
-	file, err := os.ReadFile(Cfg.configFilePath)
+	file, err := os.ReadFile(Paths.configFilePath)
 	if err != nil {
 		return fmt.Errorf("error reading config file: %w", err)
 	}

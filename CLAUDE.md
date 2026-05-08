@@ -20,22 +20,22 @@ Integration tests under `tests/` (`make test`): `TestMain` builds `psw` once int
 ### Package layout
 
 - `cmd/<binary>/main.go` — entry points. Thin wrappers; real logic under `internal/`.
-- `internal/cli/` — Cobra commands (`package cli`); each file self-registers with `rootCmd` via `init()`. `rootCmd` (`root.go`) lists records when bare; its `PersistentPreRunE` runs `setupLogger()` + `strg.InitConfig()` (errors propagate through cobra → `Execute` → exit 1). `Version` = ldflag target (see Build & install).
-- `internal/strg/` — storage + encryption. `InitConfig` populates package-level singletons `Cfg` (paths) and `AppConfig` (parsed TOML).
-- `internal/prmpt/` — TUI prompts. `YesOrNo` returns `false` on non-TTY stdin (no panic) — scripting-safe.
+- `internal/cli/` — Cobra commands (`package cli`); each file self-registers with `rootCmd` via `init()`. `rootCmd` (`root.go`) lists records when bare; its `PersistentPreRunE` runs `setupLogger()` + `storage.InitConfig()` (errors propagate through cobra → `Execute` → exit 1). `Version` = ldflag target (see Build & install).
+- `internal/storage/` — storage + encryption. `InitConfig` populates package-level singletons `Paths` (`StorageConfig`-typed; paths + git-repo flag) and `AppConfig` (parsed TOML).
+- `internal/prompt/` — TUI prompts. `YesOrNo` returns `false` on non-TTY stdin (no panic) — scripting-safe.
 - `plans/` — design notes for in-flight or completed reshapes.
 
 ### Data dir (`~/.psw/`)
 
-`strg.InitConfig` (from `rootCmd.PersistentPreRunE`) ensures `~/.psw/` and loads `pswcfg.toml` (seeded from beside the executable on first run — hence `make build` copies `pswcfg-template.toml` → `bin/`). On first storage access (`strg.GetOrCreateIfNotExists`): prompts for main password and `git init`s if `git` on `PATH`; `Cfg.gitRepoExists` gates per-mutation `GitCommit` (no-op when git unavailable). `GitCommit` stages surgically (`git add storage.psw pswcfg.toml`, not `git add .`) — keeps stray dotfiles and backups (e.g. `storage.psw.legacy-bak` from Phase 1's one-time upgrade) out of history.
+`storage.InitConfig` (from `rootCmd.PersistentPreRunE`) ensures `~/.psw/` and loads `pswcfg.toml` (seeded from beside the executable on first run — hence `make build` copies `pswcfg-template.toml` → `bin/`). On first storage access (`storage.GetOrCreateIfNotExists`): prompts for main password and `git init`s if `git` on `PATH`; `Paths.gitRepoExists` gates per-mutation `GitCommit` (no-op when git unavailable). `GitCommit` stages surgically (`git add storage.psw pswcfg.toml`, not `git add .`) — keeps stray dotfiles and backups (e.g. `storage.psw.legacy-bak` from Phase 1's one-time upgrade) out of history.
 
-### Encryption (`internal/strg/encryption.go`)
+### Encryption (`internal/storage/encryption.go`)
 
 AES-256-GCM via `cipher.NewGCMWithRandomNonce` (Go 1.24+; nonce generated and prepended internally per seal). Key = Argon2id over main password + 16-byte per-vault salt (m=64 MiB, t=2, p=4, keylen=32; OWASP "balanced for desktop"); fresh salt per write. On-disk: `base64("PSW1" || salt[16] || gcm_seal_output)`, mode 0600. Decrypt validates the `"PSW1"` magic and rejects anything else; failure → `"Wrong password."`. Format changes must bump the magic and keep `EncryptStringToStorage`/`DecryptStringFromStorage` aligned — existing storage becomes unreadable, no migration code in shipped tree.
 
 ### Record model
 
-`strg.Record` has `User`/`Pass` and `Value`, but each record uses **either** user+pass **or** single value — never both. Discriminator: `Value == ""`.
+`storage.Record` has `Username`/`Password` (JSON tags `user`/`pass` for on-disk compatibility) and `Value`, but each record uses **either** user+pass **or** single value — never both. Discriminator: `Value == ""`.
 
 - `psw add` defaults to user+pass; `--single`/`-s` → single value.
 - `psw get`, `change`, root listing all branch on `record.Value == ""` for which fields to show/edit.
@@ -44,7 +44,7 @@ AES-256-GCM via `cipher.NewGCMWithRandomNonce` (Go 1.24+; nonce generated and pr
 
 ### Interactive record selection
 
-`get`/`change`/`remove` resolve via `strg.GetRecordNameInteractive` (`internal/strg/picker.go`) — in-process `bubbles/list` fuzzy picker, no `PATH` deps. When there's only one matching record, it's returned without launching the TUI — intentional, prevents confirming a forced choice; keep before changing selection logic. On Esc/Ctrl-C the picker returns `ErrPickerCancelled`, and `helpers.go` translates that to a silent exit.
+`get`/`change`/`remove` resolve via `storage.GetRecordNameInteractive` (`internal/storage/picker.go`) — in-process `bubbles/list` fuzzy picker, no `PATH` deps. When there's only one matching record, it's returned without launching the TUI — intentional, prevents confirming a forced choice; keep before changing selection logic. On Esc/Ctrl-C the picker returns `ErrPickerCancelled`, and `helpers.go` translates that to a silent exit.
 
 ## Conventions
 

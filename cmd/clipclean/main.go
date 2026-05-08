@@ -20,19 +20,19 @@ func main() {
 		return // non-positive duration: nothing to wait for
 	}
 
-	pass, err := clipboard.ReadAll()
+	originalClip, err := clipboard.ReadAll()
 	if err != nil {
 		return // failed to read clipboard
 	}
 
 	time.Sleep(time.Duration(duration) * time.Second)
 
-	curClip, err := clipboard.ReadAll()
+	currentClip, err := clipboard.ReadAll()
 	if err != nil {
 		return // failed to read clipboard
 	}
 
-	if curClip == pass {
+	if currentClip == originalClip {
 		_ = clipboard.WriteAll("") // clear clipboard
 	}
 }

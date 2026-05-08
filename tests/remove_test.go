@@ -5,25 +5,25 @@ import "testing"
 func TestRemove_Success(t *testing.T) {
 	t.Parallel()
 	// Arrange
-	v := newVault(t)
-	runPsw(t, v, "add", "foo", "-u", "u", "--password=p")
+	vault := newVault(t)
+	runPsw(t, vault, "add", "foo", "-u", "u", "--password=p")
 	// Act
-	r := runPsw(t, v, "remove", "foo", "--exact")
+	result := runPsw(t, vault, "remove", "foo", "--exact")
 	// Assert
-	mustExit(t, r, 0)
-	mustContain(t, r.stdout, "Record foo successfully removed")
-	r2 := runPsw(t, v)
-	mustExit(t, r2, 0)
-	mustContain(t, r2.stdout, "No secrets found")
+	mustExit(t, result, 0)
+	mustContain(t, result.stdout, "Record foo successfully removed")
+	result2 := runPsw(t, vault)
+	mustExit(t, result2, 0)
+	mustContain(t, result2.stdout, "No secrets found")
 }
 
 func TestRemove_MissingRecord(t *testing.T) {
 	t.Parallel()
 	// Arrange
-	v := newVault(t)
+	vault := newVault(t)
 	// Act
-	r := runPsw(t, v, "remove", "nope", "--exact")
+	result := runPsw(t, vault, "remove", "nope", "--exact")
 	// Assert
-	mustExit(t, r, 1)
-	mustContain(t, r.stdout, "Record nope was not found")
+	mustExit(t, result, 1)
+	mustContain(t, result.stdout, "Record nope was not found")
 }

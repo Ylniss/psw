@@ -1,4 +1,4 @@
-package strg
+package storage
 
 import (
 	"fmt"
@@ -46,16 +46,16 @@ func pathExists(path string) (bool, error) {
 	return false, fmt.Errorf("stat %s: %w", path, err)
 }
 
-func copyFile(src, dst string) error {
-	input, err := os.ReadFile(src)
+func copyFile(source, destination string) error {
+	input, err := os.ReadFile(source)
 	if err != nil {
 		return fmt.Errorf("failed to read source file: %w", err)
 	}
 
-	if err := os.WriteFile(dst, input, 0600); err != nil {
+	if err := os.WriteFile(destination, input, 0600); err != nil {
 		return fmt.Errorf("failed to write file to destination: %w", err)
 	}
-	if err := os.Chmod(dst, 0600); err != nil {
+	if err := os.Chmod(destination, 0600); err != nil {
 		return fmt.Errorf("failed to chmod destination file: %w", err)
 	}
 

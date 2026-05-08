@@ -9,8 +9,8 @@ import (
 	"github.com/TwiN/go-color"
 	"github.com/atotto/clipboard"
 	"github.com/spf13/cobra"
-	"github.com/ylniss/psw/internal/prmpt"
-	"github.com/ylniss/psw/internal/strg"
+	"github.com/ylniss/psw/internal/prompt"
+	"github.com/ylniss/psw/internal/storage"
 )
 
 var (
@@ -34,10 +34,10 @@ Arguments:
 	Short: "Get secrets from record with specified name",
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		storage, err := strg.GetOrCreateIfNotExists()
-		clipDuration := strg.AppConfig.ClipboardTimeout
+		store, err := storage.GetOrCreateIfNotExists()
+		clipDuration := storage.AppConfig.ClipboardTimeout
 
-		if errors.Is(err, prmpt.ErrPromptCancelled) {
+		if errors.Is(err, prompt.ErrPromptCancelled) {
 			return nil
 		}
 		if err != nil {
@@ -45,7 +45,7 @@ Arguments:
 			return nil
 		}
 
-		recordName, err := resolveRecordName(storage, args, getExactFlag)
+		recordName, err := resolveRecordName(store, args, getExactFlag)
 		if errors.Is(err, errExit) {
 			return errExit
 		}
@@ -57,7 +57,7 @@ Arguments:
 			return nil
 		}
 
-		record, isFound := storage.GetRecord(recordName)
+		record, isFound := store.GetRecord(recordName)
 
 		slog.Debug("cmd/get", "record", fmt.Sprintf("%#v", record))
 
@@ -68,7 +68,7 @@ Arguments:
 
 		if getStdoutFlag {
 			if record.Value == "" {
-				fmt.Println(record.Pass)
+				fmt.Println(record.Password)
 			} else {
 				fmt.Println(record.Value)
 			}
@@ -76,14 +76,14 @@ Arguments:
 		}
 
 		if record.Value == "" {
-			if err := clipboard.WriteAll(record.Pass); err != nil {
+			if err := clipboard.WriteAll(record.Password); err != nil {
 				fmt.Printf("Failed to copy value to clipboard: %s\n", err)
 				return nil
 			}
 			fmt.Println("Username")
-			fmt.Println(color.InYellow(record.User))
+			fmt.Println(color.InYellow(record.Username))
 			fmt.Println()
-			printSecret("Password", record.Pass, revealFlag, clipDuration)
+			printSecret("Password", record.Password, revealFlag, clipDuration)
 		} else {
 			if err := clipboard.WriteAll(record.Value); err != nil {
 				fmt.Printf("Failed to copy value to clipboard: %s\n", err)
@@ -92,8 +92,8 @@ Arguments:
 			printSecret("Value", record.Value, revealFlag, clipDuration)
 		}
 
-		syscmd := exec.Command("clipclean", fmt.Sprint(clipDuration))
-		err = syscmd.Start()
+		clipcleanCmd := exec.Command("clipclean", fmt.Sprint(clipDuration))
+		err = clipcleanCmd.Start()
 		if err != nil {
 			fmt.Printf("clipclean error: %s\n", err)
 			return nil
@@ -102,12 +102,12 @@ Arguments:
 	},
 }
 
-func printSecret(label, secret string, reveal bool, clipDur int) {
+func printSecret(label, secret string, reveal bool, clipDuration int) {
 	fmt.Println(label)
 	if reveal {
 		fmt.Println(color.InYellow(secret))
 		return
 	}
-	msg := fmt.Sprintf("*********** - copied to the clipboard, it will be cleared in %d seconds", clipDur)
+	msg := fmt.Sprintf("*********** - copied to the clipboard, it will be cleared in %d seconds", clipDuration)
 	fmt.Println(color.InYellow(msg))
 }

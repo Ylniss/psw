@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-const defaultMainPass = "testpass"
+const defaultMainPassword = "testpass"
 
 type pswResult struct {
 	stdout string
@@ -18,10 +18,10 @@ type pswResult struct {
 	code   int
 }
 
-var ansiRE = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+var ansiRegex = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
 func stripANSI(s string) string {
-	return ansiRE.ReplaceAllString(s, "")
+	return ansiRegex.ReplaceAllString(s, "")
 }
 
 // Fresh PSW_HOME with seeded pswcfg.toml; pre-runs psw to swallow the first-run banner.
@@ -50,7 +50,7 @@ func runPswEnv(t *testing.T, vault string, extraEnv map[string]string, args ...s
 	t.Helper()
 	env := map[string]string{
 		"PSW_HOME":          vault,
-		"PSW_MAIN_PASSWORD": defaultMainPass,
+		"PSW_MAIN_PASSWORD": defaultMainPassword,
 		"PSW_GIT":           "0",
 		"PATH":              os.Getenv("PATH"),
 		"HOME":              os.Getenv("HOME"),
@@ -58,22 +58,22 @@ func runPswEnv(t *testing.T, vault string, extraEnv map[string]string, args ...s
 	for k, v := range extraEnv {
 		env[k] = v
 	}
-	flat := make([]string, 0, len(env))
+	flatEnv := make([]string, 0, len(env))
 	for k, v := range env {
-		flat = append(flat, k+"="+v)
+		flatEnv = append(flatEnv, k+"="+v)
 	}
 
-	cmd := exec.Command(pswBin, args...)
-	cmd.Env = flat
+	cmd := exec.Command(pswBinary, args...)
+	cmd.Env = flatEnv
 	var stdout, stderr strings.Builder
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	err := cmd.Run()
 	code := 0
 	if err != nil {
-		var ee *exec.ExitError
-		if errors.As(err, &ee) {
-			code = ee.ExitCode()
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			code = exitErr.ExitCode()
 		} else {
 			t.Fatalf("running psw %v: %v", args, err)
 		}

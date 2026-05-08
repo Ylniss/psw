@@ -6,8 +6,8 @@ import (
 
 	"github.com/TwiN/go-color"
 	"github.com/spf13/cobra"
-	"github.com/ylniss/psw/internal/prmpt"
-	"github.com/ylniss/psw/internal/strg"
+	"github.com/ylniss/psw/internal/prompt"
+	"github.com/ylniss/psw/internal/storage"
 )
 
 var removeExactFlag bool
@@ -26,8 +26,8 @@ Arguments:
 	Long:  `Remove chosen record, all its data will be lost permanently`,
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		storage, err := strg.GetOrCreateIfNotExists()
-		if errors.Is(err, prmpt.ErrPromptCancelled) {
+		store, err := storage.GetOrCreateIfNotExists()
+		if errors.Is(err, prompt.ErrPromptCancelled) {
 			return nil
 		}
 		if err != nil {
@@ -35,7 +35,7 @@ Arguments:
 			return nil
 		}
 
-		recordName, err := resolveRecordName(storage, args, removeExactFlag)
+		recordName, err := resolveRecordName(store, args, removeExactFlag)
 		if errors.Is(err, errExit) {
 			return errExit
 		}
@@ -47,20 +47,20 @@ Arguments:
 			return nil
 		}
 
-		if !storage.Exists(recordName) {
+		if !store.Exists(recordName) {
 			fmt.Printf("Record with name %s doesn't exist\n", color.InGreen(recordName))
 			return nil
 		}
 
-		storage.RemoveRecord(recordName)
+		store.RemoveRecord(recordName)
 
-		if err := storage.Save(); err != nil {
+		if err := store.Save(); err != nil {
 			fmt.Println(err.Error())
 			return nil
 		}
 
 		fmt.Printf("Record %s successfully removed", color.InGreen(recordName))
-		strg.GitCommit("record removed")
+		storage.GitCommit("record removed")
 		return nil
 	},
 }

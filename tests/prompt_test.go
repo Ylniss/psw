@@ -10,10 +10,10 @@ import (
 // error rather than hanging.
 func TestPrompt_NonTTYBailsOut(t *testing.T) {
 	vault := newVault(t)
-	r := runPswEnv(t, vault, map[string]string{"PSW_MAIN_PASSWORD": ""}, "add", "foo")
-	mustExit(t, r, 0)
-	combined := r.stdout + r.stderr
+	result := runPswEnv(t, vault, map[string]string{"PSW_MAIN_PASSWORD": ""}, "add", "foo")
+	mustExit(t, result, 0)
+	combined := result.stdout + result.stderr
 	if !strings.Contains(combined, "interactive prompt required") {
-		t.Fatalf("expected output to contain 'interactive prompt required'\nstdout: %s\nstderr: %s", r.stdout, r.stderr)
+		t.Fatalf("expected output to contain 'interactive prompt required'\nstdout: %s\nstderr: %s", result.stdout, result.stderr)
 	}
 }
