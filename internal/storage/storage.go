@@ -10,6 +10,7 @@ import (
 
 	color "github.com/TwiN/go-color"
 	"github.com/ylniss/psw/internal/prompt"
+	"github.com/ylniss/psw/internal/ui"
 )
 
 type Record struct {
@@ -153,7 +154,13 @@ func getOrCreate(pull bool) (*Storage, error) {
 			return nil, err
 		}
 	}
-	return Get(mainPassword)
+	var s *Storage
+	err = ui.WithSpinner("Decrypting", func() error {
+		var gerr error
+		s, gerr = Get(mainPassword)
+		return gerr
+	})
+	return s, err
 }
 
 func Get(mainPassword string) (*Storage, error) {
