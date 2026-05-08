@@ -1,1 +1,2 @@
 clipboard_timeout = 20  # duration in seconds
+# remote = "git@github.com:user/psw-storage.git"  # uncomment to enable git sync (pull before mutate, push after commit)

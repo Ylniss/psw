@@ -34,7 +34,7 @@ Arguments:
 	Short: "Get secrets from record with specified name",
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		store, err := storage.GetOrCreateIfNotExists()
+		store, err := storage.GetOrCreateForRead()
 		clipDuration := storage.AppConfig.ClipboardTimeout
 
 		if errors.Is(err, prompt.ErrPromptCancelled) {

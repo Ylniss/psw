@@ -26,9 +26,13 @@ Arguments:
 	Long:  `Remove chosen record, all its data will be lost permanently`,
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		store, err := storage.GetOrCreateIfNotExists()
+		store, err := storage.GetOrCreateForMutate()
 		if errors.Is(err, prompt.ErrPromptCancelled) {
 			return nil
+		}
+		if errors.Is(err, storage.ErrForkUndecryptable) {
+			printForkUndecryptable()
+			return errExit
 		}
 		if err != nil {
 			fmt.Println(err.Error())

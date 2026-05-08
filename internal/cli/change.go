@@ -43,8 +43,12 @@ Arguments:
 				fmt.Println("Record-level flags (--rename/--username/--password/--value) are not valid with 'change main'")
 				return errExit
 			}
-			changeMainPassword()
-			storage.GitCommit("main password changed")
+			if err := changeMainPassword(); err != nil {
+				return err
+			}
+			if err := storage.GitCommit("main password changed"); err != nil {
+				fmt.Println(err.Error())
+			}
 			return nil
 		}
 		if err := changeRecord(cmd, args); err != nil {
@@ -55,40 +59,39 @@ Arguments:
 	},
 }
 
-func changeMainPassword() {
-	fmt.Println(color.InCyan("You are changing your main password!\nFirst enter your current password"))
+func changeMainPassword() error {
+	fmt.Println(color.InCyan("You are changing your main password!"))
 
-	mainPassword, err := prompt.PromptForMainPassword(true) // prompt with ensure
+	store, err := storage.GetOrCreateForMutate()
 	if errors.Is(err, prompt.ErrPromptCancelled) {
-		return
+		return nil
+	}
+	if errors.Is(err, storage.ErrForkUndecryptable) {
+		printForkUndecryptable()
+		return errExit
 	}
 	if err != nil {
 		fmt.Println(err.Error())
-		return
-	}
-
-	store, err := storage.Get(mainPassword)
-	if err != nil {
-		fmt.Println(err.Error())
-		return
+		return nil
 	}
 
 	newMainPassword, err := prompt.PromptForMainPasswordChange()
 	if errors.Is(err, prompt.ErrPromptCancelled) {
-		return
+		return nil
 	}
 	if err != nil {
 		fmt.Println(err.Error())
-		return
+		return nil
 	}
 
 	store.MainPassword = newMainPassword
 	if err := store.Save(); err != nil {
 		fmt.Println(err.Error())
-		return
+		return nil
 	}
 
 	fmt.Println(color.InGreen("Main password changed"))
+	return nil
 }
 
 func changeRecord(cmd *cobra.Command, args []string) error {
@@ -101,9 +104,13 @@ func changeRecord(cmd *cobra.Command, args []string) error {
 	// touch the fields whose flag is set; leave the rest unchanged.
 	anyFlagSet := renameSet || usernameSet || passwordSet || valueSet
 
-	store, err := storage.GetOrCreateIfNotExists()
+	store, err := storage.GetOrCreateForMutate()
 	if errors.Is(err, prompt.ErrPromptCancelled) {
 		return nil
+	}
+	if errors.Is(err, storage.ErrForkUndecryptable) {
+		printForkUndecryptable()
+		return errExit
 	}
 	if err != nil {
 		fmt.Println(err.Error())

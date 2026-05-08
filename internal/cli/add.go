@@ -69,9 +69,13 @@ Arguments:
 			return errExit
 		}
 
-		store, err := storage.GetOrCreateIfNotExists()
+		store, err := storage.GetOrCreateForMutate()
 		if errors.Is(err, prompt.ErrPromptCancelled) {
 			return nil
+		}
+		if errors.Is(err, storage.ErrForkUndecryptable) {
+			printForkUndecryptable()
+			return errExit
 		}
 		if err != nil {
 			fmt.Println(err.Error())

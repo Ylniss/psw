@@ -13,6 +13,7 @@ func newGitVault(t *testing.T) (string, map[string]string) {
 	t.Helper()
 	env := map[string]string{
 		"PSW_GIT":             "",
+		"PSW_GIT_REMOTE":      "0",
 		"GIT_AUTHOR_NAME":     "psw-tests",
 		"GIT_AUTHOR_EMAIL":    "psw@tests.local",
 		"GIT_COMMITTER_NAME":  "psw-tests",

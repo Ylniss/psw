@@ -27,7 +27,8 @@ var Paths = StorageConfig{
 }
 
 type Config struct {
-	ClipboardTimeout int `toml:"clipboard_timeout"`
+	ClipboardTimeout int    `toml:"clipboard_timeout"`
+	Remote           string `toml:"remote"`
 }
 
 var AppConfig Config

@@ -72,6 +72,11 @@ func decryptStringFromFile(filePath, password string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to read storage file: %w", err)
 	}
+	return decryptBytes(encoded, password)
+}
+
+// decryptBytes decrypts an in-memory base64 PSW1 payload.
+func decryptBytes(encoded []byte, password string) (string, error) {
 	payload, err := base64.StdEncoding.DecodeString(string(encoded))
 	if err != nil {
 		return "", fmt.Errorf("failed to decode storage: %w", err)

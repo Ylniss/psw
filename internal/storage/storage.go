@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"slices"
 	"strings"
+	"time"
 
 	color "github.com/TwiN/go-color"
 	"github.com/ylniss/psw/internal/prompt"
@@ -16,6 +17,7 @@ type Record struct {
 	Username string `json:"user"`
 	Password string `json:"pass"`
 	Value    string `json:"value"`
+	MTime    int64  `json:"mtime,omitempty"`
 }
 
 type Storage struct {
@@ -62,6 +64,7 @@ func (s *Storage) sortRecords() {
 }
 
 func (s *Storage) AddRecord(r *Record) {
+	r.MTime = time.Now().UnixMilli()
 	s.Records = append(s.Records, *r)
 	s.sortRecords()
 }
@@ -78,6 +81,7 @@ func (s *Storage) GetRecord(name string) (Record, bool) {
 func (s *Storage) UpdateRecord(name string, updatedRecord Record) {
 	for i, r := range s.Records {
 		if strings.EqualFold(r.Name, name) {
+			updatedRecord.MTime = time.Now().UnixMilli()
 			s.Records[i] = updatedRecord
 			s.sortRecords()
 			return
@@ -121,25 +125,34 @@ func (s *Storage) Save() error {
 	return EncryptStringToStorage(storageJson, s.MainPassword)
 }
 
-func GetOrCreateIfNotExists() (*Storage, error) {
+// GetOrCreateForRead loads storage without network access.
+// Used by `psw`, `psw get`, `psw log`.
+func GetOrCreateForRead() (*Storage, error) { return getOrCreate(false) }
+
+// GetOrCreateForMutate pulls from the configured remote, merges, then loads.
+// Used by `psw add`, `psw change`, `psw remove`.
+func GetOrCreateForMutate() (*Storage, error) { return getOrCreate(true) }
+
+func getOrCreate(pull bool) (*Storage, error) {
 	mainPassword, created, err := createEncryptedStorageIfNotExists()
 	if err != nil {
 		return nil, err
 	}
-
-	err = initGitRepoIfNotExists()
-	if err != nil {
+	if err := initGitRepoIfNotExists(); err != nil {
 		return nil, err
 	}
-
-	// when storage already exists, prompt for password to access
+	// Password resolved before pull; merge needs it to decrypt fork/remote blobs.
 	if !created && mainPassword == "" {
 		mainPassword, err = prompt.PromptForMainPassword(false)
 		if err != nil {
 			return nil, err
 		}
 	}
-
+	if pull {
+		if err := gitPullAndMerge(mainPassword); err != nil {
+			return nil, err
+		}
+	}
 	return Get(mainPassword)
 }
 

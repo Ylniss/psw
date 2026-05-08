@@ -8,6 +8,12 @@ import (
 	"github.com/ylniss/psw/internal/storage"
 )
 
+// printForkUndecryptable prints the red error shown when storage was
+// re-encrypted under a different main password.
+func printForkUndecryptable() {
+	fmt.Println(color.InRed("Storage was re-encrypted under a different main password since the last sync. Push from the device that ran 'change main' first, then retry on this device."))
+}
+
 // resolveRecordName returns the name of the record selected by the user.
 // When exact is set, args[0] must be present and match a record name
 // exactly; on miss, prints an error and returns errExit (exit 1). Otherwise

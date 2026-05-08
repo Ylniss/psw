@@ -76,7 +76,7 @@ func initGitRepoIfNotExists() error {
 	msg := fmt.Sprintf("Initializing git repository in %s", Paths.storagePath)
 	fmt.Println(color.InGreen(msg))
 
-	cmd := exec.Command("git", "init")
+	cmd := exec.Command("git", "init", "--initial-branch=main")
 	cmd.Dir = Paths.storagePath
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("git init: %w", err)
@@ -98,17 +98,12 @@ func GitCommit(message string) error {
 		return nil
 	}
 
-	cmd := exec.Command("git", "add", "storage.psw", "pswcfg.toml")
-	cmd.Dir = Paths.storagePath
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("git add: %w", err)
+	if out, err := runGit("add", "storage.psw", "pswcfg.toml"); err != nil {
+		return fmt.Errorf("git add: %s", strings.TrimSpace(out))
 	}
-
-	cmd = exec.Command("git", "commit", "--message="+message)
-	cmd.Dir = Paths.storagePath
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("git commit: %w", err)
+	if out, err := runGit("commit", "--message="+message); err != nil {
+		return fmt.Errorf("git commit: %s", strings.TrimSpace(out))
 	}
-
+	GitPush()
 	return nil
 }

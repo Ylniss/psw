@@ -27,7 +27,11 @@ Integration tests under `tests/` (`make test`): `TestMain` builds `psw` once int
 
 ### Data dir (`~/.psw/`)
 
-`storage.InitConfig` (from `rootCmd.PersistentPreRunE`) ensures `~/.psw/` and loads `pswcfg.toml` (seeded from beside the executable on first run — hence `make build` copies `pswcfg-template.toml` → `bin/`). On first storage access (`storage.GetOrCreateIfNotExists`): prompts for main password and `git init`s if `git` on `PATH`; `Paths.gitRepoExists` gates per-mutation `GitCommit` (no-op when git unavailable). `GitCommit` stages surgically (`git add storage.psw pswcfg.toml`, not `git add .`) — keeps stray dotfiles and backups (e.g. `storage.psw.legacy-bak` from Phase 1's one-time upgrade) out of history.
+`storage.InitConfig` (from `rootCmd.PersistentPreRunE`) ensures `~/.psw/` and loads `pswcfg.toml` (seeded from beside the executable on first run — hence `make build` copies `pswcfg-template.toml` → `bin/`). Two storage entry points: `storage.GetOrCreateForRead` (no network — used by `psw`, `psw get`, `psw log`) and `storage.GetOrCreateForMutate` (pulls from remote first, then merges — used by `psw add`, `psw change`, `psw remove`, `psw change main`). Both prompt for main password and `git init --initial-branch=main` if `git` on `PATH`; `Paths.gitRepoExists` gates per-mutation `GitCommit` (no-op when git unavailable). `GitCommit` stages surgically (`git add storage.psw pswcfg.toml`, not `git add .`) — keeps stray dotfiles and backups (e.g. `storage.psw.legacy-bak` from Phase 1's one-time upgrade) out of history. After commit, `GitCommit` calls `GitPush` which is best-effort (warn-yellow on failure, never propagates).
+
+### Remote sync (optional)
+
+`pswcfg.toml`'s `remote = "..."` opts in to git sync. Absent → all sync is no-op. When set, every mutation runs pull → smart merge → mutate → commit → push; reads never touch the network. The smart merge (`internal/storage/merge.go`) uses per-record `Record.MTime` (UTC ms, stamped centrally in `Storage.AddRecord`/`UpdateRecord`) for last-write-wins; remote wins on exact tie. `change main` is special: re-encryption commits don't bump any record's mtime, so password rotation doesn't accidentally win every conflict. If the merge would need to decrypt fork or remote storage.psw with a password it doesn't have (cross-merge after `change main` from another device), it returns `storage.ErrForkUndecryptable` and the CLI prints a red error suggesting the user push from the device that ran `change main` first. Two opt-out env vars: `PSW_GIT=0` (no git at all) and `PSW_GIT_REMOTE=0` (local commits OK, no network) — tests use both.
 
 ### Encryption (`internal/storage/encryption.go`)
 
@@ -35,7 +39,7 @@ AES-256-GCM via `cipher.NewGCMWithRandomNonce` (Go 1.24+; nonce generated and pr
 
 ### Record model
 
-`storage.Record` has `Username`/`Password` (JSON tags `user`/`pass` for on-disk compatibility) and `Value`, but each record uses **either** user+pass **or** single value — never both. Discriminator: `Value == ""`.
+`storage.Record` has `Username`/`Password` (JSON tags `user`/`pass` for on-disk compatibility), `Value`, and `MTime` (`json:"mtime,omitempty"`, UTC ms). Each record uses **either** user+pass **or** single value — never both. Discriminator: `Value == ""`.
 
 - `psw add` defaults to user+pass; `--single`/`-s` → single value.
 - `psw get`, `change`, root listing all branch on `record.Value == ""` for which fields to show/edit.
@@ -63,6 +67,7 @@ CLI can run unattended (no TUI prompts) via the env vars and flags below.
 - `PSW_MAIN_PASSWORD=<str>` — supplies main password; bypasses prompt + double-confirm on vault creation. Empty value treated as unset (falls through to prompt).
 - `PSW_NEW_MAIN_PASSWORD=<str>` — new main password for `change main`. Same handling.
 - `PSW_GIT=0` — skip auto `git init` + per-mutation `git commit` in the storage dir. Default behavior unchanged when unset.
+- `PSW_GIT_REMOTE=0` — local git commits OK, but no fetch/pull/push. Useful for offline mutations + sync tests that simulate diverging devices.
 
 Caveat: env-var passwords visible in `/proc/<pid>/environ`. Fine for tests/ephemeral scripts; not for daily use. No `--password` CLI flag (would expose via `ps`).
 

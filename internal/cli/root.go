@@ -46,7 +46,7 @@ On first use, you’ll set a main password to protect your stored passwords.`,
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// list all record names on 'psw' command
-		store, err := storage.GetOrCreateIfNotExists()
+		store, err := storage.GetOrCreateForRead()
 		if errors.Is(err, prompt.ErrPromptCancelled) {
 			return nil
 		}
