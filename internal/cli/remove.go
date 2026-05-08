@@ -63,7 +63,7 @@ Arguments:
 			return nil
 		}
 
-		fmt.Printf("Record %s successfully removed", color.InGreen(recordName))
+		fmt.Printf("Record %s successfully removed\n", color.InGreen(recordName))
 		storage.GitCommit("record removed")
 		return nil
 	},

@@ -1,8 +1,8 @@
 # Git sync with auto pull/push, smart merge, spinner, go-git
 
-_Last updated: 2026-05-08 — commit `6120ee3` (pre-Phase 1) + uncommitted Phase 1 work._
+_Last updated: 2026-05-08 — commit `54366f3` (Phase 1) + uncommitted Phase 2 work._
 
-_Status: **Phase 1 delivered** (uncommitted). Phase 2 and Phase 3 not started._
+_Status: **Phases 1 & 2 delivered** (Phase 1 committed, Phase 2 uncommitted). Phase 3 not started._
 
 ## Goal
 
@@ -163,21 +163,15 @@ Rejected: bundling everything in one PR — 1500+ line diff with three independe
 - **Risk:** medium. The smart-merge logic is the new code surface that can subtly drop data; tests must cover all six per-record states (in fork only / local only / remote only / fork+local / fork+remote / all three) plus the `change main` cross-merge bail.
 - **Depends on:** none.
 
-### [ ] Phase 2: Pull/push spinner
+### [x] Phase 2: Pull/push spinner
 
+- **Status:** Delivered (uncommitted). 1 new ui unit test + 48 integration tests + 16 merge unit subtests green. See `plans/git-sync-phase2.md` for the full detail. Notable deviations from the original plan:
+  - **`runGitNetworkSpinner` helper** in `internal/storage/git_sync.go` deduplicates the two wrap sites (originally inline closures of ~6 lines each); `GitFetch`/`GitPush` collapse to one-line calls.
+  - **Modern bubbletea pattern.** Original plan used a `tea.Cmd` that blocked on a result channel inside `Init()`. Refactored to `program.Send(doneMsg{})` from a bridge goroutine plus closed-channel signaling (`<-opDone`). Eliminates a `<-resultCh` double-read seam on `tea.Run()` errors and matches v1 idiom for external events. `doneMsg` becomes a flag-only struct; the captured `opErr` carries the error.
+  - **Dropped `tea.WithoutSignalHandler()`.** The original plan included it; on review the rationale was thin (tea's default handler doesn't block SIGINT delivery to children, only adds deferred cursor-restore). Without it, Ctrl-C can leave the cursor hidden. Default handler is preferable.
+  - **Pre-existing `remove.go` newline bug fixed.** `internal/cli/remove.go:66` used `Printf` without trailing `\n`; spinner exposed it by overwriting the success line. Pre-Phase 2 bug, fixed alongside.
+  - **Unit test added** (the plan marked it optional). `internal/ui/spinner_test.go` covers the non-TTY pass-through path — the dominant path during `make test`.
 - **Goal:** User-visible feedback while pull or push is in flight. Cosmetic only — no behavioral change.
-- **Scope:**
-  - New `internal/ui` package with `func WithSpinner(label string, op func() error) error`. Avoids `storage → prompt` import cycle (storage imports `ui`).
-  - Uses `bubbles/spinner` (already in `go.sum` transitively via `bubbletea`; verify and add to `go.mod` direct deps if needed).
-  - Threshold: do not render the spinner until 250ms have elapsed. If the op finishes faster, no UI emitted at all (avoids flicker on fast remotes).
-  - TTY gate: stderr must be a TTY; otherwise just run `op()`. Tests pipe stderr → no ANSI in test output → no test changes.
-  - Pattern: launch `op` on a goroutine, send result via channel, run `tea.NewProgram` on main thread, model rerenders on `spinner.Tick` and exits on a custom `doneMsg{err}`.
-  - Wrap `GitPull` and `GitPush` only. Local ops (`init`, `add`, `commit`, `log`) stay un-wrapped — fast enough.
-  - Output to stderr (matches warnings; keeps stdout parseable).
-- **Done when:**
-  - Manual smoke: `psw add foo` against a remote that intentionally pauses (e.g. `remote = "ssh://nonexistent.example/repo"`) shows a spinner with the label "Pulling from remote" / "Pushing to remote" until the network attempt times out.
-  - Fast local-bare-repo case shows no spinner (op completes <250ms).
-  - All Phase 1 tests still pass; piped stderr does not contain spinner glyphs.
 - **Risk:** low. Spinner is contained, optional (TTY-gated), and the underlying ops are unchanged.
 - **Depends on:** Phase 1.
 
@@ -211,6 +205,9 @@ _Append-only. Format: `YYYY-MM-DD — decision — why`._
 - 2026-05-08 — three `runGit` variants instead of one — local ops, network ops (with timeout), and stdout-only ops have different needs. Names: `runGit` / `runGitNetwork` / `runGitStdout`.
 - 2026-05-08 — `--initial-branch=main` deduplication: vault and bare repo both standardize on `main` so `detectBranch` and `git push origin <branch>` align in tests without per-test config.
 - 2026-05-08 — `change main` cross-merge bail message centralized as `printForkUndecryptable()` in `internal/cli/helpers.go` — reused by `add`, `change`, `remove`.
+- 2026-05-08 — Phase 2 spinner uses `program.Send(doneMsg{})` from a bridge goroutine (modern v1 idiom) instead of a `tea.Cmd` blocking on a channel — eliminates a `<-resultCh` double-read seam if `tea.Run()` errors.
+- 2026-05-08 — Phase 2 dropped `tea.WithoutSignalHandler()` from the original plan — bubbletea's default SIGINT handler doesn't block child-process signal delivery; without it Ctrl-C may leave the cursor hidden.
+- 2026-05-08 — `runGitNetworkSpinner(label, args...)` helper extracted in `internal/storage/git_sync.go` — collapses the two wrap sites in `GitFetch`/`GitPush` to one-liners and centralizes the spinner-label binding.
 
 ## Open questions
 

@@ -13,6 +13,8 @@ import (
 	"time"
 
 	color "github.com/TwiN/go-color"
+
+	"github.com/ylniss/psw/internal/ui"
 )
 
 // ErrForkUndecryptable: fork or remote storage.psw can't be decrypted with
@@ -61,6 +63,17 @@ func runGitNetwork(args ...string) (string, error) {
 	cmd.Dir = Paths.storagePath
 	out, err := cmd.CombinedOutput()
 	return string(out), err
+}
+
+// runGitNetworkSpinner wraps runGitNetwork with a labeled spinner on stderr.
+func runGitNetworkSpinner(label string, args ...string) (string, error) {
+	var out string
+	err := ui.WithSpinner(label, func() error {
+		var runErr error
+		out, runErr = runGitNetwork(args...)
+		return runErr
+	})
+	return out, err
 }
 
 // runGitStdout runs git and returns stdout. On error, the error includes stderr.
@@ -147,7 +160,8 @@ func GitFetch() error {
 	if err != nil {
 		return err
 	}
-	if out, err := runGitNetwork("fetch", "origin", branch); err != nil {
+	out, err := runGitNetworkSpinner("Pulling from remote", "fetch", "origin", branch)
+	if err != nil {
 		return fmt.Errorf("git fetch %s: %s", redactURL(AppConfig.Remote), strings.TrimSpace(out))
 	}
 	slog.Debug("git fetch ok", "remote", redactURL(AppConfig.Remote), "branch", branch)
@@ -169,7 +183,7 @@ func GitPush() {
 		printWarn("git push: %v", err)
 		return
 	}
-	out, err := runGitNetwork("push", "origin", branch)
+	out, err := runGitNetworkSpinner("Pushing to remote", "push", "origin", branch)
 	if err != nil {
 		slog.Debug("git push failed", "remote", redactURL(AppConfig.Remote), "branch", branch, "output", out)
 		printWarn("git push to %s failed: %s", redactURL(AppConfig.Remote), strings.TrimSpace(out))
