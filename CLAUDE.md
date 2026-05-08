@@ -54,6 +54,10 @@ AES-256-GCM via `cipher.NewGCMWithRandomNonce` (Go 1.24+; nonce generated + prep
 
 `get`/`change`/`remove` resolve via `storage.GetRecordNameInteractive` (`internal/storage/picker.go`) — in-process `bubbles/list` fuzzy picker, no `PATH` deps. Single matching record returned without launching the TUI — intentional (prevents confirming a forced choice); keep before changing selection logic. On Esc/Ctrl-C picker returns `ErrPickerCancelled`; `helpers.go` translates to silent exit.
 
+### Menu mode (hotkey terminals)
+
+`psw menu` (`internal/cli/menu.go`) opens a unified launcher with two phases under the PSW ASCII header: (1) action select — horizontal `get/add/change/remove` buttons, default `get`, ←/→ navigates; (2) main password input — Enter on the action transitions in-place (header stays visible). After Enter on password, the TUI exits and the chosen subcommand's `RunE` is invoked. Password is passed through `prompt.SetMainPasswordOverride` (in-process variable, not env var — avoids `/proc/<pid>/environ` leak) so the dispatched action's storage load skips its own password prompt. From there the action's existing flow runs (picker for get/change/remove; name+username+password prompts for add); header is wiped. Esc/Ctrl-C cancels at any phase. Designed for terminal windows spawned on a hotkey (e.g. `foot -e psw menu` under niri/sway); foot exits when its child exits unless `-H`/`--hold` is passed, so closing the window is the launcher's job, not psw's. Non-TTY stdin → error + exit 1; no scripting mode. First-time vault creation through menu skips the password double-confirm (single input only) — `psw add` is the recommended path for fresh setup.
+
 ## Conventions
 
 - Colors via `github.com/TwiN/go-color`: record names green, hints/commands cyan, warnings yellow, errors red.

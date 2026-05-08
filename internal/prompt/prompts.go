@@ -204,7 +204,17 @@ func PromptForMainPassword(ensure bool) (string, error) {
 	return promptForMainPassword(ensure, false)
 }
 
+var mainPasswordOverride string
+
+// While set, the load-path main-password prompt returns this instead of asking.
+// Skipped on change-main's "new password" prompt.
+func SetMainPasswordOverride(pw string) { mainPasswordOverride = pw }
+func ClearMainPasswordOverride()        { mainPasswordOverride = "" }
+
 func promptForMainPassword(ensure bool, mainPasswordChange bool) (string, error) {
+	if !mainPasswordChange && mainPasswordOverride != "" {
+		return mainPasswordOverride, nil
+	}
 	envVar := "PSW_MAIN_PASSWORD"
 	if mainPasswordChange {
 		envVar = "PSW_NEW_MAIN_PASSWORD"
