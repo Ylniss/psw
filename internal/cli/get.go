@@ -108,6 +108,6 @@ func printSecret(label, secret string, reveal bool, clipDuration int) {
 		fmt.Println(color.InYellow(secret))
 		return
 	}
-	msg := fmt.Sprintf("*********** - copied to the clipboard, it will be cleared in %d seconds", clipDuration)
+	msg := fmt.Sprintf("Password copied to the clipboard, it will be cleared in %d seconds", clipDuration)
 	fmt.Println(color.InYellow(msg))
 }

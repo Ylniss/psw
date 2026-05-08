@@ -13,6 +13,10 @@ import (
 	"time"
 
 	color "github.com/TwiN/go-color"
+	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/config"
+	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/transport"
 
 	"github.com/ylniss/psw/internal/ui"
 )
@@ -36,16 +40,10 @@ func shouldUseRemote() bool {
 	return AppConfig.Remote != ""
 }
 
-func detectBranch() (string, error) {
-	out, err := runGit("symbolic-ref", "--short", "HEAD")
-	if err != nil {
-		return "", fmt.Errorf("detect branch: %s", strings.TrimSpace(out))
-	}
-	return strings.TrimSpace(out), nil
-}
-
 // gitNetworkTimeout caps fetch/push to prevent indefinite hangs.
 const gitNetworkTimeout = 30 * time.Second
+
+// runGit and runGitNetwork are the shell-git fallback path for auth/signing cases go-git can't handle.
 
 // runGit runs git in the storage dir; returns combined stdout+stderr.
 func runGit(args ...string) (string, error) {
@@ -55,7 +53,7 @@ func runGit(args ...string) (string, error) {
 	return string(out), err
 }
 
-// runGitNetwork is runGit with gitNetworkTimeout. Use for fetch/push only.
+// runGitNetwork is runGit with gitNetworkTimeout. Used as fetch/push fallback.
 func runGitNetwork(args ...string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), gitNetworkTimeout)
 	defer cancel()
@@ -63,48 +61,6 @@ func runGitNetwork(args ...string) (string, error) {
 	cmd.Dir = Paths.storagePath
 	out, err := cmd.CombinedOutput()
 	return string(out), err
-}
-
-// runGitNetworkSpinner wraps runGitNetwork with a labeled spinner on stderr.
-func runGitNetworkSpinner(label string, args ...string) (string, error) {
-	var out string
-	err := ui.WithSpinner(label, func() error {
-		var runErr error
-		out, runErr = runGitNetwork(args...)
-		return runErr
-	})
-	return out, err
-}
-
-// runGitStdout runs git and returns stdout. On error, the error includes stderr.
-func runGitStdout(args ...string) ([]byte, error) {
-	cmd := exec.Command("git", args...)
-	cmd.Dir = Paths.storagePath
-	var stdout, stderr strings.Builder
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		return nil, errors.New(strings.TrimSpace(stderr.String()))
-	}
-	return []byte(stdout.String()), nil
-}
-
-// ensureGitRemote sets origin to AppConfig.Remote (creates or updates).
-func ensureGitRemote() error {
-	out, err := runGit("remote", "get-url", "origin")
-	if err != nil {
-		if addOutput, addErr := runGit("remote", "add", "origin", AppConfig.Remote); addErr != nil {
-			return fmt.Errorf("git remote add: %s", strings.TrimSpace(addOutput))
-		}
-		return nil
-	}
-	if strings.TrimSpace(out) == AppConfig.Remote {
-		return nil
-	}
-	if setOutput, err := runGit("remote", "set-url", "origin", AppConfig.Remote); err != nil {
-		return fmt.Errorf("git remote set-url: %s", strings.TrimSpace(setOutput))
-	}
-	return nil
 }
 
 // redactURL replaces the password in a URL with "xxxxx" for safe logging.
@@ -121,34 +77,28 @@ func printWarn(format string, args ...any) {
 	fmt.Fprintln(os.Stderr, color.InYellow(fmt.Sprintf(format, args...)))
 }
 
-// gitShowBlob returns the bytes of <path> at git ref <ref>.
-func gitShowBlob(ref, path string) ([]byte, error) {
-	return runGitStdout("show", ref+":"+path)
-}
-
-func gitMergeBase(a, b string) (string, error) {
-	out, err := runGit("merge-base", a, b)
-	if err != nil {
-		return "", fmt.Errorf("merge-base: %s", strings.TrimSpace(out))
+// shouldFallbackToShell reports whether a go-git network error means we should retry via shell git: our own pre-call sentinel, go-git's transport sentinels, or the SSH "no supported methods" handshake error.
+func shouldFallbackToShell(err error) bool {
+	if errors.Is(err, ErrAuthRequiresHelper) {
+		return true
 	}
-	return strings.TrimSpace(out), nil
-}
-
-func revParse(ref string) (string, error) {
-	out, err := runGit("rev-parse", ref)
-	if err != nil {
-		return "", fmt.Errorf("rev-parse %s: %s", ref, strings.TrimSpace(out))
+	if errors.Is(err, transport.ErrAuthenticationRequired) {
+		return true
 	}
-	return strings.TrimSpace(out), nil
+	if errors.Is(err, transport.ErrAuthorizationFailed) {
+		return true
+	}
+	if errors.Is(err, transport.ErrInvalidAuthMethod) {
+		return true
+	}
+	if err != nil && strings.Contains(err.Error(), "no supported methods remain") {
+		return true
+	}
+	return false
 }
 
-// isAncestor reports whether a is an ancestor of b.
-func isAncestor(a, b string) bool {
-	_, err := runGit("merge-base", "--is-ancestor", a, b)
-	return err == nil
-}
-
-// GitFetch fetches origin/<branch>.
+// GitFetch fetches origin/<branch>. Tries go-git first; falls back to shell
+// `git fetch` when auth requires a helper and `git` is on PATH.
 func GitFetch() error {
 	if !shouldUseRemote() {
 		return nil
@@ -160,12 +110,49 @@ func GitFetch() error {
 	if err != nil {
 		return err
 	}
-	out, err := runGitNetworkSpinner("Pulling from remote", "fetch", "origin", branch)
+	err = ui.WithSpinner("Pulling from remote", func() error {
+		ctx, cancel := context.WithTimeout(context.Background(), gitNetworkTimeout)
+		defer cancel()
+		goGitErr := gitFetchGoGit(ctx, branch)
+		if !shouldFallbackToShell(goGitErr) {
+			return goGitErr
+		}
+		if !gitOnPath() {
+			return goGitErr
+		}
+		slog.Debug("falling back to shell git fetch", "go_git_err", goGitErr)
+		out, shellErr := runGitNetwork("fetch", "origin", branch)
+		if shellErr != nil {
+			return fmt.Errorf("%s", strings.TrimSpace(out))
+		}
+		return nil
+	})
 	if err != nil {
-		return fmt.Errorf("git fetch %s: %s", redactURL(AppConfig.Remote), strings.TrimSpace(out))
+		return fmt.Errorf("git fetch %s: %w", redactURL(AppConfig.Remote), err)
 	}
 	slog.Debug("git fetch ok", "remote", redactURL(AppConfig.Remote), "branch", branch)
 	return nil
+}
+
+func gitFetchGoGit(ctx context.Context, branch string) error {
+	repo, err := openRepo()
+	if err != nil {
+		return err
+	}
+	auth, err := gitAuth(AppConfig.Remote)
+	if err != nil {
+		return err
+	}
+	refspec := config.RefSpec(fmt.Sprintf("refs/heads/%s:refs/remotes/origin/%s", branch, branch))
+	err = repo.FetchContext(ctx, &git.FetchOptions{
+		RemoteName: "origin",
+		RefSpecs:   []config.RefSpec{refspec},
+		Auth:       auth,
+	})
+	if errors.Is(err, git.NoErrAlreadyUpToDate) {
+		return nil
+	}
+	return err
 }
 
 // GitPush pushes the current branch to origin. Errors print yellow to stderr;
@@ -183,16 +170,55 @@ func GitPush() {
 		printWarn("git push: %v", err)
 		return
 	}
-	out, err := runGitNetworkSpinner("Pushing to remote", "push", "origin", branch)
+	err = ui.WithSpinner("Pushing to remote", func() error {
+		ctx, cancel := context.WithTimeout(context.Background(), gitNetworkTimeout)
+		defer cancel()
+		goGitErr := gitPushGoGit(ctx, branch)
+		if !shouldFallbackToShell(goGitErr) {
+			return goGitErr
+		}
+		if !gitOnPath() {
+			return goGitErr
+		}
+		slog.Debug("falling back to shell git push", "go_git_err", goGitErr)
+		out, shellErr := runGitNetwork("push", "origin", branch)
+		if shellErr != nil {
+			return fmt.Errorf("%s", strings.TrimSpace(out))
+		}
+		return nil
+	})
 	if err != nil {
-		slog.Debug("git push failed", "remote", redactURL(AppConfig.Remote), "branch", branch, "output", out)
-		printWarn("git push to %s failed: %s", redactURL(AppConfig.Remote), strings.TrimSpace(out))
+		slog.Debug("git push failed", "remote", redactURL(AppConfig.Remote), "branch", branch, "err", err)
+		printWarn("git push to %s failed: %v", redactURL(AppConfig.Remote), err)
 		return
 	}
 	slog.Debug("git push ok", "remote", redactURL(AppConfig.Remote), "branch", branch)
 }
 
+func gitPushGoGit(ctx context.Context, branch string) error {
+	repo, err := openRepo()
+	if err != nil {
+		return err
+	}
+	auth, err := gitAuth(AppConfig.Remote)
+	if err != nil {
+		return err
+	}
+	refspec := config.RefSpec(fmt.Sprintf("refs/heads/%s:refs/heads/%s", branch, branch))
+	err = repo.PushContext(ctx, &git.PushOptions{
+		RemoteName: "origin",
+		RefSpecs:   []config.RefSpec{refspec},
+		Auth:       auth,
+	})
+	if errors.Is(err, git.NoErrAlreadyUpToDate) {
+		return nil
+	}
+	return err
+}
+
 // gitPullAndMerge fetches origin/<branch> and reconciles before mutation.
+// Worktree.Pull only handles fast-forward; the divergent case here decrypts
+// both sides and runs the 3-way smart merge.
 //
 // Returns:
 //
@@ -215,16 +241,12 @@ func gitPullAndMerge(mainPassword string) error {
 	}
 	remoteRef := "refs/remotes/origin/" + branch
 
-	// Remote tracking ref doesn't exist yet (first push not done).
-	if _, err := runGit("rev-parse", "--verify", remoteRef); err != nil {
+	// First-push case: remote tracking ref doesn't exist yet.
+	remoteSHA, err := revParse(remoteRef)
+	if err != nil {
 		return nil
 	}
-
 	localSHA, err := revParse("HEAD")
-	if err != nil {
-		return err
-	}
-	remoteSHA, err := revParse(remoteRef)
 	if err != nil {
 		return err
 	}
@@ -247,8 +269,12 @@ func fastForward(remoteSHA, mainPassword string) error {
 	if _, err := decryptBlobToRecords(remoteSHA, mainPassword); err != nil {
 		return ErrForkUndecryptable
 	}
-	if out, err := runGit("merge", "--ff-only", remoteSHA); err != nil {
-		return fmt.Errorf("git merge --ff-only: %s", strings.TrimSpace(out))
+	hash, err := parseFullHash(remoteSHA)
+	if err != nil {
+		return err
+	}
+	if err := gitFastForward(hash); err != nil {
+		return err
 	}
 	slog.Debug("git fast-forwarded", "to", remoteSHA)
 	return nil
@@ -283,30 +309,52 @@ func divergentMerge(remoteSHA, mainPassword string) error {
 
 	merged, summary := mergeRecords(forkRecords, localRecords, remoteRecords)
 
-	mergedJSON, err := (&Storage{Records: merged}).ToJson()
+	mergedJSON, err := marshalRecords(merged)
 	if err != nil {
-		return fmt.Errorf("marshal merged: %w", err)
+		return err
 	}
 	if err := EncryptStringToStorage(mergedJSON, mainPassword); err != nil {
 		return fmt.Errorf("encrypt merged: %w", err)
 	}
 
-	// Two-parent merge commit: -s ours keeps local tree, then we overwrite storage.psw.
-	if out, err := runGit("merge", "--no-commit", "--no-ff", "-s", "ours", remoteSHA); err != nil {
-		return fmt.Errorf("git merge -s ours: %s", strings.TrimSpace(out))
+	localHash, err := parseFullHash(localSHA)
+	if err != nil {
+		return err
 	}
-	if out, err := runGit("add", Paths.storageFileName); err != nil {
-		runGit("merge", "--abort")
-		return fmt.Errorf("git add merged: %s", strings.TrimSpace(out))
+	remoteHash, err := parseFullHash(remoteSHA)
+	if err != nil {
+		return err
 	}
 	msg := buildMergeMessage(summary)
-	if out, err := runGit("commit", "--message="+msg); err != nil {
-		runGit("merge", "--abort")
-		return fmt.Errorf("git commit merge: %s", strings.TrimSpace(out))
+	if err := gitStorageMergeCommit(localHash, remoteHash, msg); err != nil {
+		return err
 	}
 
 	summary.printIfNonempty()
 	return nil
+}
+
+// parseFullHash validates a 40-hex SHA-1 string. plumbing.NewHash silently
+// returns ZeroHash on malformed input; this catches that.
+func parseFullHash(sha string) (plumbing.Hash, error) {
+	if len(sha) != 40 {
+		return plumbing.ZeroHash, fmt.Errorf("invalid sha length %d (want 40): %q", len(sha), sha)
+	}
+	for _, r := range sha {
+		if !((r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') || (r >= 'A' && r <= 'F')) {
+			return plumbing.ZeroHash, fmt.Errorf("invalid sha hex: %q", sha)
+		}
+	}
+	return plumbing.NewHash(sha), nil
+}
+
+// marshalRecords serializes records to indented JSON via Storage.ToJson.
+func marshalRecords(records []Record) (string, error) {
+	out, err := (&Storage{Records: records}).ToJson()
+	if err != nil {
+		return "", fmt.Errorf("marshal merged: %w", err)
+	}
+	return out, nil
 }
 
 func decryptBlobToRecords(ref, password string) ([]Record, error) {
