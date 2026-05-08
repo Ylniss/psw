@@ -5,9 +5,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/charmbracelet/bubbles/spinner"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/spinner"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"golang.org/x/term"
 )
 
@@ -87,9 +87,9 @@ func (m spinnerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m spinnerModel) View() string {
+func (m spinnerModel) View() tea.View {
 	if m.completed {
-		return ""
+		return tea.NewView("")
 	}
-	return m.spinner.View() + " " + m.label
+	return tea.NewView(m.spinner.View() + " " + m.label)
 }

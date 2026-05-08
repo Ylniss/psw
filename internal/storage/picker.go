@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/charmbracelet/bubbles/list"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/list"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 // Picker visual / behavior knobs.
@@ -16,13 +16,14 @@ const (
 	pickerHelp      = "↑/↓ or ctrl+n/p navigate · enter select · esc cancel · type to filter"
 	selectedPrefix  = "> "
 	itemPaddingLeft = 2
-	// helpReservedLines is the height we subtract from the list so our blank
-	// line + custom help footer don't push the bottom items off-screen.
+	// Height reserved for the blank line + footer below the list.
 	helpReservedLines = 2
 )
 
 var (
 	selectedColor = lipgloss.Color("170")
+	itemStyle     = lipgloss.NewStyle().PaddingLeft(itemPaddingLeft)
+	itemSelectedStyle  = itemStyle.Foreground(selectedColor).Bold(true)
 	helpStyle     = lipgloss.NewStyle().Faint(true).PaddingLeft(itemPaddingLeft)
 )
 
@@ -32,9 +33,7 @@ type pickerItem string
 
 func (i pickerItem) FilterValue() string { return string(i) }
 
-// pickerDelegate satisfies bubbles/list.ItemDelegate. We supply a custom
-// one — instead of list.NewDefaultDelegate — so each record renders as a
-// single padded line rather than the default two-line title+description.
+// Custom ItemDelegate so each record renders on one line, not two.
 type pickerDelegate struct{}
 
 func (pickerDelegate) Height() int                             { return 1 }
@@ -42,12 +41,11 @@ func (pickerDelegate) Spacing() int                            { return 0 }
 func (pickerDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
 func (pickerDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
 	name := string(item.(pickerItem))
-	style := lipgloss.NewStyle().PaddingLeft(itemPaddingLeft)
 	if index == m.Index() {
-		style = style.Foreground(selectedColor).Bold(true)
-		name = selectedPrefix + name
+		fmt.Fprint(w, itemSelectedStyle.Render(selectedPrefix+name))
+		return
 	}
-	fmt.Fprint(w, style.Render(name))
+	fmt.Fprint(w, itemStyle.Render(name))
 }
 
 type pickerModel struct {
@@ -56,51 +54,52 @@ type pickerModel struct {
 	quitting bool
 }
 
-func (m pickerModel) Init() tea.Cmd {
-	// Send a fake "/" keypress so the picker starts in filter mode; otherwise
-	// the user's first keystroke would navigate the list instead of filtering.
-	return func() tea.Msg { return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}} }
-}
+func (m pickerModel) Init() tea.Cmd { return nil }
 
 func (m pickerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.list.SetSize(msg.Width, msg.Height-helpReservedLines)
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "ctrl+c", "esc":
 			m.quitting = true
 			return m, tea.Quit
 		case "enter":
-			// Pick the highlighted item on the first Enter, even while the
-			// user is still typing the filter. Without this, bubbles/list
-			// treats Enter in Filtering state as "apply filter" and the user
-			// would have to press Enter twice to actually select.
+			// Select on first Enter, even mid-filter. bubbles/list otherwise
+			// treats Enter in Filtering as "apply filter" — would need two presses.
 			if item, ok := m.list.SelectedItem().(pickerItem); ok {
 				m.chosen = string(item)
 				return m, tea.Quit
 			}
 		case "up", "ctrl+p":
-			// bubbles/list disables its CursorUp/Down bindings while filtering,
-			// so we call them directly to keep arrow-key navigation alive and
-			// to wire ctrl+n/p as aliases.
+			// bubbles/list disables arrow-nav while filtering; call directly. Also wires ctrl+n/p.
 			m.list.CursorUp()
 			return m, nil
 		case "down", "ctrl+n":
 			m.list.CursorDown()
 			return m, nil
 		}
+	case list.FilterMatchesMsg:
+		// bubbles/list doesn't snap cursor to top when the filter narrows; reset it.
+		var cmd tea.Cmd
+		m.list, cmd = m.list.Update(msg)
+		m.list.ResetSelected()
+		return m, cmd
 	}
 	var cmd tea.Cmd
 	m.list, cmd = m.list.Update(msg)
 	return m, cmd
 }
 
-func (m pickerModel) View() string {
-	if m.quitting {
-		return ""
+func (m pickerModel) View() tea.View {
+	content := ""
+	if !m.quitting {
+		content = m.list.View() + "\n\n" + helpStyle.Render(pickerHelp)
 	}
-	return m.list.View() + "\n\n" + helpStyle.Render(pickerHelp)
+	v := tea.NewView(content)
+	v.AltScreen = true
+	return v
 }
 
 // One name → return it without launching the TUI. Empty names → ("", nil).
@@ -121,8 +120,13 @@ func GetRecordNameInteractive(names []string) (string, error) {
 	l.SetShowStatusBar(false)
 	l.SetShowHelp(false) // we render our own footer that matches the actual keybindings
 	l.SetFilteringEnabled(true)
+	// Open in filter mode with all items visible. SetFilterText("") fills
+	// filteredItems; SetFilterState focuses the input. SetFilterState alone
+	// would render a blank list (only the '/' key handler fills filteredItems).
+	l.SetFilterText("")
+	l.SetFilterState(list.Filtering)
 
-	program := tea.NewProgram(pickerModel{list: l}, tea.WithAltScreen())
+	program := tea.NewProgram(pickerModel{list: l})
 	final, err := program.Run()
 	if err != nil {
 		return "", fmt.Errorf("interactive picker failed: %w", err)

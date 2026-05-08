@@ -6,19 +6,18 @@ import (
 	"os"
 	"strings"
 
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/TwiN/go-color"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"golang.org/x/term"
 )
 
-// ErrPromptCancelled is returned by input prompts when the user dismisses
-// them via Esc or Ctrl-C. Callers translate it to a silent exit.
+// ErrPromptCancelled means user pressed Esc/Ctrl-C. Callers exit silently.
 var ErrPromptCancelled = errors.New("prompt cancelled")
 
 var (
-	passwordsDontMatchMessage = "Passwords don't match, try again"
+	passwordMismatchMsg = "Passwords don't match, try again"
 	errRequired               = errors.New("input required")
 	errNoTTY                  = errors.New("interactive prompt required: stdin is not a terminal")
 	promptErrorStyle          = lipgloss.NewStyle().Foreground(lipgloss.Color("203"))
@@ -36,21 +35,27 @@ func isTTY() bool {
 }
 
 type inputModel struct {
-	label     string
-	input     textinput.Model
-	errMsg    string
-	submitted bool
-	cancelled bool
+	prefix      string
+	prefixWidth int
+	input       textinput.Model
+	errMsg      string
+	cancelled   bool
 }
 
 func newInputModel(label string, password bool) inputModel {
 	textInput := textinput.New()
 	textInput.Prompt = ""
+	textInput.SetVirtualCursor(false)
 	textInput.Focus()
 	if password {
 		textInput.EchoMode = textinput.EchoPassword
 	}
-	return inputModel{label: label, input: textInput}
+	prefix := label + ": "
+	return inputModel{
+		prefix:      prefix,
+		prefixWidth: lipgloss.Width(prefix),
+		input:       textInput,
+	}
 }
 
 func (m inputModel) Init() tea.Cmd {
@@ -58,7 +63,7 @@ func (m inputModel) Init() tea.Cmd {
 }
 
 func (m inputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if k, ok := msg.(tea.KeyMsg); ok {
+	if k, ok := msg.(tea.KeyPressMsg); ok {
 		switch k.String() {
 		case "ctrl+c", "esc":
 			m.cancelled = true
@@ -68,7 +73,6 @@ func (m inputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.errMsg = err.Error()
 				return m, nil
 			}
-			m.submitted = true
 			return m, tea.Quit
 		}
 	}
@@ -77,15 +81,20 @@ func (m inputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m inputModel) View() string {
+func (m inputModel) View() tea.View {
 	if m.cancelled {
-		return ""
+		return tea.NewView("")
 	}
-	view := fmt.Sprintf("%s: %s", m.label, m.input.View())
+	content := m.prefix + m.input.View()
 	if m.errMsg != "" {
-		view += "\n" + promptErrorStyle.Render(m.errMsg)
+		content += "\n" + promptErrorStyle.Render(m.errMsg)
 	}
-	return view
+	v := tea.NewView(content)
+	if c := m.input.Cursor(); c != nil {
+		c.Position.X += m.prefixWidth
+		v.Cursor = c
+	}
+	return v
 }
 
 func runInput(label string, password bool) (string, error) {
@@ -104,11 +113,11 @@ func runInput(label string, password bool) (string, error) {
 		return "", ErrPromptCancelled
 	}
 	val := finalModel.input.Value()
-	// Bubbletea wipes its inline render region on exit. Re-emit the answered
-	// prompt so it persists in scrollback above the next prompt.
+	// Bubbletea wipes its render region on exit; re-emit to keep the answer in scrollback.
 	display := val
 	if password {
-		display = strings.Repeat("*", len(val))
+		// Cell width, not bytes — matches textinput's EchoPassword.
+		display = strings.Repeat("*", lipgloss.Width(val))
 	}
 	fmt.Printf("%s: %s\n", label, display)
 	return val, nil
@@ -123,7 +132,7 @@ type yesNoModel struct {
 func (m yesNoModel) Init() tea.Cmd { return nil }
 
 func (m yesNoModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if k, ok := msg.(tea.KeyMsg); ok {
+	if k, ok := msg.(tea.KeyPressMsg); ok {
 		switch k.String() {
 		case "y", "Y":
 			m.answer = true
@@ -140,13 +149,11 @@ func (m yesNoModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m yesNoModel) View() string {
-	return fmt.Sprintf("%s (y/n)", m.question)
+func (m yesNoModel) View() tea.View {
+	return tea.NewView(fmt.Sprintf("%s (y/n)", m.question))
 }
 
-// YesOrNo treats cancel (Esc/Ctrl-C) and non-TTY stdin as "no" so scripts
-// don't get stuck and Ctrl-C in a confirm dialog is interpreted as "bail out
-// of this change," matching the existing scripting-safe contract.
+// YesOrNo returns false on cancel (Esc/Ctrl-C) or non-TTY stdin — keeps scripts unblocked and treats Ctrl-C as "bail out".
 func YesOrNo(question string) bool {
 	if !isTTY() {
 		return false
@@ -185,7 +192,7 @@ func PromptForRecordPassword() (string, error) {
 		if first == repeat {
 			return first, nil
 		}
-		fmt.Println(color.InCyan(passwordsDontMatchMessage))
+		fmt.Println(color.InYellow(passwordMismatchMsg))
 	}
 }
 
@@ -228,6 +235,6 @@ func promptForMainPassword(ensure bool, mainPasswordChange bool) (string, error)
 		if first == repeat {
 			return first, nil
 		}
-		fmt.Println(color.InYellow(passwordsDontMatchMessage))
+		fmt.Println(color.InYellow(passwordMismatchMsg))
 	}
 }
