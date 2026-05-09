@@ -8,6 +8,7 @@ import (
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/ylniss/psw/internal/menulayout"
 	"golang.org/x/term"
 )
 
@@ -91,5 +92,5 @@ func (m spinnerModel) View() tea.View {
 	if m.completed {
 		return tea.NewView("")
 	}
-	return tea.NewView(m.spinner.View() + " " + m.label)
+	return tea.NewView(menulayout.RenderIndent(m.spinner.View() + " " + m.label))
 }

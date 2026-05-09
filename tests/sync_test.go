@@ -225,6 +225,76 @@ func TestSync_PSWGitRemoteZero(t *testing.T) {
 	}
 }
 
+// TestSync_SmartMerge_CaseInsensitiveDedup: two peers add the same name in
+// different casings offline; after sync only one record survives.
+func TestSync_SmartMerge_CaseInsensitiveDedup(t *testing.T) {
+	t.Parallel()
+	vaultA, bare, envA := newGitVaultWithRemote(t)
+	vaultB, envB := addPeer(t, bare)
+
+	offlineEnvA := withEnv(envA, "PSW_GIT_REMOTE", "0")
+	offlineEnvB := withEnv(envB, "PSW_GIT_REMOTE", "0")
+
+	mustExit(t, runPswEnv(t, vaultA, offlineEnvA, "add", "alice", "-u", "u", "--password=p"), 0)
+	time.Sleep(mtimeSeparation)
+	mustExit(t, runPswEnv(t, vaultB, offlineEnvB, "add", "ALICE", "-u", "u", "--password=p"), 0)
+
+	mustExit(t, runPswEnv(t, vaultA, envA, "add", "anchorA", "-u", "u", "--password=p"), 0)
+	mustExit(t, runPswEnv(t, vaultB, envB, "add", "anchorB", "-u", "u", "--password=p"), 0)
+
+	listB := runPswEnv(t, vaultB, envB)
+	mustExit(t, listB, 0)
+	// Either casing wins; assert exactly one survives.
+	aliceCount := strings.Count(strings.ToLower(listB.stdout), "alice")
+	if aliceCount != 1 {
+		t.Fatalf("expected exactly one alice/ALICE record after merge, got %d:\n%s", aliceCount, listB.stdout)
+	}
+}
+
+// TestSync_SmartMerge_WarningFormat: a remote-added record shows up in B's
+// stderr with "Pulled" wording.
+func TestSync_SmartMerge_WarningFormat(t *testing.T) {
+	t.Parallel()
+	vaultA, bare, envA := newGitVaultWithRemote(t)
+	vaultB, envB := addPeer(t, bare)
+
+	// A adds offline; B mutates locally; B's next online mutation pulls A's record.
+	offlineEnvA := withEnv(envA, "PSW_GIT_REMOTE", "0")
+	offlineEnvB := withEnv(envB, "PSW_GIT_REMOTE", "0")
+	mustExit(t, runPswEnv(t, vaultA, offlineEnvA, "add", "alpha", "-u", "u", "--password=p"), 0)
+	mustExit(t, runPswEnv(t, vaultB, offlineEnvB, "add", "beta", "-u", "u", "--password=p"), 0)
+
+	mustExit(t, runPswEnv(t, vaultA, envA, "add", "anchorA", "-u", "u", "--password=p"), 0)
+	res := runPswEnv(t, vaultB, envB, "add", "anchorB", "-u", "u", "--password=p")
+	mustExit(t, res, 0)
+	if !strings.Contains(res.stderr, "Pulled") {
+		t.Fatalf("expected stderr to contain 'Pulled' merge warning:\n%s", res.stderr)
+	}
+	if !strings.Contains(res.stderr, "alpha") {
+		t.Fatalf("expected stderr to mention pulled record name 'alpha':\n%s", res.stderr)
+	}
+}
+
+// TestSync_SmartMerge_ByteEqualSilent: identical post-fork records on both
+// sides → merge emits no warning.
+func TestSync_SmartMerge_ByteEqualSilent(t *testing.T) {
+	t.Parallel()
+	vaultA, bare, envA := newGitVaultWithRemote(t)
+	mustExit(t, runPswEnv(t, vaultA, envA, "add", "shared", "-u", "u", "--password=p"), 0)
+
+	vaultB, envB := addPeer(t, bare)
+	listB := runPswEnv(t, vaultB, envB)
+	mustExit(t, listB, 0)
+	mustContain(t, listB.stdout, "shared")
+
+	// B mutates something else; "shared" is already byte-equal on both sides.
+	res := runPswEnv(t, vaultB, envB, "add", "other", "-u", "u", "--password=p")
+	mustExit(t, res, 0)
+	if strings.Contains(res.stderr, "shared") {
+		t.Fatalf("byte-equal record should not surface in merge warnings:\n%s", res.stderr)
+	}
+}
+
 func withEnv(base map[string]string, k, v string) map[string]string {
 	out := maps.Clone(base)
 	out[k] = v

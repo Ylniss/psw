@@ -10,6 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/TwiN/go-color"
+	"github.com/ylniss/psw/internal/menulayout"
 	"golang.org/x/term"
 )
 
@@ -89,9 +90,13 @@ func (m inputModel) View() tea.View {
 	if m.errMsg != "" {
 		content += "\n" + promptErrorStyle.Render(m.errMsg)
 	}
+	indent := menulayout.Indent()
+	content = menulayout.RenderIndent(content)
 	v := tea.NewView(content)
 	if c := m.input.Cursor(); c != nil {
-		c.Position.X += m.prefixWidth
+		// Cursor X = indent + prefix. Y stays put because the view doesn't
+		// wrap; if RenderIndent gains wrap, fix Y too.
+		c.Position.X += m.prefixWidth + indent
 		v.Cursor = c
 	}
 	return v
@@ -119,7 +124,7 @@ func runInput(label string, password bool) (string, error) {
 		// Cell width, not bytes — matches textinput's EchoPassword.
 		display = strings.Repeat("*", lipgloss.Width(val))
 	}
-	fmt.Printf("%s: %s\n", label, display)
+	fmt.Print(menulayout.Render(fmt.Sprintf("%s: %s\n", label, display)))
 	return val, nil
 }
 
@@ -150,7 +155,8 @@ func (m yesNoModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m yesNoModel) View() tea.View {
-	return tea.NewView(fmt.Sprintf("%s (y/n)", m.question))
+	content := menulayout.RenderIndent(fmt.Sprintf("%s (y/n)", m.question))
+	return tea.NewView(content)
 }
 
 // YesOrNo returns false on cancel (Esc/Ctrl-C) or non-TTY stdin — keeps scripts unblocked and treats Ctrl-C as "bail out".
@@ -171,7 +177,7 @@ func YesOrNo(question string) bool {
 	if answer {
 		ans = "y"
 	}
-	fmt.Printf("%s (y/n) %s\n", question, ans)
+	fmt.Print(menulayout.Render(fmt.Sprintf("%s (y/n) %s\n", question, ans)))
 	return answer
 }
 
@@ -192,7 +198,7 @@ func PromptForRecordPassword() (string, error) {
 		if first == repeat {
 			return first, nil
 		}
-		fmt.Println(color.InYellow(passwordMismatchMsg))
+		fmt.Print(menulayout.Render(color.InYellow(passwordMismatchMsg) + "\n"))
 	}
 }
 
@@ -245,6 +251,6 @@ func promptForMainPassword(ensure bool, mainPasswordChange bool) (string, error)
 		if first == repeat {
 			return first, nil
 		}
-		fmt.Println(color.InYellow(passwordMismatchMsg))
+		fmt.Print(menulayout.Render(color.InYellow(passwordMismatchMsg) + "\n"))
 	}
 }

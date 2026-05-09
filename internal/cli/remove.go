@@ -2,7 +2,6 @@ package cli
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/TwiN/go-color"
 	"github.com/spf13/cobra"
@@ -35,7 +34,7 @@ Arguments:
 			return errExit
 		}
 		if err != nil {
-			fmt.Println(err.Error())
+			menuPrintln(err.Error())
 			return nil
 		}
 
@@ -44,7 +43,7 @@ Arguments:
 			return errExit
 		}
 		if err != nil {
-			fmt.Println(err.Error())
+			menuPrintln(err.Error())
 			return nil
 		}
 		if recordName == "" {
@@ -52,18 +51,18 @@ Arguments:
 		}
 
 		if !store.Exists(recordName) {
-			fmt.Printf("Record with name %s doesn't exist\n", color.InGreen(recordName))
+			menuPrintf("Record with name %s doesn't exist\n", color.InGreen(recordName))
 			return nil
 		}
 
 		store.RemoveRecord(recordName)
 
 		if err := store.Save(); err != nil {
-			fmt.Println(err.Error())
+			menuPrintln(err.Error())
 			return nil
 		}
 
-		fmt.Printf("Record %s successfully removed\n", color.InGreen(recordName))
+		menuPrintf("Record %s successfully removed\n", color.InGreen(recordName))
 		storage.GitCommit("record removed")
 		return nil
 	},

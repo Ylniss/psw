@@ -9,24 +9,28 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/TwiN/go-color"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/spf13/cobra"
+	"github.com/ylniss/psw/internal/menulayout"
 	"github.com/ylniss/psw/internal/prompt"
 	"golang.org/x/term"
 )
 
+// Trailing whitespace on the last line is incidental; lipgloss.Width takes
+// the max line width regardless.
 const pswHeader = `
- ████████   █████  █████ ███ █████
-░░███░░███ ███░░  ░░███ ░███░░███
- ░███ ░███░░█████  ░███ ░███ ░███
- ░███ ░███ ░░░░███ ░░███████████
- ░███████  ██████   ░░████░████
- ░███░░░  ░░░░░░     ░░░░ ░░░░
+ ████████     █████   █████ ███ █████
+░░███░░███   ███░░   ░░███ ░███░░███
+ ░███ ░███  ░░█████   ░███ ░███ ░███
+ ░███ ░███   ░░░░███  ░░███████████
+ ░███████    ██████    ░░████░████
+ ░███░░░    ░░░░░░      ░░░░ ░░░░
  ░███
  █████
 ░░░░░                             `
 
-// Widest line of pswHeader. Below this width the header is hidden.
-const pswHeaderWidth = 34
+// Widest line of pswHeader. Header is hidden below this terminal width.
+var pswHeaderWidth = lipgloss.Width(pswHeader)
 
 var menuActions = []string{"get", "add", "change", "remove"}
 
@@ -68,12 +72,24 @@ func runMenu(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Alt-screen exit wiped the menu render; re-emit so the header stays in scrollback.
-	fmt.Println(renderedHeader)
-	fmt.Println()
+	// Indent matches the centered header's left edge so the dispatched action's
+	// prompts align with it.
+	indent := 0
+	if m.width > pswHeaderWidth {
+		indent = (m.width - pswHeaderWidth) / 2
+	}
 
+	// Clear the regular screen so prior shell scrollback isn't visible during
+	// the dispatched action — makes menu→action feel continuous.
+	fmt.Print(ansi.EraseDisplay(2) + ansi.CursorHomePosition)
+
+	menulayout.Set(indent, pswHeaderWidth)
+	defer menulayout.Clear()
 	prompt.SetMainPasswordOverride(m.password)
 	defer prompt.ClearMainPasswordOverride()
+
+	fmt.Println(menulayout.RenderIndent(renderedHeader))
+	fmt.Println()
 
 	selected := subcommandFor(m.chosenAction)
 	if selected == nil {
@@ -216,17 +232,27 @@ func (m menuModel) renderSelectAction(b *strings.Builder) {
 	row := lipgloss.JoinHorizontal(lipgloss.Top, buttons...)
 	b.WriteString(centerHorizontally(m.width, row))
 	b.WriteString("\n\n")
-	footer := menuHelpStyle.Render("←/→ or h/l select · enter or j run · q/esc quit")
+	footer := menuHelpStyle.Render("←/→ or h/l select · enter/j run · q/esc quit")
 	b.WriteString(centerHorizontally(m.width, footer))
 }
 
 func (m menuModel) renderEnterPassword(b *strings.Builder) {
 	line := "Main password: " + m.passwordInput.View()
-	b.WriteString(centerHorizontally(m.width, line))
+	b.WriteString(indentToHeader(m.width, line))
 	if m.passwordError != "" {
 		b.WriteString("\n")
-		b.WriteString(centerHorizontally(m.width, menuErrStyle.Render(m.passwordError)))
+		b.WriteString(indentToHeader(m.width, menuErrStyle.Render(m.passwordError)))
 	}
+}
+
+// indentToHeader left-pads content to align with the centered header's left
+// edge. Returns content unchanged when termWidth ≤ pswHeaderWidth.
+func indentToHeader(termWidth int, content string) string {
+	if termWidth <= pswHeaderWidth {
+		return content
+	}
+	indent := (termWidth - pswHeaderWidth) / 2
+	return lipgloss.NewStyle().MarginLeft(indent).Render(content)
 }
 
 // Width is 0 before the terminal reports its size; PlaceHorizontal collapses
