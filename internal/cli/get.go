@@ -67,6 +67,7 @@ Arguments:
 		}
 
 		if getStdoutFlag {
+			// Raw stdout for piping (e.g. `psw get foo --stdout | xclip`); no labels, no color.
 			if record.Value == "" {
 				fmt.Println(record.Password)
 			} else {
@@ -108,6 +109,6 @@ func printSecret(label, secret string, reveal bool, clipDuration int) {
 		fmt.Println(color.InYellow(secret))
 		return
 	}
-	msg := fmt.Sprintf("Password copied to the clipboard, it will be cleared in %d seconds", clipDuration)
+	msg := fmt.Sprintf("%s copied to the clipboard, it will be cleared in %d seconds", label, clipDuration)
 	fmt.Println(color.InYellow(msg))
 }

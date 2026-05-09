@@ -18,9 +18,9 @@ var ErrPromptCancelled = errors.New("prompt cancelled")
 
 var (
 	passwordMismatchMsg = "Passwords don't match, try again"
-	errRequired               = errors.New("input required")
-	errNoTTY                  = errors.New("interactive prompt required: stdin is not a terminal")
-	promptErrorStyle          = lipgloss.NewStyle().Foreground(lipgloss.Color("203"))
+	errRequired         = errors.New("input required")
+	errNoTTY            = errors.New("interactive prompt required: stdin is not a terminal")
+	promptErrorStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("203"))
 )
 
 func validateRequired(content string) error {

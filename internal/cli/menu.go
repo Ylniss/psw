@@ -25,6 +25,7 @@ const pswHeader = `
  █████
 ░░░░░                             `
 
+// Widest line of pswHeader. Below this width the header is hidden.
 const pswHeaderWidth = 34
 
 var menuActions = []string{"get", "add", "change", "remove"}
@@ -36,6 +37,9 @@ var (
 	menuHelpStyle   = lipgloss.NewStyle().Faint(true)
 	menuErrStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("203"))
 )
+
+// Cached so View() doesn't re-style on every redraw.
+var renderedHeader = menuHeaderStyle.Render(pswHeader)
 
 func init() {
 	rootCmd.AddCommand(menuCmd)
@@ -60,14 +64,18 @@ func runMenu(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("menu: %w", err)
 	}
 	m, ok := final.(menuModel)
-	if !ok || m.cancelled || m.chosen == "" || m.password == "" {
+	if !ok || m.cancelled || m.chosenAction == "" || m.password == "" {
 		return nil
 	}
+
+	// Alt-screen exit wiped the menu render; re-emit so the header stays in scrollback.
+	fmt.Println(renderedHeader)
+	fmt.Println()
 
 	prompt.SetMainPasswordOverride(m.password)
 	defer prompt.ClearMainPasswordOverride()
 
-	selected := subcommandFor(m.chosen)
+	selected := subcommandFor(m.chosenAction)
 	if selected == nil {
 		return nil
 	}
@@ -98,7 +106,7 @@ const (
 type menuModel struct {
 	phase         menuPhase
 	cursor        int
-	chosen        string
+	chosenAction  string
 	password      string
 	passwordInput textinput.Model
 	passwordError string
@@ -138,7 +146,7 @@ func (m menuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m menuModel) updateSelectAction(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "ctrl+c", "esc":
+	case "ctrl+c", "esc", "q":
 		m.cancelled = true
 		return m, tea.Quit
 	case "left", "h":
@@ -149,8 +157,8 @@ func (m menuModel) updateSelectAction(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) 
 		if m.cursor < len(menuActions)-1 {
 			m.cursor++
 		}
-	case "enter":
-		m.chosen = menuActions[m.cursor]
+	case "enter", "j":
+		m.chosenAction = menuActions[m.cursor]
 		m.phase = phaseEnterPassword
 		return m, m.passwordInput.Focus()
 	}
@@ -182,7 +190,7 @@ func (m menuModel) View() tea.View {
 	}
 	var b strings.Builder
 	if m.width == 0 || m.width >= pswHeaderWidth {
-		b.WriteString(menuHeaderStyle.Render(pswHeader))
+		b.WriteString(centerHorizontally(m.width, renderedHeader))
 		b.WriteString("\n\n")
 	}
 	switch m.phase {
@@ -205,16 +213,27 @@ func (m menuModel) renderSelectAction(b *strings.Builder) {
 			buttons[i] = menuButtonStyle.Render(a)
 		}
 	}
-	b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, buttons...))
+	row := lipgloss.JoinHorizontal(lipgloss.Top, buttons...)
+	b.WriteString(centerHorizontally(m.width, row))
 	b.WriteString("\n\n")
-	b.WriteString(menuHelpStyle.Render("←/→ select · enter run · esc cancel"))
+	footer := menuHelpStyle.Render("←/→ or h/l select · enter or j run · q/esc quit")
+	b.WriteString(centerHorizontally(m.width, footer))
 }
 
 func (m menuModel) renderEnterPassword(b *strings.Builder) {
-	b.WriteString("Main password: ")
-	b.WriteString(m.passwordInput.View())
+	line := "Main password: " + m.passwordInput.View()
+	b.WriteString(centerHorizontally(m.width, line))
 	if m.passwordError != "" {
 		b.WriteString("\n")
-		b.WriteString(menuErrStyle.Render(m.passwordError))
+		b.WriteString(centerHorizontally(m.width, menuErrStyle.Render(m.passwordError)))
 	}
+}
+
+// Width is 0 before the terminal reports its size; PlaceHorizontal collapses
+// content at width 0, so skip centering then.
+func centerHorizontally(width int, content string) string {
+	if width == 0 {
+		return content
+	}
+	return lipgloss.PlaceHorizontal(width, lipgloss.Center, content)
 }
