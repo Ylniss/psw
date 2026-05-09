@@ -9,10 +9,6 @@ import (
 	"github.com/ylniss/psw/internal/storage"
 )
 
-func init() {
-	rootCmd.AddCommand(logCmd)
-}
-
 var logCmd = &cobra.Command{
 	Use:   "log",
 	Short: "Show storage commit history",

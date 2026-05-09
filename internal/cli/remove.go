@@ -13,7 +13,6 @@ var removeExactFlag bool
 
 func init() {
 	removeCmd.Flags().BoolVarP(&removeExactFlag, "exact", "e", false, "exact name match; skip interactive picker and substring search")
-	rootCmd.AddCommand(removeCmd)
 }
 
 var removeCmd = &cobra.Command{

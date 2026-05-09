@@ -45,10 +45,6 @@ var (
 // Cached so View() doesn't re-style on every redraw.
 var renderedHeader = menuHeaderStyle.Render(pswHeader)
 
-func init() {
-	rootCmd.AddCommand(menuCmd)
-}
-
 var menuCmd = &cobra.Command{
 	Use:   "menu",
 	Short: "Interactive launcher for get/add/change/remove",

@@ -25,9 +25,11 @@ Integration tests under `tests/` (`make test`): `TestMain` builds `psw` once int
 - `internal/prompt/` — TUI prompts. `YesOrNo` returns `false` on non-TTY stdin (no panic) — scripting-safe.
 - `plans/` — design notes for in-flight or completed reshapes.
 
-### Data dir (`~/.psw/`)
+### Data dir
 
-`storage.InitConfig` (called from `rootCmd.PersistentPreRunE`) ensures `~/.psw/` and loads `pswcfg.toml` (seeded from beside the executable on first run — `make build` copies `pswcfg-template.toml` → `bin/`). Two storage entry points: `GetOrCreateForRead` (no network; `psw`, `psw get`, `psw log`) and `GetOrCreateForMutate` (pull → merge → return; `psw add/change/remove`, `change main`). Both prompt for main password and init the repo with `main` as default branch via go-git (`PlainInitWithOptions`); `Paths.gitRepoExists` gates per-mutation `GitCommit`. `GitCommit` stages `storage.psw` + `pswcfg.toml` only (not the whole tree) — keeps stray dotfiles and backups (e.g. `storage.psw.legacy-bak` from Phase 1's one-time upgrade) out of history. After commit, `GitCommit` calls `GitPush` (best-effort: warn-yellow on failure, never propagates).
+Resolved via `os.UserConfigDir()` + `psw` (Linux: `$XDG_CONFIG_HOME/psw` or `~/.config/psw`; Windows: `%AppData%\psw`; macOS: `~/Library/Application Support/psw`). `PSW_HOME` overrides for tests/scripting.
+
+`storage.InitConfig` (called from `rootCmd.PersistentPreRunE`) ensures the data dir and loads `pswcfg.toml` (seeded from beside the executable on first run — `make build` copies `pswcfg-template.toml` → `bin/`). Two storage entry points: `GetOrCreateForRead` (no network; `psw`, `psw get`, `psw log`) and `GetOrCreateForMutate` (pull → merge → return; `psw add/change/remove`, `change main`). Both prompt for main password and init the repo with `main` as default branch via go-git (`PlainInitWithOptions`); `Paths.gitRepoExists` gates per-mutation `GitCommit`. `GitCommit` stages `storage.psw` + `pswcfg.toml` only (not the whole tree) — keeps stray dotfiles and backups (e.g. `storage.psw.legacy-bak` from Phase 1's one-time upgrade) out of history. After commit, `GitCommit` calls `GitPush` (best-effort: warn-yellow on failure, never propagates).
 
 ### Remote sync (optional)
 
@@ -71,7 +73,7 @@ CLI runs unattended (no TUI prompts) via env vars + flags below.
 
 ### Env vars
 
-- `PSW_HOME=<path>` — override storage dir (default `~/.psw`). Tests get a fresh `t.TempDir()` per case.
+- `PSW_HOME=<path>` — override storage dir (default = `os.UserConfigDir()/psw`). Tests get a fresh `t.TempDir()` per case.
 - `PSW_MAIN_PASSWORD=<str>` — supplies main password; bypasses prompt + double-confirm on vault creation. Empty = unset (prompt).
 - `PSW_NEW_MAIN_PASSWORD=<str>` — new main password for `change main`. Same handling.
 - `PSW_GIT=0` — skip auto `git init` + per-mutation `git commit`. Default unchanged when unset.

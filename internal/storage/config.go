@@ -47,11 +47,11 @@ func setStoragePath() error {
 	// PSW_HOME overrides default storage dir (intended for tests/scripting).
 	path := os.Getenv("PSW_HOME")
 	if path == "" {
-		home, err := os.UserHomeDir()
+		configDir, err := os.UserConfigDir()
 		if err != nil {
-			return fmt.Errorf("retrieve home directory: %w", err)
+			return fmt.Errorf("retrieve user config directory: %w", err)
 		}
-		path = filepath.Join(home, ".psw")
+		path = filepath.Join(configDir, "psw")
 	}
 
 	var err error

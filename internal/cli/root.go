@@ -23,20 +23,25 @@ var errExit = errors.New("")
 var verboseFlag bool
 
 func init() {
+	cobra.EnableCommandSorting = false
 	rootCmd.PersistentFlags().BoolVarP(&verboseFlag, "verbose", "v", false, "verbose output, sensitive data will be logged")
+	rootCmd.AddCommand(getCmd, addCmd, changeCmd, removeCmd, menuCmd, logCmd, versionCmd)
+	// completion before help in --help; cobra defaults to help-first.
+	rootCmd.InitDefaultCompletionCmd()
+	rootCmd.InitDefaultHelpCmd()
 }
 
 var rootCmd = &cobra.Command{
-	Use: `psw        lists all stored record names
-  psw`,
+	Use:   "psw",
 	Short: "psw is the simplest password management tool",
-	Long: `psw is a simple password manager that secures your passwords using AES encryption with SHA256.
+	Long: `psw is a simple password manager that secures your passwords using AES-256-GCM with Argon2id key derivation.
 
-The directory ~/.psw is created to store all necessary files:
+A 'psw' directory is created under your user config directory (e.g. ~/.config/psw on Linux, %AppData%\psw on Windows) to store:
 storage.psw: an encrypted file where your passwords are saved.
 pswcfg.toml: a configuration file for customizing app behavior.
 
-On first use, you’ll set a main password to protect your stored passwords.`,
+On first use, you'll set a main password to protect your stored passwords.
+Run 'psw' with no arguments to list all stored record names.`,
 	SilenceErrors: true,
 	SilenceUsage:  true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {

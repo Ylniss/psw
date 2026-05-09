@@ -25,7 +25,6 @@ func init() {
 	changeCmd.Flags().StringVarP(&changeUsernameFlag, "username", "u", "", "new username (skips username y/n + prompt)")
 	changeCmd.Flags().StringVar(&changePasswordFlag, "password", "", "new password (skips password y/n + prompt)")
 	changeCmd.Flags().StringVar(&changeValueFlag, "value", "", "new value for value-only records (skips value y/n + prompt)")
-	rootCmd.AddCommand(changeCmd)
 }
 
 var changeCmd = &cobra.Command{

@@ -26,7 +26,6 @@ func init() {
 	addCmd.Flags().StringVarP(&addUsernameFlag, "username", "u", "", "username (skips username prompt)")
 	addCmd.Flags().StringVar(&addPasswordFlag, "password", "", "password (skips password prompt)")
 	addCmd.Flags().StringVar(&addValueFlag, "value", "", "value for --single records (skips value prompt)")
-	rootCmd.AddCommand(addCmd)
 }
 
 var addCmd = &cobra.Command{
