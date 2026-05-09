@@ -1,0 +1,197 @@
+package prompt
+
+import (
+	"image/color"
+	"math/rand"
+	"strings"
+	"time"
+
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+)
+
+// Star palette: ANSI 1..7 (skip "0" black).
+var starPalette = []color.Color{
+	lipgloss.Color("1"),
+	lipgloss.Color("2"),
+	lipgloss.Color("3"),
+	lipgloss.Color("4"),
+	lipgloss.Color("5"),
+	lipgloss.Color("6"),
+	lipgloss.Color("7"),
+}
+
+// Header flash palette: excludes "6" cyan (the default header color), so a
+// flash always shifts away from the resting color.
+var headerFlashPalette = []color.Color{
+	lipgloss.Color("1"),
+	lipgloss.Color("2"),
+	lipgloss.Color("3"),
+	lipgloss.Color("4"),
+	lipgloss.Color("5"),
+	lipgloss.Color("7"),
+}
+
+const (
+	starBlinkDuration = 500 * time.Millisecond
+	StarTickInterval  = 100 * time.Millisecond
+)
+
+type star struct {
+	flashColor color.Color
+	blinkUntil time.Time
+}
+
+type StarState struct {
+	stars         []star
+	rng           *rand.Rand
+	lastStarIdx   int
+	lastHeaderIdx int
+}
+
+func NewStarState() StarState {
+	return StarState{rng: rand.New(rand.NewSource(time.Now().UnixNano()))}
+}
+
+// pickDistinctIdx picks a uniformly random index in [0, paletteLen) that is
+// not lastIdx. paletteLen must be >= 2; with 1 entry there's no choice. The
+// zero-value lastIdx (= 0) just biases the very first pick away from index 0,
+// which is negligible.
+func (s *StarState) pickDistinctIdx(paletteLen, lastIdx int) int {
+	if paletteLen <= 1 {
+		return 0
+	}
+	s.ensureRNG()
+	idx := s.rng.Intn(paletteLen - 1)
+	if idx >= lastIdx {
+		idx++
+	}
+	return idx
+}
+
+func (s *StarState) Len() int { return len(s.stars) }
+
+func (s *StarState) Reset() { s.stars = s.stars[:0] }
+
+func (s *StarState) Add(n int) {
+	if n <= 0 {
+		return
+	}
+	idx := s.pickDistinctIdx(len(starPalette), s.lastStarIdx)
+	s.lastStarIdx = idx
+	s.addWithColor(n, starPalette[idx])
+}
+
+// addWithColor appends n stars sharing one flashColor — used by ApplyKeystrokeAdd
+// so all stars from a single keystroke blink the same color.
+func (s *StarState) addWithColor(n int, c color.Color) {
+	if n <= 0 {
+		return
+	}
+	until := time.Now().Add(starBlinkDuration)
+	for i := 0; i < n; i++ {
+		s.stars = append(s.stars, star{flashColor: c, blinkUntil: until})
+	}
+}
+
+func (s *StarState) Remove(n int) {
+	if n <= 0 {
+		return
+	}
+	if n >= len(s.stars) {
+		s.stars = s.stars[:0]
+		return
+	}
+	s.stars = s.stars[:len(s.stars)-n]
+}
+
+func (s *StarState) Active() bool {
+	now := time.Now()
+	for _, st := range s.stars {
+		if now.Before(st.blinkUntil) {
+			return true
+		}
+	}
+	return false
+}
+
+// View renders the star string. Stars within their blink window get foreground
+// color; settled stars render as plain "*" (default terminal foreground).
+func (s *StarState) View() string {
+	if len(s.stars) == 0 {
+		return ""
+	}
+	now := time.Now()
+	var b strings.Builder
+	for _, st := range s.stars {
+		if now.Before(st.blinkUntil) {
+			b.WriteString(lipgloss.NewStyle().Foreground(st.flashColor).Render("*"))
+			continue
+		}
+		b.WriteString("*")
+	}
+	return b.String()
+}
+
+// ApplyKeystrokeAdd is called when the input grows by deltaChars. Per char,
+// adds 1 or 2 stars (50/50). All stars added in this call share one randomly
+// chosen palette color (never the same as the previous keystroke's color) so
+// they blink in unison. Returns true if any stars were added.
+func (s *StarState) ApplyKeystrokeAdd(deltaChars int) bool {
+	if deltaChars <= 0 {
+		return false
+	}
+	s.ensureRNG()
+	idx := s.pickDistinctIdx(len(starPalette), s.lastStarIdx)
+	s.lastStarIdx = idx
+	c := starPalette[idx]
+	total := 0
+	for i := 0; i < deltaChars; i++ {
+		total += 1 + s.rng.Intn(2) // 1 or 2
+	}
+	s.addWithColor(total, c)
+	return true
+}
+
+// ApplyKeystrokeRemove is the deterministic delete path: removes |delta|
+// stars (1 per backspace; more for ctrl-w). Returns true if state changed.
+func (s *StarState) ApplyKeystrokeRemove(deltaChars int) bool {
+	if deltaChars <= 0 || len(s.stars) == 0 {
+		return false
+	}
+	s.Remove(deltaChars)
+	return true
+}
+
+// ApplyEmpty resets visible stars when the input is fully cleared. Returns
+// true if state changed.
+func (s *StarState) ApplyEmpty() bool {
+	if len(s.stars) == 0 {
+		return false
+	}
+	s.Reset()
+	return true
+}
+
+// RandomHeaderColor picks a color from the cyan-excluded header palette,
+// never repeating the previous pick. Used by menuModel for the password-phase
+// logo flash.
+func (s *StarState) RandomHeaderColor() color.Color {
+	idx := s.pickDistinctIdx(len(headerFlashPalette), s.lastHeaderIdx)
+	s.lastHeaderIdx = idx
+	return headerFlashPalette[idx]
+}
+
+func (s *StarState) ensureRNG() {
+	if s.rng == nil {
+		s.rng = rand.New(rand.NewSource(time.Now().UnixNano()))
+	}
+}
+
+type StarTickMsg time.Time
+
+func StarTick() tea.Cmd {
+	return tea.Tick(StarTickInterval, func(t time.Time) tea.Msg {
+		return StarTickMsg(t)
+	})
+}

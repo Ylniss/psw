@@ -2,8 +2,10 @@ package cli
 
 import (
 	"fmt"
+	imgcolor "image/color"
 	"os"
 	"strings"
+	"time"
 
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
@@ -15,6 +17,10 @@ import (
 	"github.com/ylniss/psw/internal/prompt"
 	"golang.org/x/term"
 )
+
+const logoFlashDuration = 250 * time.Millisecond
+
+var defaultHeaderColor = lipgloss.Color("6")
 
 // Trailing whitespace on the last line is incidental; lipgloss.Width takes
 // the max line width regardless.
@@ -35,15 +41,19 @@ var pswHeaderWidth = lipgloss.Width(pswHeader)
 var menuActions = []string{"get", "add", "change", "remove"}
 
 var (
-	menuHeaderStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("6"))
 	menuButtonStyle = lipgloss.NewStyle().Padding(0, 2)
 	menuSelectStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("170")).Bold(true).Padding(0, 2)
 	menuHelpStyle   = lipgloss.NewStyle().Faint(true)
 	menuErrStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("203"))
 )
 
-// Cached so View() doesn't re-style on every redraw.
-var renderedHeader = menuHeaderStyle.Render(pswHeader)
+// Default-color header is cached for the post-menu display; the live menu
+// View renders its own (possibly flashed) version per frame.
+var renderedHeader = renderHeader(defaultHeaderColor)
+
+func renderHeader(c imgcolor.Color) string {
+	return lipgloss.NewStyle().Foreground(c).Render(pswHeader)
+}
 
 var menuCmd = &cobra.Command{
 	Use:   "menu",
@@ -116,21 +126,28 @@ const (
 )
 
 type menuModel struct {
-	phase         menuPhase
-	cursor        int
-	chosenAction  string
-	password      string
-	passwordInput textinput.Model
-	passwordError string
-	cancelled     bool
-	width         int
+	phase          menuPhase
+	cursor         int
+	chosenAction   string
+	password       string
+	passwordInput  textinput.Model
+	passwordError  string
+	cancelled      bool
+	width          int
+	stars          prompt.StarState
+	ticking        bool
+	logoFlashColor imgcolor.Color
+	logoFlashUntil time.Time
 }
 
 func newMenuModel() menuModel {
 	input := textinput.New()
 	input.Prompt = ""
-	input.EchoMode = textinput.EchoPassword
-	return menuModel{passwordInput: input}
+	input.EchoMode = textinput.EchoNone
+	return menuModel{
+		passwordInput: input,
+		stars:         prompt.NewStarState(),
+	}
 }
 
 func (m menuModel) Init() tea.Cmd { return textinput.Blink }
@@ -139,6 +156,12 @@ func (m menuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
+		return m, nil
+	case prompt.StarTickMsg:
+		if m.animationActive() {
+			return m, prompt.StarTick()
+		}
+		m.ticking = false
 		return m, nil
 	case tea.KeyPressMsg:
 		switch m.phase {
@@ -154,6 +177,20 @@ func (m menuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 	return m, nil
+}
+
+func (m menuModel) animationActive() bool {
+	return m.stars.Active() || time.Now().Before(m.logoFlashUntil)
+}
+
+// kickTick returns a tick cmd if animation is active and no tick is in flight.
+// Mutates m.ticking via pointer receiver.
+func (m *menuModel) kickTick() tea.Cmd {
+	if m.ticking || !m.animationActive() {
+		return nil
+	}
+	m.ticking = true
+	return prompt.StarTick()
 }
 
 func (m menuModel) updateSelectAction(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -190,10 +227,27 @@ func (m menuModel) updateEnterPassword(msg tea.KeyPressMsg) (tea.Model, tea.Cmd)
 		m.password = m.passwordInput.Value()
 		return m, tea.Quit
 	}
+	// Logo flash on every typing keypress in this phase.
+	m.logoFlashColor = m.stars.RandomHeaderColor()
+	m.logoFlashUntil = time.Now().Add(logoFlashDuration)
+	prevLen := len(m.passwordInput.Value())
 	var cmd tea.Cmd
 	m.passwordInput, cmd = m.passwordInput.Update(msg)
 	m.passwordError = ""
-	return m, cmd
+	newLen := len(m.passwordInput.Value())
+	switch {
+	case newLen == 0:
+		m.stars.ApplyEmpty()
+	case newLen > prevLen:
+		m.stars.ApplyKeystrokeAdd(newLen - prevLen)
+	case newLen < prevLen:
+		m.stars.ApplyKeystrokeRemove(prevLen - newLen)
+	}
+	tickCmd := m.kickTick()
+	if tickCmd == nil {
+		return m, cmd
+	}
+	return m, tea.Batch(cmd, tickCmd)
 }
 
 func (m menuModel) View() tea.View {
@@ -202,7 +256,11 @@ func (m menuModel) View() tea.View {
 	}
 	var b strings.Builder
 	if m.width == 0 || m.width >= pswHeaderWidth {
-		b.WriteString(centerHorizontally(m.width, renderedHeader))
+		headerColor := defaultHeaderColor
+		if time.Now().Before(m.logoFlashUntil) {
+			headerColor = m.logoFlashColor
+		}
+		b.WriteString(centerHorizontally(m.width, renderHeader(headerColor)))
 		b.WriteString("\n\n")
 	}
 	switch m.phase {
@@ -233,7 +291,7 @@ func (m menuModel) renderSelectAction(b *strings.Builder) {
 }
 
 func (m menuModel) renderEnterPassword(b *strings.Builder) {
-	line := "Main password: " + m.passwordInput.View()
+	line := "Main password: " + m.stars.View()
 	b.WriteString(indentToHeader(m.width, line))
 	if m.passwordError != "" {
 		b.WriteString("\n")

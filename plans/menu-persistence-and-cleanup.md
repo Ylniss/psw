@@ -1,6 +1,6 @@
 # psw TUI overhaul: menu persistence, animation, path move, help cleanup
 
-_Last updated: 2026-05-09 — Phase 1 shipped (uncommitted at time of update)_
+_Last updated: 2026-05-09 — Phases 1 + 2 shipped (Phase 2 uncommitted at time of update)_
 
 ## Goal
 Four bundled changes to psw: (1) make `psw menu` a persistent launcher that hosts actions as bubbletea sub-models so the menu UI stays visible and only Esc/q exits; (2) add randomized animated stars (1–3 per keypress, 1 per delete) plus a per-keypress logo color flash to the **main-password** input; (3) reorder `psw --help` commands and update the long description for accuracy (AES-256-GCM/Argon2id, new path); (4) move the data dir from `~/.psw/` to `$XDG_CONFIG_HOME/psw` (fallback `~/.config/psw`) with no migration.
@@ -48,7 +48,7 @@ Four bundled changes to psw: (1) make `psw menu` a persistent launcher that host
 - **Risk:** low
 - **Depends on:** none
 
-### [ ] Phase 2: Main-password animation (task 2)
+### [x] Phase 2: Main-password animation (task 2) — shipped, see `plans/phase2-main-password-animation.md`
 - **Goal:** Each keystroke in a main-password input adds 1–3 colored stars; new stars blink for ~500ms then settle to a static palette color; backspace removes 1; visible never drops below `len(password)`; on empty input the visible string resets. While `psw menu` is on the action-select phase, each keypress flashes the PSW logo a random palette color for ~150ms.
 - **Scope:**
   - New `internal/prompt/stars.go`: `starState` type with `add(n)/remove(n)/visible() string` (per-star color + blink-until-time), tick command. Hardcoded palette (8 standard terminal colors), add range [1,3], blink duration 500ms.

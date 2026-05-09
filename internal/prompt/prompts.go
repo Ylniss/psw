@@ -36,27 +36,38 @@ func isTTY() bool {
 }
 
 type inputModel struct {
-	prefix      string
-	prefixWidth int
-	input       textinput.Model
-	errMsg      string
-	cancelled   bool
+	prefix       string
+	prefixWidth  int
+	input        textinput.Model
+	errMsg       string
+	cancelled    bool
+	animateStars bool
+	stars        StarState
+	ticking      bool
 }
 
-func newInputModel(label string, password bool) inputModel {
+func newInputModel(label string, password, animateStars bool) inputModel {
 	textInput := textinput.New()
 	textInput.Prompt = ""
 	textInput.SetVirtualCursor(false)
 	textInput.Focus()
-	if password {
+	switch {
+	case animateStars:
+		textInput.EchoMode = textinput.EchoNone
+	case password:
 		textInput.EchoMode = textinput.EchoPassword
 	}
 	prefix := label + ": "
-	return inputModel{
-		prefix:      prefix,
-		prefixWidth: lipgloss.Width(prefix),
-		input:       textInput,
+	m := inputModel{
+		prefix:       prefix,
+		prefixWidth:  lipgloss.Width(prefix),
+		input:        textInput,
+		animateStars: animateStars,
 	}
+	if animateStars {
+		m.stars = NewStarState()
+	}
+	return m
 }
 
 func (m inputModel) Init() tea.Cmd {
@@ -64,8 +75,9 @@ func (m inputModel) Init() tea.Cmd {
 }
 
 func (m inputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if k, ok := msg.(tea.KeyPressMsg); ok {
-		switch k.String() {
+	switch msg := msg.(type) {
+	case tea.KeyPressMsg:
+		switch msg.String() {
 		case "ctrl+c", "esc":
 			m.cancelled = true
 			return m, tea.Quit
@@ -76,9 +88,37 @@ func (m inputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, tea.Quit
 		}
+	case StarTickMsg:
+		if m.animateStars && m.stars.Active() {
+			return m, StarTick()
+		}
+		m.ticking = false
+		return m, nil
 	}
+
+	prevLen := len(m.input.Value())
 	var cmd tea.Cmd
 	m.input, cmd = m.input.Update(msg)
+	if !m.animateStars {
+		return m, cmd
+	}
+	newLen := len(m.input.Value())
+	changed := false
+	switch {
+	case newLen == 0:
+		changed = m.stars.ApplyEmpty()
+	case newLen > prevLen:
+		changed = m.stars.ApplyKeystrokeAdd(newLen - prevLen)
+	case newLen < prevLen:
+		changed = m.stars.ApplyKeystrokeRemove(prevLen - newLen)
+	}
+	if !changed {
+		return m, cmd
+	}
+	if m.stars.Active() && !m.ticking {
+		m.ticking = true
+		return m, tea.Batch(cmd, StarTick())
+	}
 	return m, cmd
 }
 
@@ -86,7 +126,13 @@ func (m inputModel) View() tea.View {
 	if m.cancelled {
 		return tea.NewView("")
 	}
-	content := m.prefix + m.input.View()
+	body := m.input.View()
+	cursorOffset := 0
+	if m.animateStars {
+		body = m.stars.View()
+		cursorOffset = m.stars.Len()
+	}
+	content := m.prefix + body
 	if m.errMsg != "" {
 		content += "\n" + promptErrorStyle.Render(m.errMsg)
 	}
@@ -94,19 +140,24 @@ func (m inputModel) View() tea.View {
 	content = menulayout.RenderIndent(content)
 	v := tea.NewView(content)
 	if c := m.input.Cursor(); c != nil {
-		// Cursor X = indent + prefix. Y stays put because the view doesn't
-		// wrap; if RenderIndent gains wrap, fix Y too.
-		c.Position.X += m.prefixWidth + indent
+		// Under EchoNone the textinput reports cursor X = len(value), which
+		// would double-count once we add stars.Len(). Set X absolutely when
+		// animating; otherwise add the offset as before.
+		if m.animateStars {
+			c.Position.X = m.prefixWidth + indent + cursorOffset
+		} else {
+			c.Position.X += m.prefixWidth + indent
+		}
 		v.Cursor = c
 	}
 	return v
 }
 
-func runInput(label string, password bool) (string, error) {
+func runInput(label string, password, animateStars bool) (string, error) {
 	if !isTTY() {
 		return "", errNoTTY
 	}
-	final, err := tea.NewProgram(newInputModel(label, password)).Run()
+	final, err := tea.NewProgram(newInputModel(label, password, animateStars)).Run()
 	if err != nil {
 		return "", fmt.Errorf("prompt failed: %w", err)
 	}
@@ -120,7 +171,7 @@ func runInput(label string, password bool) (string, error) {
 	val := finalModel.input.Value()
 	// Bubbletea wipes its render region on exit; re-emit to keep the answer in scrollback.
 	display := val
-	if password {
+	if password || animateStars {
 		// Cell width, not bytes — matches textinput's EchoPassword.
 		display = strings.Repeat("*", lipgloss.Width(val))
 	}
@@ -182,16 +233,16 @@ func YesOrNo(question string) bool {
 }
 
 func PromptForName(promptText string) (string, error) {
-	return runInput(promptText, false)
+	return runInput(promptText, false, false)
 }
 
 func PromptForRecordPassword() (string, error) {
 	for {
-		first, err := runInput("Password", true)
+		first, err := runInput("Password", true, false)
 		if err != nil {
 			return "", err
 		}
-		repeat, err := runInput("Repeat password", true)
+		repeat, err := runInput("Repeat password", true, false)
 		if err != nil {
 			return "", err
 		}
@@ -237,14 +288,14 @@ func promptForMainPassword(ensure bool, mainPasswordChange bool) (string, error)
 	}
 
 	for {
-		first, err := runInput(askText, true)
+		first, err := runInput(askText, true, true)
 		if err != nil {
 			return "", err
 		}
 		if !ensure {
 			return first, nil
 		}
-		repeat, err := runInput(repeatText, true)
+		repeat, err := runInput(repeatText, true, true)
 		if err != nil {
 			return "", err
 		}
