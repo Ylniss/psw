@@ -105,7 +105,7 @@ func (s *Storage) Exists(name string) bool {
 	return false
 }
 
-func (s *Storage) ToJson() (string, error) {
+func (s *Storage) ToJSON() (string, error) {
 	jsonData, err := json.MarshalIndent(s.Records, "", "  ")
 	if err != nil {
 		return "", err
@@ -118,12 +118,12 @@ func (s *Storage) ToJson() (string, error) {
 // storage's current MainPassword. To change the main password, mutate
 // storage.MainPassword before calling Save.
 func (s *Storage) Save() error {
-	storageJson, err := s.ToJson()
+	storageJSON, err := s.ToJSON()
 	if err != nil {
 		return err
 	}
-	slog.Debug("saved storage content", "json", storageJson)
-	return EncryptStringToStorage(storageJson, s.MainPassword)
+	slog.Debug("saved storage content", "json", storageJSON)
+	return EncryptStringToStorage(storageJSON, s.MainPassword)
 }
 
 // GetOrCreateForRead loads storage without network access.
@@ -193,12 +193,12 @@ func createIfMissing(password string) error {
 }
 
 func Get(mainPassword string) (*Storage, error) {
-	storageJson, err := DecryptStringFromStorage(mainPassword)
+	storageJSON, err := DecryptStringFromStorage(mainPassword)
 	if err != nil {
 		return nil, err
 	}
 
-	records, err := getRecords(storageJson)
+	records, err := getRecords(storageJSON)
 	if err != nil {
 		return nil, err
 	}
@@ -208,18 +208,17 @@ func Get(mainPassword string) (*Storage, error) {
 	return &storage, nil
 }
 
-func getRecords(storageJson string) ([]Record, error) {
+func getRecords(storageJSON string) ([]Record, error) {
 	var records []Record
-	err := json.Unmarshal([]byte(storageJson), &records)
+	err := json.Unmarshal([]byte(storageJSON), &records)
 	if err != nil {
-		// Return an empty slice and the error
 		return nil, fmt.Errorf("error decoding JSON: %w", err)
 	}
 	return records, nil
 }
 
-// returns true and password used to create storage if created storage
-// or false with empty string when error occured or storage already existed
+// createEncryptedStorageIfNotExists returns (password, true, nil) when it
+// created the vault, or ("", false, nil) when storage already existed.
 func createEncryptedStorageIfNotExists() (string, bool, error) {
 	storageFileExists, err := pathExists(Paths.storageFilePath)
 	if err != nil {

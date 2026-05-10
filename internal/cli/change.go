@@ -37,7 +37,7 @@ Arguments:
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if len(args) == 1 && (args[0] == "main" || args[0] == "main-password") {
-			if err := rejectMainFlagMutex(cmd); err != nil {
+			if err := rejectFieldFlagsForMain(cmd); err != nil {
 				return err
 			}
 			if err := changeMainPassword(); err != nil {
@@ -89,7 +89,7 @@ func changeMainPasswordOnStore(store *storage.Storage) error {
 	return nil
 }
 
-func rejectMainFlagMutex(cmd *cobra.Command) error {
+func rejectFieldFlagsForMain(cmd *cobra.Command) error {
 	if cmd.Flags().Changed("rename") || cmd.Flags().Changed("username") ||
 		cmd.Flags().Changed("password") || cmd.Flags().Changed("value") {
 		fmt.Println("Record-level flags (--rename/--username/--password/--value) are not valid with 'change main' / 'change main-password'")
@@ -133,7 +133,7 @@ func changeRecord(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 	if recordName == "main-password" {
-		if err := rejectMainFlagMutex(cmd); err != nil {
+		if err := rejectFieldFlagsForMain(cmd); err != nil {
 			return err
 		}
 		if err := changeMainPasswordOnStore(store); err != nil {

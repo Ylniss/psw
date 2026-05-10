@@ -116,7 +116,6 @@ type Action interface {
 	FooterHelp() string
 }
 
-// newAction builds an Action by name and returns its initial Cmd.
 func newAction(name, password string) (Action, tea.Cmd) {
 	switch name {
 	case "get":

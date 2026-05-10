@@ -83,8 +83,7 @@ func (s *StarState) Add(n int) {
 	s.addWithColor(n, starPalette[idx])
 }
 
-// addWithColor appends n stars sharing one flashColor — used by ApplyKeystrokeAdd
-// so all stars from a single keystroke blink the same color.
+// addWithColor appends n stars sharing one flashColor so they blink in unison.
 func (s *StarState) addWithColor(n int, c color.Color) {
 	if n <= 0 {
 		return
@@ -175,8 +174,7 @@ func (s *StarState) ApplyEmpty() bool {
 }
 
 // RandomHeaderColor picks a color from the cyan-excluded header palette,
-// never repeating the previous pick. Used by menuModel for the password-phase
-// logo flash.
+// never repeating the previous pick.
 func (s *StarState) RandomHeaderColor() color.Color {
 	idx := s.pickDistinctIdx(len(headerFlashPalette), s.lastHeaderIdx)
 	s.lastHeaderIdx = idx

@@ -247,7 +247,7 @@ func (a ChangeAction) updateConfirmPassword(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.banner = ""
 		return a.toInput("New password", true, false, changePhaseEnterPassword)
 	}
-	return a.startSavePath()
+	return a.startSave()
 }
 
 func (a ChangeAction) updateEnterPassword(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -270,7 +270,7 @@ func (a ChangeAction) updateEnterPasswordRepeat(msg tea.Msg) (tea.Model, tea.Cmd
 		return a.toInput("New password", true, false, changePhaseEnterPassword)
 	}
 	a.record.Password = a.pendingPassword
-	return a.startSavePath()
+	return a.startSave()
 }
 
 func (a ChangeAction) updateConfirmValue(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -281,7 +281,7 @@ func (a ChangeAction) updateConfirmValue(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if answer {
 		return a.toInput("New value", false, false, changePhaseEnterValue)
 	}
-	return a.startSavePath()
+	return a.startSave()
 }
 
 func (a ChangeAction) updateEnterValue(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -290,10 +290,10 @@ func (a ChangeAction) updateEnterValue(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, cmd
 	}
 	a.record.Value = val
-	return a.startSavePath()
+	return a.startSave()
 }
 
-func (a ChangeAction) startSavePath() (tea.Model, tea.Cmd) {
+func (a ChangeAction) startSave() (tea.Model, tea.Cmd) {
 	a.store.UpdateRecord(a.nameBeforeRename, a.record)
 	return a.toSpinner("Saving", changePhaseSaving, saveCmd(a.store, "record updated"))
 }

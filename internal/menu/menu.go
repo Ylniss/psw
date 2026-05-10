@@ -32,10 +32,8 @@ func (c *warnCollector) drain() []string {
 	return out
 }
 
-// warns is the active collector for the running menu session.
-// storage.WarnSink is a package-level hook by design (the storage package
-// can't depend on menu); the collector itself is reentrancy-safe but only
-// one menu Run() owns the sink at a time.
+// warns is the active sink for the running menu session.
+// Only one Run() owns the sink at a time.
 var warns warnCollector
 
 // Run blocks until the user quits. Caller does the TTY check.

@@ -184,14 +184,14 @@ func runInput(label string, password, animateStars bool) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("prompt failed: %w", err)
 	}
-	finalWrap, ok := final.(tuiutil.Quitter[InputModel])
+	quitter, ok := final.(tuiutil.Quitter[InputModel])
 	if !ok {
 		return "", fmt.Errorf("prompt returned unexpected model type %T", final)
 	}
-	if finalWrap.M.Cancelled() {
+	if quitter.M.Cancelled() {
 		return "", ErrPromptCancelled
 	}
-	val := finalWrap.M.Value()
+	val := quitter.M.Value()
 	// Bubbletea wipes its render region on exit; re-emit to keep the answer in scrollback.
 	display := val
 	if password || animateStars {
@@ -253,11 +253,11 @@ func YesOrNo(question string) bool {
 	if err != nil {
 		return false
 	}
-	finalWrap, ok := final.(tuiutil.Quitter[YesNoModel])
+	quitter, ok := final.(tuiutil.Quitter[YesNoModel])
 	if !ok {
 		return false
 	}
-	answer := finalWrap.M.Done() && finalWrap.M.Answer()
+	answer := quitter.M.Done() && quitter.M.Answer()
 	ans := "n"
 	if answer {
 		ans = "y"
@@ -291,11 +291,11 @@ func PromptForMainPasswordChange() (string, error) {
 	return promptForMainPassword(true, true)
 }
 
-func PromptForMainPassword(ensure bool) (string, error) {
-	return promptForMainPassword(ensure, false)
+func PromptForMainPassword(confirm bool) (string, error) {
+	return promptForMainPassword(confirm, false)
 }
 
-func promptForMainPassword(ensure bool, mainPasswordChange bool) (string, error) {
+func promptForMainPassword(confirm bool, mainPasswordChange bool) (string, error) {
 	envVar := "PSW_MAIN_PASSWORD"
 	if mainPasswordChange {
 		envVar = "PSW_NEW_MAIN_PASSWORD"
@@ -316,7 +316,7 @@ func promptForMainPassword(ensure bool, mainPasswordChange bool) (string, error)
 		if err != nil {
 			return "", err
 		}
-		if !ensure {
+		if !confirm {
 			return first, nil
 		}
 		repeat, err := runInput(repeatText, true, true)

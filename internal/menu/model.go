@@ -17,16 +17,12 @@ import (
 
 const logoFlashDuration = 250 * time.Millisecond
 
-// chromeHeight is rows used by header + buttons + spacing in
-// menuPhaseRunningAction. Action sub-view height = terminal height - chromeHeight.
-// Computed by rendering the same chrome shape View() emits, so any layout
-// change there is reflected here without having to update a magic constant.
-var chromeHeight = lipgloss.Height(renderRunningChrome())
+// actionChromeHeight is the rows above an action sub-view (header + spacers
+// + buttons row). Computed by rendering the same shape View() emits, so the
+// constant tracks layout changes automatically.
+var actionChromeHeight = lipgloss.Height(renderActionChrome())
 
-// renderRunningChrome reproduces the header + spacers + buttons-row layout
-// that View() emits in menuPhaseRunningAction, with placeholder content. Kept in
-// the same file as View() so the two shapes stay in sync visually.
-func renderRunningChrome() string {
+func renderActionChrome() string {
 	var b strings.Builder
 	b.WriteString(renderHeader(defaultHeaderColor))
 	b.WriteString("\n\n")
@@ -96,7 +92,7 @@ func (m MenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		if m.phase == menuPhaseRunningAction && m.activeAction != nil {
-			adj := tea.WindowSizeMsg{Width: msg.Width, Height: msg.Height - chromeHeight}
+			adj := tea.WindowSizeMsg{Width: msg.Width, Height: msg.Height - actionChromeHeight}
 			cmd := tuiutil.UpdateInPlace(&m.activeAction, adj)
 			return m, cmd
 		}
@@ -233,7 +229,7 @@ func (m MenuModel) startAction(name string) (tea.Model, tea.Cmd) {
 	}
 	// Action's picker needs a size before its first render or the list is empty.
 	if m.width > 0 && m.height > 0 {
-		tuiutil.UpdateInPlace(&a, tea.WindowSizeMsg{Width: m.width, Height: m.height - chromeHeight})
+		tuiutil.UpdateInPlace(&a, tea.WindowSizeMsg{Width: m.width, Height: m.height - actionChromeHeight})
 	}
 	m.activeAction = a
 	m.phase = menuPhaseRunningAction
@@ -298,7 +294,7 @@ func (m MenuModel) View() tea.View {
 	case menuPhaseRunningAction:
 		if m.activeAction != nil {
 			actionView = m.activeAction.View()
-			rendered, indent := alignBlock(m.width, buttonContentLeftCol(m.width), actionView.Content)
+			rendered, indent := alignBlock(m.width, firstButtonLeftCol(m.width), actionView.Content)
 			b.WriteString(rendered)
 			actionIndent = indent
 			if help := m.activeAction.FooterHelp(); help != "" {
@@ -361,9 +357,9 @@ func buttonsRowWidth() int {
 	return lipgloss.Width(row)
 }
 
-// buttonContentLeftCol returns the terminal column where [1]'s leftmost char
+// firstButtonLeftCol returns the terminal column where [1]'s leftmost char
 // renders: buttons row left edge plus the button style's left padding.
-func buttonContentLeftCol(termWidth int) int {
+func firstButtonLeftCol(termWidth int) int {
 	leftEdge := (termWidth - buttonsRowWidth()) / 2
 	if leftEdge < 0 {
 		leftEdge = 0

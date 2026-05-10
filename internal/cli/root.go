@@ -50,7 +50,6 @@ Run 'psw' with no arguments to list all stored record names.`,
 		return storage.InitConfig()
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// list all record names on 'psw' command
 		store, err := storage.GetOrCreateForRead()
 		if errors.Is(err, prompt.ErrPromptCancelled) {
 			return nil

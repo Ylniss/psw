@@ -16,7 +16,7 @@ func humanizeLoadError(err error) string {
 	return err.Error()
 }
 
-// loadCmd decrypts storage. pull=true also fetches and merges from remote.
+// loadCmd decrypts storage; pull=true also fetches and merges first.
 func loadCmd(password string, pull bool) tea.Cmd {
 	return func() tea.Msg {
 		s, err := storage.LoadOrCreate(password, pull)
@@ -35,7 +35,7 @@ func pullCmd(password string) tea.Cmd {
 }
 
 // decryptCmd loads storage.psw with the cached password. Assumes the vault
-// and git repo already exist (validatePasswordCmd ran earlier).
+// and git repo already exist.
 func decryptCmd(password string) tea.Cmd {
 	return func() tea.Msg {
 		s, err := storage.Get(password)
@@ -43,7 +43,6 @@ func decryptCmd(password string) tea.Cmd {
 	}
 }
 
-// validatePasswordCmd decrypts (or creates) the vault and reports the result.
 func validatePasswordCmd(password string) tea.Cmd {
 	return func() tea.Msg {
 		_, err := storage.LoadOrCreate(password, false)

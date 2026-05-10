@@ -89,7 +89,9 @@ func redactURL(u string) string {
 	return p.Redacted()
 }
 
-// shouldFallbackToShell reports whether a go-git network error means we should retry via shell git: our own pre-call sentinel, go-git's transport sentinels, or the SSH "no supported methods" handshake error.
+// shouldFallbackToShell is true for auth/signing failures we can recover from
+// via shell git (our pre-call sentinel, go-git transport sentinels, or the SSH
+// "no supported methods" handshake error).
 func shouldFallbackToShell(err error) bool {
 	if errors.Is(err, ErrAuthRequiresHelper) {
 		return true
@@ -360,9 +362,9 @@ func parseFullHash(sha string) (plumbing.Hash, error) {
 	return plumbing.NewHash(sha), nil
 }
 
-// marshalRecords serializes records to indented JSON via Storage.ToJson.
+// marshalRecords serializes records to indented JSON via Storage.ToJSON.
 func marshalRecords(records []Record) (string, error) {
-	out, err := (&Storage{Records: records}).ToJson()
+	out, err := (&Storage{Records: records}).ToJSON()
 	if err != nil {
 		return "", fmt.Errorf("marshal merged: %w", err)
 	}

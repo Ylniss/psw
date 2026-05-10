@@ -102,8 +102,7 @@ func (m PickerModel) WithoutHelp() PickerModel {
 	return m
 }
 
-// Help returns the plain (unstyled) help text. Hosts that suppressed the
-// in-view footer via WithoutHelp can render this with their own styling.
+// Help returns the unstyled help text for hosts that supplied WithoutHelp.
 func (m PickerModel) Help() string { return pickerHelp }
 
 func (m PickerModel) Init() tea.Cmd { return nil }
@@ -182,12 +181,12 @@ func GetRecordNameInteractive(names, extras []string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("interactive picker failed: %w", err)
 	}
-	finalWrap, ok := final.(tuiutil.Quitter[PickerModel])
+	quitter, ok := final.(tuiutil.Quitter[PickerModel])
 	if !ok {
 		return "", fmt.Errorf("interactive picker returned unexpected model type %T", final)
 	}
-	if finalWrap.M.Cancelled() || finalWrap.M.Selection() == "" {
+	if quitter.M.Cancelled() || quitter.M.Selection() == "" {
 		return "", ErrPickerCancelled
 	}
-	return finalWrap.M.Selection(), nil
+	return quitter.M.Selection(), nil
 }

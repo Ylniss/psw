@@ -33,7 +33,6 @@ func renderHeader(c imgcolor.Color) string {
 	return lipgloss.NewStyle().Foreground(c).Render(pswHeader)
 }
 
-// indentToHeader left-pads content to align with the centered header.
 func indentToHeader(termWidth int, content string) string {
 	if termWidth <= pswHeaderWidth {
 		return content
@@ -42,7 +41,7 @@ func indentToHeader(termWidth int, content string) string {
 	return lipgloss.NewStyle().MarginLeft(indent).Render(content)
 }
 
-// wrapToHeader indents AND wraps content to the header column.
+// wrapToHeader indents and wraps to the header column.
 func wrapToHeader(termWidth int, content string) string {
 	if termWidth <= pswHeaderWidth {
 		return lipgloss.NewStyle().Width(termWidth).Render(content)
@@ -59,10 +58,8 @@ func centerHorizontally(width int, content string) string {
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center, content)
 }
 
-// indentToFooter centers footer-style content inside a column of
-// pswHeaderWidth + 2*headerPaddingX, anchored to terminal center. The column
-// is capped to terminal width on narrow terminals so content still gets
-// centered instead of falling back to the left edge.
+// indentToFooter centers footer content within (pswHeaderWidth + 2*headerPaddingX),
+// capped to termWidth so narrow terminals stay centered.
 func indentToFooter(termWidth int, content string) string {
 	if termWidth == 0 {
 		return content
