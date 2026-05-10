@@ -2,6 +2,7 @@ package cli
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/TwiN/go-color"
@@ -38,7 +39,7 @@ Arguments:
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if singleValueFlag && generatePasswordFlag {
-			menuPrintf("Flags %s and %s cannot be used together. %s works only for passwords.\n",
+			fmt.Printf("Flags %s and %s cannot be used together. %s works only for passwords.\n",
 				color.InCyan("--single"),
 				color.InCyan("--generate"),
 				color.InCyan("--generate"))
@@ -50,18 +51,18 @@ Arguments:
 		valueSet := cmd.Flags().Changed("value")
 
 		if singleValueFlag && (usernameSet || passwordSet) {
-			menuPrintf("Flags %s and %s cannot be combined with %s.\n",
+			fmt.Printf("Flags %s and %s cannot be combined with %s.\n",
 				color.InCyan("--username"),
 				color.InCyan("--password"),
 				color.InCyan("--single"))
 			return errExit
 		}
 		if valueSet && !singleValueFlag {
-			menuPrintf("Flag %s requires %s.\n", color.InCyan("--value"), color.InCyan("--single"))
+			fmt.Printf("Flag %s requires %s.\n", color.InCyan("--value"), color.InCyan("--single"))
 			return errExit
 		}
 		if passwordSet && generatePasswordFlag {
-			menuPrintf("Flags %s and %s cannot be used together.\n",
+			fmt.Printf("Flags %s and %s cannot be used together.\n",
 				color.InCyan("--password"),
 				color.InCyan("--generate"))
 			return errExit
@@ -76,7 +77,7 @@ Arguments:
 			return errExit
 		}
 		if err != nil {
-			menuPrintln(err.Error())
+			fmt.Println(err.Error())
 			return nil
 		}
 
@@ -85,17 +86,17 @@ Arguments:
 			return nil
 		}
 		if err != nil {
-			menuPrintln(err.Error())
+			fmt.Println(err.Error())
 			return nil
 		}
 
 		if strings.ToLower(recordName) == "main" {
-			menuPrintf("Name %s is reserved. %s command uses it for changing main password\n", color.InGreen("main"), color.InCyan("change"))
+			fmt.Printf("Name %s is reserved. %s command uses it for changing main password\n", color.InGreen("main"), color.InCyan("change"))
 			return nil
 		}
 
 		if store.Exists(recordName) {
-			menuPrintf("Record with name %s already exists\n", color.InGreen(recordName))
+			fmt.Printf("Record with name %s already exists\n", color.InGreen(recordName))
 			return nil
 		}
 
@@ -105,7 +106,7 @@ Arguments:
 				return nil
 			}
 			if err != nil {
-				menuPrintln(err.Error())
+				fmt.Println(err.Error())
 				return nil
 			}
 			store.AddRecord(&storage.Record{Name: recordName, Value: recordValue})
@@ -115,7 +116,7 @@ Arguments:
 				return nil
 			}
 			if err != nil {
-				menuPrintln(err.Error())
+				fmt.Println(err.Error())
 				return nil
 			}
 			recordPassword, err := getOrPromptPassword(passwordSet)
@@ -123,21 +124,21 @@ Arguments:
 				return nil
 			}
 			if err != nil {
-				menuPrintln(err.Error())
+				fmt.Println(err.Error())
 				return nil
 			}
 			store.AddRecord(&storage.Record{Name: recordName, Username: recordUsername, Password: recordPassword})
 		}
 
 		if err := store.Save(); err != nil {
-			menuPrintln(err.Error())
+			fmt.Println(err.Error())
 			return nil
 		}
 
 		if singleValueFlag {
-			menuPrintf("Value set successfully in %s record\n", color.InGreen(recordName))
+			fmt.Printf("Value set successfully in %s record\n", color.InGreen(recordName))
 		} else {
-			menuPrintf("Username/password set successfully in %s record\n", color.InGreen(recordName))
+			fmt.Printf("Username/password set successfully in %s record\n", color.InGreen(recordName))
 		}
 
 		storage.GitCommit("added new record")

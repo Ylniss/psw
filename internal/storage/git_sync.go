@@ -25,6 +25,9 @@ import (
 // the current main password (usually because `change main` ran elsewhere).
 var ErrForkUndecryptable = errors.New("storage was re-encrypted under a different main password since the last sync")
 
+// ForkUndecryptableUserMessage is the banner shown for ErrForkUndecryptable.
+const ForkUndecryptableUserMessage = "Storage was re-encrypted under a different main password since the last sync. Push from the device that ran 'change main' first, then retry on this device."
+
 // shouldUseRemote reports whether fetch/push are allowed.
 // False when: PSW_GIT=0, PSW_GIT_REMOTE=0, or no remote in config.
 func shouldUseRemote() bool {

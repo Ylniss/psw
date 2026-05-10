@@ -10,8 +10,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/TwiN/go-color"
-	"github.com/ylniss/psw/internal/menulayout"
 	"golang.org/x/term"
+
+	"github.com/ylniss/psw/internal/tuiutil"
 )
 
 // ErrPromptCancelled means user pressed Esc/Ctrl-C. Callers exit silently.
@@ -35,18 +36,21 @@ func isTTY() bool {
 	return term.IsTerminal(int(os.Stdin.Fd()))
 }
 
-type inputModel struct {
+// InputModel is a single-line text input with optional password masking and
+// animated stars. Sets done/cancelled flags; never returns tea.Quit.
+type InputModel struct {
 	prefix       string
 	prefixWidth  int
 	input        textinput.Model
 	errMsg       string
+	done         bool
 	cancelled    bool
 	animateStars bool
 	stars        StarState
 	ticking      bool
 }
 
-func newInputModel(label string, password, animateStars bool) inputModel {
+func NewInputModel(label string, password, animateStars bool) InputModel {
 	textInput := textinput.New()
 	textInput.Prompt = ""
 	textInput.SetVirtualCursor(false)
@@ -58,7 +62,7 @@ func newInputModel(label string, password, animateStars bool) inputModel {
 		textInput.EchoMode = textinput.EchoPassword
 	}
 	prefix := label + ": "
-	m := inputModel{
+	m := InputModel{
 		prefix:       prefix,
 		prefixWidth:  lipgloss.Width(prefix),
 		input:        textInput,
@@ -70,23 +74,24 @@ func newInputModel(label string, password, animateStars bool) inputModel {
 	return m
 }
 
-func (m inputModel) Init() tea.Cmd {
+func (m InputModel) Init() tea.Cmd {
 	return textinput.Blink
 }
 
-func (m inputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m InputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "ctrl+c", "esc":
 			m.cancelled = true
-			return m, tea.Quit
+			return m, nil
 		case "enter":
 			if err := validateRequired(m.input.Value()); err != nil {
 				m.errMsg = err.Error()
 				return m, nil
 			}
-			return m, tea.Quit
+			m.done = true
+			return m, nil
 		}
 	case StarTickMsg:
 		if m.animateStars && m.stars.Active() {
@@ -122,7 +127,7 @@ func (m inputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m inputModel) View() tea.View {
+func (m InputModel) View() tea.View {
 	if m.cancelled {
 		return tea.NewView("")
 	}
@@ -136,99 +141,123 @@ func (m inputModel) View() tea.View {
 	if m.errMsg != "" {
 		content += "\n" + promptErrorStyle.Render(m.errMsg)
 	}
-	indent := menulayout.Indent()
-	content = menulayout.RenderIndent(content)
 	v := tea.NewView(content)
 	if c := m.input.Cursor(); c != nil {
 		// Under EchoNone the textinput reports cursor X = len(value), which
 		// would double-count once we add stars.Len(). Set X absolutely when
 		// animating; otherwise add the offset as before.
 		if m.animateStars {
-			c.Position.X = m.prefixWidth + indent + cursorOffset
+			c.Position.X = m.prefixWidth + cursorOffset
 		} else {
-			c.Position.X += m.prefixWidth + indent
+			c.Position.X += m.prefixWidth
 		}
 		v.Cursor = c
 	}
 	return v
 }
 
+func (m InputModel) Done() bool         { return m.done }
+func (m InputModel) Cancelled() bool    { return m.cancelled }
+func (m InputModel) Value() string      { return m.input.Value() }
+func (m InputModel) StarsActive() bool  { return m.animateStars && m.stars.Active() }
+
+// Reset clears value/error/done/cancelled. Prefix, mode, and animation persist.
+func (m *InputModel) Reset() {
+	m.input.SetValue("")
+	m.errMsg = ""
+	m.done = false
+	m.cancelled = false
+	if m.animateStars {
+		m.stars.Reset()
+	}
+}
+
 func runInput(label string, password, animateStars bool) (string, error) {
 	if !isTTY() {
 		return "", errNoTTY
 	}
-	final, err := tea.NewProgram(newInputModel(label, password, animateStars)).Run()
+	final, err := tea.NewProgram(tuiutil.Quitter[InputModel]{M: NewInputModel(label, password, animateStars)}).Run()
 	if err != nil {
 		return "", fmt.Errorf("prompt failed: %w", err)
 	}
-	finalModel, ok := final.(inputModel)
+	finalWrap, ok := final.(tuiutil.Quitter[InputModel])
 	if !ok {
 		return "", fmt.Errorf("prompt returned unexpected model type %T", final)
 	}
-	if finalModel.cancelled {
+	if finalWrap.M.Cancelled() {
 		return "", ErrPromptCancelled
 	}
-	val := finalModel.input.Value()
+	val := finalWrap.M.Value()
 	// Bubbletea wipes its render region on exit; re-emit to keep the answer in scrollback.
 	display := val
 	if password || animateStars {
 		// Cell width, not bytes — matches textinput's EchoPassword.
 		display = strings.Repeat("*", lipgloss.Width(val))
 	}
-	fmt.Print(menulayout.Render(fmt.Sprintf("%s: %s\n", label, display)))
+	fmt.Printf("%s: %s\n", label, display)
 	return val, nil
 }
 
-type yesNoModel struct {
-	question string
-	answer   bool
-	decided  bool
+// YesNoModel is a y/n prompt. Sets done/cancelled flags; never returns tea.Quit.
+type YesNoModel struct {
+	question  string
+	answer    bool
+	done      bool
+	cancelled bool
 }
 
-func (m yesNoModel) Init() tea.Cmd { return nil }
+func NewYesNoModel(question string) YesNoModel {
+	return YesNoModel{question: question}
+}
 
-func (m yesNoModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m YesNoModel) Init() tea.Cmd { return nil }
+
+func (m YesNoModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if k, ok := msg.(tea.KeyPressMsg); ok {
 		switch k.String() {
 		case "y", "Y":
 			m.answer = true
-			m.decided = true
-			return m, tea.Quit
+			m.done = true
+			return m, nil
 		case "n", "N":
 			m.answer = false
-			m.decided = true
-			return m, tea.Quit
+			m.done = true
+			return m, nil
 		case "ctrl+c", "esc":
-			return m, tea.Quit
+			m.cancelled = true
+			return m, nil
 		}
 	}
 	return m, nil
 }
 
-func (m yesNoModel) View() tea.View {
-	content := menulayout.RenderIndent(fmt.Sprintf("%s (y/n)", m.question))
-	return tea.NewView(content)
+func (m YesNoModel) View() tea.View {
+	return tea.NewView(fmt.Sprintf("%s (y/n)", m.question))
 }
 
-// YesOrNo returns false on cancel (Esc/Ctrl-C) or non-TTY stdin — keeps scripts unblocked and treats Ctrl-C as "bail out".
+func (m YesNoModel) Done() bool      { return m.done }
+func (m YesNoModel) Cancelled() bool { return m.cancelled }
+func (m YesNoModel) Answer() bool    { return m.answer }
+
+// YesOrNo returns false on Esc/Ctrl-C or non-TTY stdin (keeps scripts unblocked).
 func YesOrNo(question string) bool {
 	if !isTTY() {
 		return false
 	}
-	final, err := tea.NewProgram(yesNoModel{question: question}).Run()
+	final, err := tea.NewProgram(tuiutil.Quitter[YesNoModel]{M: NewYesNoModel(question)}).Run()
 	if err != nil {
 		return false
 	}
-	finalModel, ok := final.(yesNoModel)
+	finalWrap, ok := final.(tuiutil.Quitter[YesNoModel])
 	if !ok {
 		return false
 	}
-	answer := finalModel.decided && finalModel.answer
+	answer := finalWrap.M.Done() && finalWrap.M.Answer()
 	ans := "n"
 	if answer {
 		ans = "y"
 	}
-	fmt.Print(menulayout.Render(fmt.Sprintf("%s (y/n) %s\n", question, ans)))
+	fmt.Printf("%s (y/n) %s\n", question, ans)
 	return answer
 }
 
@@ -249,7 +278,7 @@ func PromptForRecordPassword() (string, error) {
 		if first == repeat {
 			return first, nil
 		}
-		fmt.Print(menulayout.Render(color.InYellow(passwordMismatchMsg) + "\n"))
+		fmt.Println(color.InYellow(passwordMismatchMsg))
 	}
 }
 
@@ -261,17 +290,7 @@ func PromptForMainPassword(ensure bool) (string, error) {
 	return promptForMainPassword(ensure, false)
 }
 
-var mainPasswordOverride string
-
-// While set, the load-path main-password prompt returns this instead of asking.
-// Skipped on change-main's "new password" prompt.
-func SetMainPasswordOverride(pw string) { mainPasswordOverride = pw }
-func ClearMainPasswordOverride()        { mainPasswordOverride = "" }
-
 func promptForMainPassword(ensure bool, mainPasswordChange bool) (string, error) {
-	if !mainPasswordChange && mainPasswordOverride != "" {
-		return mainPasswordOverride, nil
-	}
 	envVar := "PSW_MAIN_PASSWORD"
 	if mainPasswordChange {
 		envVar = "PSW_NEW_MAIN_PASSWORD"
@@ -302,6 +321,6 @@ func promptForMainPassword(ensure bool, mainPasswordChange bool) (string, error)
 		if first == repeat {
 			return first, nil
 		}
-		fmt.Print(menulayout.Render(color.InYellow(passwordMismatchMsg) + "\n"))
+		fmt.Println(color.InYellow(passwordMismatchMsg))
 	}
 }

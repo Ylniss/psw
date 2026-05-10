@@ -163,6 +163,35 @@ func getOrCreate(pull bool) (*Storage, error) {
 	return s, err
 }
 
+// LoadOrCreate decrypts the vault, creating an empty one under password if
+// the storage file is missing. Initializes the git repo if missing.
+// pull=true also fetches and merges from remote first. No prompts, no spinner.
+func LoadOrCreate(password string, pull bool) (*Storage, error) {
+	if err := createIfMissing(password); err != nil {
+		return nil, err
+	}
+	if err := initGitRepoIfNotExists(); err != nil {
+		return nil, err
+	}
+	if pull {
+		if err := gitPullAndMerge(password); err != nil {
+			return nil, err
+		}
+	}
+	return Get(password)
+}
+
+func createIfMissing(password string) error {
+	exists, err := pathExists(Paths.storageFilePath)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return nil
+	}
+	return EncryptStringToStorage("[]", password)
+}
+
 func Get(mainPassword string) (*Storage, error) {
 	storageJson, err := DecryptStringFromStorage(mainPassword)
 	if err != nil {

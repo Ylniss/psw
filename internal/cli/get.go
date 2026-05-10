@@ -4,11 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"os/exec"
 
 	"github.com/TwiN/go-color"
 	"github.com/atotto/clipboard"
 	"github.com/spf13/cobra"
+	"github.com/ylniss/psw/internal/clipclean"
 	"github.com/ylniss/psw/internal/prompt"
 	"github.com/ylniss/psw/internal/storage"
 )
@@ -40,7 +40,7 @@ Arguments:
 			return nil
 		}
 		if err != nil {
-			menuPrintln(err.Error())
+			fmt.Println(err.Error())
 			return nil
 		}
 
@@ -49,7 +49,7 @@ Arguments:
 			return errExit
 		}
 		if err != nil {
-			menuPrintln(err.Error())
+			fmt.Println(err.Error())
 			return nil
 		}
 		if recordName == "" {
@@ -61,7 +61,7 @@ Arguments:
 		slog.Debug("cmd/get", "record", fmt.Sprintf("%#v", record))
 
 		if !isFound {
-			menuPrintf("Record %s was not found\n", color.InGreen(recordName))
+			fmt.Printf("Record %s was not found\n", color.InGreen(recordName))
 			return nil
 		}
 
@@ -77,25 +77,23 @@ Arguments:
 
 		if record.Value == "" {
 			if err := clipboard.WriteAll(record.Password); err != nil {
-				menuPrintf("Failed to copy value to clipboard: %s\n", err)
+				fmt.Printf("Failed to copy value to clipboard: %s\n", err)
 				return nil
 			}
-			menuPrintln("Username")
-			menuPrintln(color.InYellow(record.Username))
+			fmt.Println("Username")
+			fmt.Println(color.InYellow(record.Username))
 			fmt.Println()
 			printSecret("Password", record.Password, revealFlag, clipDuration)
 		} else {
 			if err := clipboard.WriteAll(record.Value); err != nil {
-				menuPrintf("Failed to copy value to clipboard: %s\n", err)
+				fmt.Printf("Failed to copy value to clipboard: %s\n", err)
 				return nil
 			}
 			printSecret("Value", record.Value, revealFlag, clipDuration)
 		}
 
-		clipcleanCmd := exec.Command("clipclean", fmt.Sprint(clipDuration))
-		err = clipcleanCmd.Start()
-		if err != nil {
-			menuPrintf("clipclean error: %s\n", err)
+		if err := clipclean.Spawn(clipDuration); err != nil {
+			fmt.Printf("clipclean error: %s\n", err)
 			return nil
 		}
 		return nil
@@ -104,9 +102,9 @@ Arguments:
 
 func printSecret(label, secret string, reveal bool, clipDuration int) {
 	if reveal {
-		menuPrintln(color.InYellow(secret))
+		fmt.Println(color.InYellow(secret))
 		return
 	}
 	msg := fmt.Sprintf("%s copied to the clipboard, it will be cleared in %d seconds", label, clipDuration)
-	menuPrintln(color.InYellow(msg))
+	fmt.Println(color.InYellow(msg))
 }

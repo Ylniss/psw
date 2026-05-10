@@ -8,8 +8,9 @@ import (
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/ylniss/psw/internal/menulayout"
 	"golang.org/x/term"
+
+	"github.com/ylniss/psw/internal/tuiutil"
 )
 
 // spinnerThreshold is the wait before painting; faster ops stay silent.
@@ -17,10 +18,14 @@ const spinnerThreshold = 250 * time.Millisecond
 
 var spinnerStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("6"))
 
+// SpinnersQuiet, when true, makes WithSpinner run op synchronously without a
+// nested tea.Program. Set by hosts that already own the screen.
+var SpinnersQuiet bool
+
 // WithSpinner runs op, painting a labeled spinner on stderr if op exceeds
 // spinnerThreshold and stderr is a TTY. Op's error is returned unchanged.
 func WithSpinner(label string, op func() error) error {
-	if !isStderrTTY() {
+	if SpinnersQuiet || !isStderrTTY() {
 		return op()
 	}
 
@@ -40,12 +45,12 @@ func WithSpinner(label string, op func() error) error {
 	}
 
 	program := tea.NewProgram(
-		spinnerModel{label: label, spinner: newSpinner()},
+		tuiutil.Quitter[SpinnerModel]{M: NewSpinnerModel(label)},
 		tea.WithOutput(os.Stderr),
 	)
 	go func() {
 		<-opDone
-		program.Send(doneMsg{})
+		program.Send(DoneMsg{})
 	}()
 
 	if _, err := program.Run(); err != nil {
@@ -66,31 +71,44 @@ func newSpinner() spinner.Model {
 	return s
 }
 
-type doneMsg struct{}
+// DoneMsg tells SpinnerModel its underlying op has finished.
+type DoneMsg struct{}
 
-type spinnerModel struct {
+// SpinnerModel is a spinner driven by the caller via DoneMsg.
+type SpinnerModel struct {
 	label     string
 	spinner   spinner.Model
 	completed bool
 }
 
-func (m spinnerModel) Init() tea.Cmd {
+func NewSpinnerModel(label string) SpinnerModel {
+	return SpinnerModel{label: label, spinner: newSpinner()}
+}
+
+func (m SpinnerModel) Init() tea.Cmd {
 	return m.spinner.Tick
 }
 
-func (m spinnerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if _, ok := msg.(doneMsg); ok {
+func (m SpinnerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if _, ok := msg.(DoneMsg); ok {
 		m.completed = true
-		return m, tea.Quit
+		return m, nil
 	}
 	var cmd tea.Cmd
 	m.spinner, cmd = m.spinner.Update(msg)
 	return m, cmd
 }
 
-func (m spinnerModel) View() tea.View {
+func (m SpinnerModel) View() tea.View {
 	if m.completed {
 		return tea.NewView("")
 	}
-	return tea.NewView(menulayout.RenderIndent(m.spinner.View() + " " + m.label))
+	return tea.NewView(m.spinner.View() + " " + m.label)
 }
+
+func (m SpinnerModel) Completed() bool { return m.completed }
+
+// Done / Cancelled make SpinnerModel a tuiutil.Finishable. The spinner has no
+// user-cancel path, so Cancelled is always false.
+func (m SpinnerModel) Done() bool      { return m.completed }
+func (m SpinnerModel) Cancelled() bool { return false }
