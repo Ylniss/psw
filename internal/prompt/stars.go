@@ -21,20 +21,27 @@ var starPalette = []color.Color{
 	lipgloss.Color("7"),
 }
 
-// Header flash palette: excludes "6" cyan (the default header color), so a
-// flash always shifts away from the resting color.
-var headerFlashPalette = []color.Color{
-	lipgloss.Color("1"),
-	lipgloss.Color("2"),
-	lipgloss.Color("3"),
-	lipgloss.Color("4"),
-	lipgloss.Color("5"),
-	lipgloss.Color("7"),
+// headerRestingColor is the menu's default header color; the flash palette
+// excludes it so a flash always shifts to a different color.
+var headerRestingColor color.Color = lipgloss.Color("6")
+
+// headerFlashPalette is starPalette minus headerRestingColor — derived to
+// keep the two in sync if starPalette changes.
+var headerFlashPalette = paletteExcluding(starPalette, headerRestingColor)
+
+func paletteExcluding(palette []color.Color, skip color.Color) []color.Color {
+	out := make([]color.Color, 0, len(palette))
+	for _, c := range palette {
+		if c != skip {
+			out = append(out, c)
+		}
+	}
+	return out
 }
 
 const (
 	starBlinkDuration = 500 * time.Millisecond
-	StarTickInterval  = 100 * time.Millisecond
+	starTickInterval  = 100 * time.Millisecond
 )
 
 type star struct {
@@ -43,10 +50,10 @@ type star struct {
 }
 
 type StarState struct {
-	stars         []star
-	rng           *rand.Rand
-	lastStarIdx   int
-	lastHeaderIdx int
+	stars           []star
+	rng             *rand.Rand
+	lastStarIndex   int
+	lastHeaderIndex int
 }
 
 func NewStarState() StarState {
@@ -78,8 +85,8 @@ func (s *StarState) Add(n int) {
 	if n <= 0 {
 		return
 	}
-	idx := s.pickDistinctIdx(len(starPalette), s.lastStarIdx)
-	s.lastStarIdx = idx
+	idx := s.pickDistinctIdx(len(starPalette), s.lastStarIndex)
+	s.lastStarIndex = idx
 	s.addWithColor(n, starPalette[idx])
 }
 
@@ -142,8 +149,8 @@ func (s *StarState) ApplyKeystrokeAdd(deltaChars int) bool {
 		return false
 	}
 	s.ensureRNG()
-	idx := s.pickDistinctIdx(len(starPalette), s.lastStarIdx)
-	s.lastStarIdx = idx
+	idx := s.pickDistinctIdx(len(starPalette), s.lastStarIndex)
+	s.lastStarIndex = idx
 	c := starPalette[idx]
 	total := 0
 	for range deltaChars {
@@ -176,8 +183,8 @@ func (s *StarState) ApplyEmpty() bool {
 // RandomHeaderColor picks a color from the cyan-excluded header palette,
 // never repeating the previous pick.
 func (s *StarState) RandomHeaderColor() color.Color {
-	idx := s.pickDistinctIdx(len(headerFlashPalette), s.lastHeaderIdx)
-	s.lastHeaderIdx = idx
+	idx := s.pickDistinctIdx(len(headerFlashPalette), s.lastHeaderIndex)
+	s.lastHeaderIndex = idx
 	return headerFlashPalette[idx]
 }
 
@@ -191,7 +198,7 @@ func (s *StarState) ensureRNG() {
 type StarTickMsg time.Time
 
 func StarTick() tea.Cmd {
-	return tea.Tick(StarTickInterval, func(t time.Time) tea.Msg {
+	return tea.Tick(starTickInterval, func(t time.Time) tea.Msg {
 		return StarTickMsg(t)
 	})
 }

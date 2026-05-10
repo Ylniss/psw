@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
@@ -42,7 +41,7 @@ Arguments:
 				color.InCyan("--single"),
 				color.InCyan("--generate"),
 				color.InCyan("--generate"))
-			return errExit
+			return errSilentExit
 		}
 
 		usernameSet := cmd.Flags().Changed("username")
@@ -54,43 +53,31 @@ Arguments:
 				color.InCyan("--username"),
 				color.InCyan("--password"),
 				color.InCyan("--single"))
-			return errExit
+			return errSilentExit
 		}
 		if valueSet && !singleValueFlag {
 			fmt.Printf("Flag %s requires %s.\n", color.InCyan("--value"), color.InCyan("--single"))
-			return errExit
+			return errSilentExit
 		}
 		if passwordSet && generatePasswordFlag {
 			fmt.Printf("Flags %s and %s cannot be used together.\n",
 				color.InCyan("--password"),
 				color.InCyan("--generate"))
-			return errExit
+			return errSilentExit
 		}
 
 		store, err := storage.GetOrCreateForMutate()
-		if errors.Is(err, prompt.ErrPromptCancelled) {
-			return nil
-		}
-		if errors.Is(err, storage.ErrForkUndecryptable) {
-			printForkUndecryptable()
-			return errExit
-		}
-		if err != nil {
-			fmt.Println(err.Error())
-			return nil
+		if done, ret := handleCmdErr(err); done {
+			return ret
 		}
 
 		recordName, err := getRecordName(args)
-		if errors.Is(err, prompt.ErrPromptCancelled) {
-			return nil
-		}
-		if err != nil {
-			fmt.Println(err.Error())
-			return nil
+		if done, ret := handleCmdErr(err); done {
+			return ret
 		}
 
 		lower := strings.ToLower(recordName)
-		if lower == "main" || lower == "main-password" {
+		if lower == storage.MainPasswordKeywordShort || lower == storage.MainPasswordKeywordLong {
 			fmt.Printf("Name %s is reserved. %s command uses it for changing main password\n", color.InGreen(recordName), color.InCyan("change"))
 			return nil
 		}
@@ -102,37 +89,24 @@ Arguments:
 
 		if singleValueFlag {
 			recordValue, err := getOrPromptValue(valueSet)
-			if errors.Is(err, prompt.ErrPromptCancelled) {
-				return nil
-			}
-			if err != nil {
-				fmt.Println(err.Error())
-				return nil
+			if done, ret := handleCmdErr(err); done {
+				return ret
 			}
 			store.AddRecord(&storage.Record{Name: recordName, Value: recordValue})
 		} else {
 			recordUsername, err := getOrPromptUsername(usernameSet)
-			if errors.Is(err, prompt.ErrPromptCancelled) {
-				return nil
-			}
-			if err != nil {
-				fmt.Println(err.Error())
-				return nil
+			if done, ret := handleCmdErr(err); done {
+				return ret
 			}
 			recordPassword, err := getOrPromptPassword(passwordSet)
-			if errors.Is(err, prompt.ErrPromptCancelled) {
-				return nil
-			}
-			if err != nil {
-				fmt.Println(err.Error())
-				return nil
+			if done, ret := handleCmdErr(err); done {
+				return ret
 			}
 			store.AddRecord(&storage.Record{Name: recordName, Username: recordUsername, Password: recordPassword})
 		}
 
-		if err := store.Save(); err != nil {
-			fmt.Println(err.Error())
-			return nil
+		if done, ret := handleCmdErr(store.Save()); done {
+			return ret
 		}
 
 		if singleValueFlag {

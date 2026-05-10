@@ -13,12 +13,11 @@ import (
 
 	"github.com/TwiN/go-color"
 	"github.com/spf13/cobra"
-	"github.com/ylniss/psw/internal/prompt"
 	"github.com/ylniss/psw/internal/storage"
 )
 
-// errExit: caller already printed; signals exit 1. cobra silenced in Execute.
-var errExit = errors.New("")
+// errSilentExit: caller already printed; signals exit 1. cobra silenced in Execute.
+var errSilentExit = errors.New("")
 
 var verboseFlag bool
 
@@ -51,12 +50,8 @@ Run 'psw' with no arguments to list all stored record names.`,
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		store, err := storage.GetOrCreateForRead()
-		if errors.Is(err, prompt.ErrPromptCancelled) {
-			return nil
-		}
-		if err != nil {
-			fmt.Println(err.Error())
-			return nil
+		if done, ret := handleCmdErr(err); done {
+			return ret
 		}
 
 		namesAndUsers := store.GetNamesAndUsers()

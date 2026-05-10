@@ -1,12 +1,10 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/TwiN/go-color"
 	"github.com/spf13/cobra"
-	"github.com/ylniss/psw/internal/prompt"
 	"github.com/ylniss/psw/internal/storage"
 )
 
@@ -26,25 +24,13 @@ Arguments:
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		store, err := storage.GetOrCreateForMutate()
-		if errors.Is(err, prompt.ErrPromptCancelled) {
-			return nil
-		}
-		if errors.Is(err, storage.ErrForkUndecryptable) {
-			printForkUndecryptable()
-			return errExit
-		}
-		if err != nil {
-			fmt.Println(err.Error())
-			return nil
+		if done, ret := handleCmdErr(err); done {
+			return ret
 		}
 
 		recordName, err := resolveRecordName(store, args, removeExactFlag, nil)
-		if errors.Is(err, errExit) {
-			return errExit
-		}
-		if err != nil {
-			fmt.Println(err.Error())
-			return nil
+		if done, ret := handleCmdErr(err); done {
+			return ret
 		}
 		if recordName == "" {
 			return nil
@@ -57,9 +43,8 @@ Arguments:
 
 		store.RemoveRecord(recordName)
 
-		if err := store.Save(); err != nil {
-			fmt.Println(err.Error())
-			return nil
+		if done, ret := handleCmdErr(store.Save()); done {
+			return ret
 		}
 
 		fmt.Printf("Record %s successfully removed\n", color.InGreen(recordName))

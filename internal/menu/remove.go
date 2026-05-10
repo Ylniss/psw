@@ -8,7 +8,6 @@ import (
 
 	"github.com/ylniss/psw/internal/storage"
 	"github.com/ylniss/psw/internal/tuiutil"
-	"github.com/ylniss/psw/internal/ui"
 )
 
 type removePhase int
@@ -25,7 +24,6 @@ type RemoveAction struct {
 	phase    removePhase
 	password string
 
-	spinner    ui.SpinnerModel
 	picker     storage.PickerModel
 	store      *storage.Storage
 	recordName string
@@ -35,9 +33,9 @@ type RemoveAction struct {
 
 func NewRemoveAction(password string) RemoveAction {
 	return RemoveAction{
-		phase:    removePhaseLoading,
-		password: password,
-		spinner:  ui.NewSpinnerModel("Syncing"),
+		baseAction: newBase("Syncing"),
+		phase:      removePhaseLoading,
+		password:   password,
 	}
 }
 
@@ -61,38 +59,23 @@ func (a RemoveAction) updateLoading(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if w, ok := msg.(tea.WindowSizeMsg); ok {
 		a.width, a.height = w.Width, w.Height
 	}
-	if m, ok := msg.(pullDoneMsg); ok {
-		if m.err != nil {
-			a.output = append(a.output, color.InRed(humanizeLoadError(m.err)))
-			a.done = true
-			return a, nil
-		}
-		a.transcript = append(a.transcript, m.warnings...)
-		a.spinner = ui.NewSpinnerModel("Decrypting")
-		return a, tea.Batch(decryptCmd(a.password), a.spinner.Init())
+	store, done, cmd := a.handleLoadingMsg(msg, a.password)
+	if done || store == nil {
+		return a, cmd
 	}
-	if m, ok := msg.(storageLoadedMsg); ok {
-		if m.err != nil {
-			a.output = append(a.output, color.InRed(humanizeLoadError(m.err)))
-			a.done = true
-			return a, nil
-		}
-		a.store = m.store
-		names := m.store.GetNames()
-		if len(names) == 0 {
-			a.output = append(a.output, "No records to remove.")
-			a.done = true
-			return a, nil
-		}
-		a.picker = storage.NewPickerModel(names, nil).WithoutHelp()
-		if a.width > 0 && a.height > 0 {
-			tuiutil.UpdateInPlace(&a.picker, tea.WindowSizeMsg{Width: a.width, Height: a.height})
-		}
-		a.phase = removePhasePicking
+	a.store = store
+	names := store.GetNames()
+	if len(names) == 0 {
+		a.output = append(a.output, "No records to remove.")
+		a.done = true
 		return a, nil
 	}
-	cmd := tuiutil.UpdateInPlace(&a.spinner, msg)
-	return a, cmd
+	a.picker = storage.NewPickerModel(names, nil).WithoutHelp()
+	if a.width > 0 && a.height > 0 {
+		tuiutil.UpdateInPlace(&a.picker, tea.WindowSizeMsg{Width: a.width, Height: a.height})
+	}
+	a.phase = removePhasePicking
+	return a, nil
 }
 
 func (a RemoveAction) updatePicking(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -102,9 +85,9 @@ func (a RemoveAction) updatePicking(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	a.recordName = sel
 	a.store.RemoveRecord(a.recordName)
-	a.spinner = ui.NewSpinnerModel("Saving")
+	spinnerCmd := a.initSpinner("Saving")
 	a.phase = removePhaseSaving
-	return a, tea.Batch(saveCmd(a.store, "record removed"), a.spinner.Init())
+	return a, tea.Batch(saveCmd(a.store, "record removed"), spinnerCmd)
 }
 
 func (a RemoveAction) updateSaving(msg tea.Msg) (tea.Model, tea.Cmd) {

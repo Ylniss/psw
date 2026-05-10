@@ -19,11 +19,11 @@ var menuCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if !term.IsTerminal(int(os.Stdin.Fd())) {
 			fmt.Println(color.InRed("psw menu requires an interactive terminal"))
-			return errExit
+			return errSilentExit
 		}
 		if err := menu.Run(); err != nil {
 			fmt.Println(color.InRed(err.Error()))
-			return errExit
+			return errSilentExit
 		}
 		return nil
 	},

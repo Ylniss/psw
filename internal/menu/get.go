@@ -10,7 +10,6 @@ import (
 	"github.com/ylniss/psw/internal/clipclean"
 	"github.com/ylniss/psw/internal/storage"
 	"github.com/ylniss/psw/internal/tuiutil"
-	"github.com/ylniss/psw/internal/ui"
 )
 
 type getPhase int
@@ -26,18 +25,17 @@ type GetAction struct {
 	phase    getPhase
 	password string
 
-	spinner ui.SpinnerModel
-	picker  storage.PickerModel
-	store   *storage.Storage
+	picker storage.PickerModel
+	store  *storage.Storage
 
 	width, height int
 }
 
 func NewGetAction(password string) GetAction {
 	return GetAction{
-		phase:    getPhaseLoading,
-		password: password,
-		spinner:  ui.NewSpinnerModel("Decrypting"),
+		baseAction: newBase("Decrypting"),
+		phase:      getPhaseLoading,
+		password:   password,
 	}
 }
 
@@ -59,28 +57,23 @@ func (a GetAction) updateLoading(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if w, ok := msg.(tea.WindowSizeMsg); ok {
 		a.width, a.height = w.Width, w.Height
 	}
-	if m, ok := msg.(storageLoadedMsg); ok {
-		if m.err != nil {
-			a.output = append(a.output, color.InRed(humanizeLoadError(m.err)))
-			a.done = true
-			return a, nil
-		}
-		a.store = m.store
-		names := m.store.GetNames()
-		if len(names) == 0 {
-			a.output = append(a.output, fmt.Sprintf("No secrets found. Use %s command first.", color.InCyan("add")))
-			a.done = true
-			return a, nil
-		}
-		a.picker = storage.NewPickerModel(names, nil).WithoutHelp()
-		if a.width > 0 && a.height > 0 {
-			tuiutil.UpdateInPlace(&a.picker, tea.WindowSizeMsg{Width: a.width, Height: a.height})
-		}
-		a.phase = getPhasePicking
+	store, done, cmd := a.handleLoadingMsg(msg, a.password)
+	if done || store == nil {
+		return a, cmd
+	}
+	a.store = store
+	names := store.GetNames()
+	if len(names) == 0 {
+		a.output = append(a.output, fmt.Sprintf("No secrets found. Use %s command first.", color.InCyan("add")))
+		a.done = true
 		return a, nil
 	}
-	cmd := tuiutil.UpdateInPlace(&a.spinner, msg)
-	return a, cmd
+	a.picker = storage.NewPickerModel(names, nil).WithoutHelp()
+	if a.width > 0 && a.height > 0 {
+		tuiutil.UpdateInPlace(&a.picker, tea.WindowSizeMsg{Width: a.width, Height: a.height})
+	}
+	a.phase = getPhasePicking
+	return a, nil
 }
 
 func (a GetAction) updatePicking(msg tea.Msg) (tea.Model, tea.Cmd) {

@@ -18,11 +18,14 @@ import (
 // ErrPromptCancelled means user pressed Esc/Ctrl-C. Callers exit silently.
 var ErrPromptCancelled = errors.New("prompt cancelled")
 
+// PasswordMismatchMsg is the user-facing line shown when password + repeat differ.
+// Exported so the menu can render it with its own styling.
+const PasswordMismatchMsg = "Passwords don't match, try again"
+
 var (
-	passwordMismatchMsg = "Passwords don't match, try again"
-	errRequired         = errors.New("input required")
-	errNoTTY            = errors.New("interactive prompt required: stdin is not a terminal")
-	promptErrorStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("203"))
+	errRequired      = errors.New("input required")
+	errNoTTY         = errors.New("interactive prompt required: stdin is not a terminal")
+	promptErrorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("203"))
 )
 
 func validateRequired(content string) error {
@@ -180,11 +183,11 @@ func runInput(label string, password, animateStars bool) (string, error) {
 	if !isTTY() {
 		return "", errNoTTY
 	}
-	final, err := tea.NewProgram(tuiutil.Quitter[InputModel]{M: NewInputModel(label, password, animateStars)}).Run()
+	final, err := tea.NewProgram(tuiutil.QuittingWrapper[InputModel]{M: NewInputModel(label, password, animateStars)}).Run()
 	if err != nil {
 		return "", fmt.Errorf("prompt failed: %w", err)
 	}
-	quitter, ok := final.(tuiutil.Quitter[InputModel])
+	quitter, ok := final.(tuiutil.QuittingWrapper[InputModel])
 	if !ok {
 		return "", fmt.Errorf("prompt returned unexpected model type %T", final)
 	}
@@ -249,11 +252,11 @@ func YesOrNo(question string) bool {
 	if !isTTY() {
 		return false
 	}
-	final, err := tea.NewProgram(tuiutil.Quitter[YesNoModel]{M: NewYesNoModel(question)}).Run()
+	final, err := tea.NewProgram(tuiutil.QuittingWrapper[YesNoModel]{M: NewYesNoModel(question)}).Run()
 	if err != nil {
 		return false
 	}
-	quitter, ok := final.(tuiutil.Quitter[YesNoModel])
+	quitter, ok := final.(tuiutil.QuittingWrapper[YesNoModel])
 	if !ok {
 		return false
 	}
@@ -283,7 +286,7 @@ func PromptForRecordPassword() (string, error) {
 		if first == repeat {
 			return first, nil
 		}
-		fmt.Println(color.InYellow(passwordMismatchMsg))
+		fmt.Println(color.InYellow(PasswordMismatchMsg))
 	}
 }
 
@@ -326,6 +329,6 @@ func promptForMainPassword(confirm bool, mainPasswordChange bool) (string, error
 		if first == repeat {
 			return first, nil
 		}
-		fmt.Println(color.InYellow(passwordMismatchMsg))
+		fmt.Println(color.InYellow(PasswordMismatchMsg))
 	}
 }

@@ -1,13 +1,14 @@
 package menu
 
 import (
+	"fmt"
 	imgcolor "image/color"
 	"strings"
 
 	"charm.land/lipgloss/v2"
 )
 
-// Trailing whitespace OK; lipgloss.Width takes max line width.
+// PSW ASCII header. Trailing whitespace OK; lipgloss.Width takes max line width.
 const pswHeader = `
  ████████     █████   █████ ███ █████
 ░░███░░███   ███░░   ░░███ ░███░░███
@@ -28,6 +29,31 @@ var pswHeaderWidth = lipgloss.Width(pswHeader)
 const headerPaddingX = 18
 
 var defaultHeaderColor = lipgloss.Color("6")
+
+var menuActions = []string{"get", "add", "change", "remove"}
+
+var (
+	menuButtonStyle = lipgloss.NewStyle().Padding(0, 2)
+	menuSelectStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("170")).Bold(true).Padding(0, 2)
+	menuHelpStyle   = lipgloss.NewStyle().Faint(true)
+	menuErrStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("203"))
+)
+
+const footerHelp = "←→/1-4 select · enter run · esc/q quit"
+
+// actionFrameHeight is the rows above an action sub-view (header + spacers
+// + buttons row). Computed from the same shape View() emits so it tracks
+// layout changes automatically.
+var actionFrameHeight = lipgloss.Height(renderActionFrame())
+
+func renderActionFrame() string {
+	var b strings.Builder
+	b.WriteString(renderHeader(defaultHeaderColor))
+	b.WriteString("\n\n")
+	b.WriteString(menuButtonStyle.Render("[1] x"))
+	b.WriteString("\n\n")
+	return b.String()
+}
 
 func renderHeader(c imgcolor.Color) string {
 	return lipgloss.NewStyle().Foreground(c).Render(pswHeader)
@@ -80,12 +106,11 @@ func indentToFooter(termWidth int, content string) string {
 	return lipgloss.NewStyle().MarginLeft(columnLeft + extra).Render(content)
 }
 
-// alignBlock left-margins content so its first non-space character lands at
-// targetCol regardless of any internal left padding the content brings (the
-// bubbles/list picker has 2 cells of PaddingLeft on items; bare prompts and
-// spinners have none — both should align under [1]).
-// Trailing whitespace on each line is stripped first because bubbles/list
-// pads items to the full configured width with spaces.
+// alignBlock left-margins content so its first non-space char lands at
+// targetCol. Backs out any leading padding the content brings (bubbles/list
+// items have 2 cells of left padding; bare prompts and spinners have none
+// — both should align under [1]). Trims trailing spaces from each line
+// because bubbles/list pads to its full width.
 func alignBlock(termWidth, targetCol int, content string) (string, int) {
 	trimmed := trimTrailingPerLine(content)
 	if termWidth == 0 || termWidth <= targetCol {
@@ -130,4 +155,26 @@ func minLeadingSpaces(content string) int {
 		return 0
 	}
 	return min
+}
+
+// buttonsRowWidth measures the rendered buttons row so action sub-views can
+// align under [1] regardless of changes to button labels.
+func buttonsRowWidth() int {
+	buttons := make([]string, len(menuActions))
+	for i, a := range menuActions {
+		label := fmt.Sprintf("[%d] %s", i+1, a)
+		buttons[i] = menuButtonStyle.Render(label)
+	}
+	row := lipgloss.JoinHorizontal(lipgloss.Top, buttons...)
+	return lipgloss.Width(row)
+}
+
+// firstButtonLeftCol returns the terminal column where [1]'s leftmost char
+// renders: buttons row left edge plus the button style's left padding.
+func firstButtonLeftCol(termWidth int) int {
+	leftEdge := (termWidth - buttonsRowWidth()) / 2
+	if leftEdge < 0 {
+		leftEdge = 0
+	}
+	return leftEdge + menuButtonStyle.GetPaddingLeft()
 }

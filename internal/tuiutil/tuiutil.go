@@ -11,13 +11,13 @@ type Finishable interface {
 	Cancelled() bool
 }
 
-// Quitter wraps a Finishable so a top-level tea.NewProgram exits when the
+// QuittingWrapper wraps a Finishable so a top-level tea.NewProgram exits when the
 // inner model is done or cancelled.
-type Quitter[M Finishable] struct{ M M }
+type QuittingWrapper[M Finishable] struct{ M M }
 
-func (q Quitter[M]) Init() tea.Cmd { return q.M.Init() }
+func (q QuittingWrapper[M]) Init() tea.Cmd { return q.M.Init() }
 
-func (q Quitter[M]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (q QuittingWrapper[M]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	raw, cmd := q.M.Update(msg)
 	q.M = raw.(M)
 	if q.M.Done() || q.M.Cancelled() {
@@ -26,7 +26,7 @@ func (q Quitter[M]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return q, cmd
 }
 
-func (q Quitter[M]) View() tea.View { return q.M.View() }
+func (q QuittingWrapper[M]) View() tea.View { return q.M.View() }
 
 // UpdateInPlace forwards msg to *dst, replacing dst with the updated value.
 // Returns the model's Cmd.

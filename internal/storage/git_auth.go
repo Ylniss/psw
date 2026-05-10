@@ -15,10 +15,12 @@ import (
 	cryptossh "golang.org/x/crypto/ssh"
 )
 
-// ErrAuthRequiresHelper signals the caller to fall back to shell git: credential helper needed, key passphrase, or unsupported scheme.
-var ErrAuthRequiresHelper = errors.New("auth method requires shell git or credential helper")
+// ErrShellGitNeeded signals the caller to fall back to shell git: credential
+// helper needed, key passphrase, or unsupported scheme.
+var ErrShellGitNeeded = errors.New("auth method requires shell git or credential helper")
 
-// ErrSigningRequired signals commit signing the go-git layer can't perform. Caller falls back to git commit if available.
+// ErrSigningRequired signals that commit signing can't be done by go-git.
+// Caller falls back to shell git if available.
 var ErrSigningRequired = errors.New("commit signing requires shell git")
 
 type remoteKind int
@@ -43,8 +45,8 @@ func classifyRemote(remoteURL string) remoteKind {
 	return remoteUnknown
 }
 
-// gitAuth resolves the right transport.AuthMethod for the remote URL or
-// returns ErrAuthRequiresHelper if go-git can't satisfy auth pure-Go.
+// gitAuth picks the AuthMethod for remoteURL. Returns ErrShellGitNeeded
+// when only shell git can handle the auth.
 func gitAuth(remoteURL string) (transport.AuthMethod, error) {
 	switch classifyRemote(remoteURL) {
 	case remoteFile:
@@ -53,9 +55,10 @@ func gitAuth(remoteURL string) (transport.AuthMethod, error) {
 		return sshAuth()
 	case remoteHTTPS:
 		return httpsAuth(remoteURL)
-	default:
-		return nil, fmt.Errorf("%w: unsupported remote scheme: %s", ErrAuthRequiresHelper, redactURL(remoteURL))
+	case remoteUnknown:
+		return nil, fmt.Errorf("%w: unsupported remote scheme: %s", ErrShellGitNeeded, redactURL(remoteURL))
 	}
+	panic("unreachable: remoteKind exhausted")
 }
 
 func sshAuth() (transport.AuthMethod, error) {
@@ -70,7 +73,7 @@ func sshAuth() (transport.AuthMethod, error) {
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrAuthRequiresHelper, err)
+		return nil, fmt.Errorf("%w: %v", ErrShellGitNeeded, err)
 	}
 	for _, name := range []string{"id_ed25519", "id_rsa"} {
 		path := filepath.Join(home, ".ssh", name)
@@ -84,20 +87,20 @@ func sshAuth() (transport.AuthMethod, error) {
 		keyAuth.HostKeyCallback = cryptossh.InsecureIgnoreHostKey()
 		return keyAuth, nil
 	}
-	return nil, fmt.Errorf("%w: no usable SSH key for go-git", ErrAuthRequiresHelper)
+	return nil, fmt.Errorf("%w: no usable SSH key for go-git", ErrShellGitNeeded)
 }
 
 func httpsAuth(remoteURL string) (transport.AuthMethod, error) {
 	u, err := url.Parse(remoteURL)
 	if err != nil {
-		return nil, fmt.Errorf("%w: parse url: %v", ErrAuthRequiresHelper, err)
+		return nil, fmt.Errorf("%w: parse url: %v", ErrShellGitNeeded, err)
 	}
 	if u.User != nil {
 		password, _ := u.User.Password()
 		return &httpauth.BasicAuth{Username: u.User.Username(), Password: password}, nil
 	}
 	if hasCredentialHelper() {
-		return nil, fmt.Errorf("%w: credential.helper configured", ErrAuthRequiresHelper)
+		return nil, fmt.Errorf("%w: credential.helper configured", ErrShellGitNeeded)
 	}
 	return nil, nil
 }

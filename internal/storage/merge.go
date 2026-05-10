@@ -139,34 +139,44 @@ func recordsEqual(a, b Record) bool {
 	return a.Name == b.Name && a.Username == b.Username && a.Password == b.Password && a.Value == b.Value
 }
 
-// printIfNonempty emits one yellow stderr line per change category.
-func (m mergeSummary) printIfNonempty() {
-	if len(m.changes) == 0 {
-		return
-	}
-	var added, replaced, dropped, kept []string
+// mergeBuckets is mergeSummary.changes split by action category.
+type mergeBuckets struct {
+	added, replaced, dropped, kept []string
+}
+
+func (m mergeSummary) bucket() mergeBuckets {
+	var b mergeBuckets
 	for _, c := range m.changes {
 		switch c.action {
 		case actionAddedFromRemote:
-			added = append(added, c.name)
+			b.added = append(b.added, c.name)
 		case actionReplacedFromRemote:
-			replaced = append(replaced, c.name)
+			b.replaced = append(b.replaced, c.name)
 		case actionDroppedByRemote:
-			dropped = append(dropped, c.name)
+			b.dropped = append(b.dropped, c.name)
 		case actionKeptLocalOverRemoval, actionKeptLocalNewer:
-			kept = append(kept, c.name)
+			b.kept = append(b.kept, c.name)
 		}
 	}
-	if len(added) > 0 {
-		Warn("Pulled %d new records from remote: %s", len(added), strings.Join(added, ", "))
+	return b
+}
+
+// printSummary emits one yellow stderr line per non-empty change category.
+func (m mergeSummary) printSummary() {
+	if len(m.changes) == 0 {
+		return
 	}
-	if len(replaced) > 0 {
-		Warn("Replaced %d records with newer version from remote: %s", len(replaced), strings.Join(replaced, ", "))
+	b := m.bucket()
+	if len(b.added) > 0 {
+		Warn("Pulled %d new records from remote: %s", len(b.added), strings.Join(b.added, ", "))
 	}
-	if len(dropped) > 0 {
-		Warn("Dropped %d records removed on remote: %s", len(dropped), strings.Join(dropped, ", "))
+	if len(b.replaced) > 0 {
+		Warn("Replaced %d records with newer version from remote: %s", len(b.replaced), strings.Join(b.replaced, ", "))
 	}
-	if len(kept) > 0 {
-		Warn("Kept %d local records (newer than remote): %s", len(kept), strings.Join(kept, ", "))
+	if len(b.dropped) > 0 {
+		Warn("Dropped %d records removed on remote: %s", len(b.dropped), strings.Join(b.dropped, ", "))
+	}
+	if len(b.kept) > 0 {
+		Warn("Kept %d local records (newer than remote): %s", len(b.kept), strings.Join(b.kept, ", "))
 	}
 }

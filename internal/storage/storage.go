@@ -2,15 +2,17 @@ package storage
 
 import (
 	"encoding/json"
-	"fmt"
 	"log/slog"
 	"slices"
 	"strings"
 	"time"
+)
 
-	color "github.com/TwiN/go-color"
-	"github.com/ylniss/psw/internal/prompt"
-	"github.com/ylniss/psw/internal/ui"
+// Reserved keywords for the main-password rotation flow. They are not record
+// names — they act as sentinels in the `change` command and in the picker.
+const (
+	MainPasswordKeywordShort = "main"
+	MainPasswordKeywordLong  = "main-password"
 )
 
 type Record struct {
@@ -124,127 +126,4 @@ func (s *Storage) Save() error {
 	}
 	slog.Debug("saved storage content", "json", storageJSON)
 	return EncryptStringToStorage(storageJSON, s.MainPassword)
-}
-
-// GetOrCreateForRead loads storage without network access.
-// Used by `psw`, `psw get`, `psw log`.
-func GetOrCreateForRead() (*Storage, error) { return getOrCreate(false) }
-
-// GetOrCreateForMutate pulls from the configured remote, merges, then loads.
-// Used by `psw add`, `psw change`, `psw remove`.
-func GetOrCreateForMutate() (*Storage, error) { return getOrCreate(true) }
-
-func getOrCreate(pull bool) (*Storage, error) {
-	mainPassword, created, err := createEncryptedStorageIfNotExists()
-	if err != nil {
-		return nil, err
-	}
-	if err := initGitRepoIfNotExists(); err != nil {
-		return nil, err
-	}
-	// Password resolved before pull; merge needs it to decrypt fork/remote blobs.
-	if !created && mainPassword == "" {
-		mainPassword, err = prompt.PromptForMainPassword(false)
-		if err != nil {
-			return nil, err
-		}
-	}
-	if pull {
-		if err := GitPullAndMerge(mainPassword); err != nil {
-			return nil, err
-		}
-	}
-	var s *Storage
-	err = ui.WithSpinner("Decrypting", func() error {
-		var gerr error
-		s, gerr = Get(mainPassword)
-		return gerr
-	})
-	return s, err
-}
-
-// LoadOrCreate decrypts the vault, creating an empty one under password if
-// the storage file is missing. Initializes the git repo if missing.
-// pull=true also fetches and merges from remote first. No prompts, no spinner.
-func LoadOrCreate(password string, pull bool) (*Storage, error) {
-	if err := createIfMissing(password); err != nil {
-		return nil, err
-	}
-	if err := initGitRepoIfNotExists(); err != nil {
-		return nil, err
-	}
-	if pull {
-		if err := GitPullAndMerge(password); err != nil {
-			return nil, err
-		}
-	}
-	return Get(password)
-}
-
-func createIfMissing(password string) error {
-	exists, err := pathExists(Paths.storageFilePath)
-	if err != nil {
-		return err
-	}
-	if exists {
-		return nil
-	}
-	return EncryptStringToStorage("[]", password)
-}
-
-func Get(mainPassword string) (*Storage, error) {
-	storageJSON, err := DecryptStringFromStorage(mainPassword)
-	if err != nil {
-		return nil, err
-	}
-
-	records, err := getRecords(storageJSON)
-	if err != nil {
-		return nil, err
-	}
-
-	storage := Storage{Records: records, MainPassword: mainPassword}
-
-	return &storage, nil
-}
-
-func getRecords(storageJSON string) ([]Record, error) {
-	var records []Record
-	err := json.Unmarshal([]byte(storageJSON), &records)
-	if err != nil {
-		return nil, fmt.Errorf("error decoding JSON: %w", err)
-	}
-	return records, nil
-}
-
-// createEncryptedStorageIfNotExists returns (password, true, nil) when it
-// created the vault, or ("", false, nil) when storage already existed.
-func createEncryptedStorageIfNotExists() (string, bool, error) {
-	storageFileExists, err := pathExists(Paths.storageFilePath)
-	if err != nil {
-		return "", false, err
-	}
-
-	if storageFileExists {
-		return "", false, nil
-	}
-
-	fmt.Println("No encrypted storage found. Set your main password that will be used to decrypt your secrets.")
-
-	mainPassword, err := prompt.PromptForMainPassword(true)
-	if err != nil {
-		return "", false, err
-	}
-
-	err = EncryptStringToStorage("[]", mainPassword)
-	if err != nil {
-		return "", false, err
-	}
-
-	fmt.Println(
-		color.InGreen("Main password set successfully, you can change it with"),
-		color.InCyan("change main"),
-		color.InGreen("command"))
-
-	return mainPassword, true, nil
 }

@@ -57,7 +57,18 @@ func initGitRepoIfNotExists() error {
 	return GitCommit("initial main password set")
 }
 
+// GitCommit stages storage.psw + pswcfg.toml, commits, then best-effort
+// pushes. Errors are printed via Warn and returned for tests; CLI/menu
+// paths can ignore the return.
 func GitCommit(message string) error {
+	err := tryGitCommit(message)
+	if err != nil {
+		Warn("git commit failed: %v", err)
+	}
+	return err
+}
+
+func tryGitCommit(message string) error {
 	if os.Getenv("PSW_GIT") == "0" {
 		return nil
 	}

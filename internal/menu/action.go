@@ -9,48 +9,49 @@ import (
 	"github.com/TwiN/go-color"
 
 	"github.com/ylniss/psw/internal/prompt"
-	"github.com/ylniss/psw/internal/ui"
 )
 
 // passwordMismatchBanner is shown above the input on a repeat-password mismatch.
-var passwordMismatchBanner = color.InYellow("Passwords don't match, try again")
+var passwordMismatchBanner = color.InYellow(prompt.PasswordMismatchMsg)
 
-// Phase-transition helpers. Caller pattern: `return a.toX(...)`.
+// Phase-transition helpers. Caller pattern: `return a.toX(...)`. Wrappers
+// are duplicated per action because Go has no method-level generics over
+// the phase enum; bodies delegate to baseAction's initX helpers.
 
 func (a AddAction) toInput(label string, password, animate bool, phase addPhase) (tea.Model, tea.Cmd) {
-	a.input = prompt.NewInputModel(label, password, animate)
+	cmd := a.initInput(label, password, animate)
 	a.phase = phase
-	return a, a.input.Init()
+	return a, cmd
 }
 
 func (a AddAction) toYesNo(question string, phase addPhase) (tea.Model, tea.Cmd) {
-	a.yesNo = prompt.NewYesNoModel(question)
+	a.initYesNo(question)
 	a.phase = phase
 	return a, nil
 }
 
 func (a AddAction) toSpinner(label string, phase addPhase, op tea.Cmd) (tea.Model, tea.Cmd) {
-	a.spinner = ui.NewSpinnerModel(label)
+	cmd := a.initSpinner(label)
 	a.phase = phase
-	return a, tea.Batch(op, a.spinner.Init())
+	return a, tea.Batch(op, cmd)
 }
 
 func (a ChangeAction) toInput(label string, password, animate bool, phase changePhase) (tea.Model, tea.Cmd) {
-	a.input = prompt.NewInputModel(label, password, animate)
+	cmd := a.initInput(label, password, animate)
 	a.phase = phase
-	return a, a.input.Init()
+	return a, cmd
 }
 
 func (a ChangeAction) toYesNo(question string, phase changePhase) (tea.Model, tea.Cmd) {
-	a.yesNo = prompt.NewYesNoModel(question)
+	a.initYesNo(question)
 	a.phase = phase
 	return a, nil
 }
 
 func (a ChangeAction) toSpinner(label string, phase changePhase, op tea.Cmd) (tea.Model, tea.Cmd) {
-	a.spinner = ui.NewSpinnerModel(label)
+	cmd := a.initSpinner(label)
 	a.phase = phase
-	return a, tea.Batch(op, a.spinner.Init())
+	return a, tea.Batch(op, cmd)
 }
 
 // prependBanner adds banner above v.Content and bumps the cursor row.

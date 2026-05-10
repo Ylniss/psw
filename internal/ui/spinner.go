@@ -13,8 +13,8 @@ import (
 	"github.com/ylniss/psw/internal/tuiutil"
 )
 
-// spinnerThreshold is the wait before painting; faster ops stay silent.
-const spinnerThreshold = 250 * time.Millisecond
+// spinnerShowAfter is the wait before painting; faster ops stay silent.
+const spinnerShowAfter = 250 * time.Millisecond
 
 var spinnerStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("6"))
 
@@ -23,7 +23,7 @@ var spinnerStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("6"))
 var SpinnersQuiet bool
 
 // WithSpinner runs op, painting a labeled spinner on stderr if op exceeds
-// spinnerThreshold and stderr is a TTY. Op's error is returned unchanged.
+// spinnerShowAfter and stderr is a TTY. Op's error is returned unchanged.
 func WithSpinner(label string, op func() error) error {
 	if SpinnersQuiet || !isStderrTTY() {
 		return op()
@@ -36,7 +36,7 @@ func WithSpinner(label string, op func() error) error {
 		close(opDone)
 	}()
 
-	timer := time.NewTimer(spinnerThreshold)
+	timer := time.NewTimer(spinnerShowAfter)
 	defer timer.Stop()
 	select {
 	case <-opDone:
@@ -45,7 +45,7 @@ func WithSpinner(label string, op func() error) error {
 	}
 
 	program := tea.NewProgram(
-		tuiutil.Quitter[SpinnerModel]{M: NewSpinnerModel(label)},
+		tuiutil.QuittingWrapper[SpinnerModel]{M: NewSpinnerModel(label)},
 		tea.WithOutput(os.Stderr),
 	)
 	go func() {
@@ -105,8 +105,6 @@ func (m SpinnerModel) View() tea.View {
 	}
 	return tea.NewView(m.spinner.View() + " " + m.label)
 }
-
-func (m SpinnerModel) Completed() bool { return m.completed }
 
 // Done / Cancelled make SpinnerModel a tuiutil.Finishable. The spinner has no
 // user-cancel path, so Cancelled is always false.

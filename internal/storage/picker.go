@@ -177,11 +177,11 @@ func GetRecordNameInteractive(names, extras []string) (string, error) {
 		return extras[0], nil
 	}
 
-	final, err := tea.NewProgram(tuiutil.Quitter[PickerModel]{M: NewPickerModel(names, extras)}).Run()
+	final, err := tea.NewProgram(tuiutil.QuittingWrapper[PickerModel]{M: NewPickerModel(names, extras)}).Run()
 	if err != nil {
 		return "", fmt.Errorf("interactive picker failed: %w", err)
 	}
-	quitter, ok := final.(tuiutil.Quitter[PickerModel])
+	quitter, ok := final.(tuiutil.QuittingWrapper[PickerModel])
 	if !ok {
 		return "", fmt.Errorf("interactive picker returned unexpected model type %T", final)
 	}

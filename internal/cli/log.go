@@ -18,16 +18,16 @@ var logCmd = &cobra.Command{
 		ok, err := storage.IsGitRepo()
 		if err != nil {
 			fmt.Println(color.InRed(err.Error()))
-			return errExit
+			return errSilentExit
 		}
 		if !ok {
 			fmt.Println(color.InRed("Storage is not a git repository, no log to show."))
-			return errExit
+			return errSilentExit
 		}
 		entries, err := storage.GitLog()
 		if err != nil {
 			fmt.Println(color.InRed(err.Error()))
-			return errExit
+			return errSilentExit
 		}
 		for _, entry := range entries {
 			fmt.Printf("%s  %s  %s\n",

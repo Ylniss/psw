@@ -8,8 +8,8 @@ import (
 	"github.com/ylniss/psw/internal/storage"
 )
 
-// humanizeLoadError swaps fork-undecryptable for its user-facing banner.
-func humanizeLoadError(err error) string {
+// formatLoadError swaps fork-undecryptable for its user-facing banner.
+func formatLoadError(err error) string {
 	if errors.Is(err, storage.ErrForkUndecryptable) {
 		return storage.ForkUndecryptableUserMessage
 	}
@@ -38,7 +38,7 @@ func pullCmd(password string) tea.Cmd {
 // and git repo already exist.
 func decryptCmd(password string) tea.Cmd {
 	return func() tea.Msg {
-		s, err := storage.Get(password)
+		s, err := storage.Decrypt(password)
 		return storageLoadedMsg{store: s, err: err}
 	}
 }

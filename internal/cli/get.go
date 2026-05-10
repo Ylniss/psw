@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 	"log/slog"
 
@@ -9,7 +8,6 @@ import (
 	"github.com/atotto/clipboard"
 	"github.com/spf13/cobra"
 	"github.com/ylniss/psw/internal/clipclean"
-	"github.com/ylniss/psw/internal/prompt"
 	"github.com/ylniss/psw/internal/storage"
 )
 
@@ -34,23 +32,14 @@ Arguments:
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		store, err := storage.GetOrCreateForRead()
+		if done, ret := handleCmdErr(err); done {
+			return ret
+		}
 		clipDuration := storage.AppConfig.ClipboardTimeout
 
-		if errors.Is(err, prompt.ErrPromptCancelled) {
-			return nil
-		}
-		if err != nil {
-			fmt.Println(err.Error())
-			return nil
-		}
-
 		recordName, err := resolveRecordName(store, args, getExactFlag, nil)
-		if errors.Is(err, errExit) {
-			return errExit
-		}
-		if err != nil {
-			fmt.Println(err.Error())
-			return nil
+		if done, ret := handleCmdErr(err); done {
+			return ret
 		}
 		if recordName == "" {
 			return nil

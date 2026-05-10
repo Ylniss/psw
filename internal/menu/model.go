@@ -17,29 +17,6 @@ import (
 
 const logoFlashDuration = 250 * time.Millisecond
 
-// actionChromeHeight is the rows above an action sub-view (header + spacers
-// + buttons row). Computed by rendering the same shape View() emits, so the
-// constant tracks layout changes automatically.
-var actionChromeHeight = lipgloss.Height(renderActionChrome())
-
-func renderActionChrome() string {
-	var b strings.Builder
-	b.WriteString(renderHeader(defaultHeaderColor))
-	b.WriteString("\n\n")
-	b.WriteString(menuButtonStyle.Render("[1] x"))
-	b.WriteString("\n\n")
-	return b.String()
-}
-
-var menuActions = []string{"get", "add", "change", "remove"}
-
-var (
-	menuButtonStyle = lipgloss.NewStyle().Padding(0, 2)
-	menuSelectStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("170")).Bold(true).Padding(0, 2)
-	menuHelpStyle   = lipgloss.NewStyle().Faint(true)
-	menuErrStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("203"))
-)
-
 type menuPhase int
 
 const (
@@ -60,7 +37,7 @@ type MenuModel struct {
 
 	// Header animation.
 	stars          prompt.StarState
-	tickInFlight   bool
+	tickPending    bool
 	logoFlashColor imgcolor.Color
 	logoFlashUntil time.Time
 
@@ -92,7 +69,7 @@ func (m MenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		if m.phase == menuPhaseRunningAction && m.activeAction != nil {
-			adj := tea.WindowSizeMsg{Width: msg.Width, Height: msg.Height - actionChromeHeight}
+			adj := tea.WindowSizeMsg{Width: msg.Width, Height: msg.Height - actionFrameHeight}
 			cmd := tuiutil.UpdateInPlace(&m.activeAction, adj)
 			return m, cmd
 		}
@@ -100,15 +77,15 @@ func (m MenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case prompt.StarTickMsg:
 		if m.phase != menuPhaseEnterPassword {
-			m.tickInFlight = false
+			m.tickPending = false
 			return m, nil
 		}
 		tuiutil.UpdateInPlace(&m.passwordInput, msg)
 		if m.headerAnimationActive() || m.passwordInput.StarsActive() {
-			m.tickInFlight = true
+			m.tickPending = true
 			return m, prompt.StarTick()
 		}
-		m.tickInFlight = false
+		m.tickPending = false
 		return m, nil
 
 	case passwordValidatedMsg:
@@ -157,10 +134,10 @@ func (m MenuModel) headerAnimationActive() bool {
 }
 
 func (m *MenuModel) scheduleHeaderTick() tea.Cmd {
-	if m.tickInFlight || !m.headerAnimationActive() {
+	if m.tickPending || !m.headerAnimationActive() {
 		return nil
 	}
-	m.tickInFlight = true
+	m.tickPending = true
 	return prompt.StarTick()
 }
 
@@ -229,7 +206,7 @@ func (m MenuModel) startAction(name string) (tea.Model, tea.Cmd) {
 	}
 	// Action's picker needs a size before its first render or the list is empty.
 	if m.width > 0 && m.height > 0 {
-		tuiutil.UpdateInPlace(&a, tea.WindowSizeMsg{Width: m.width, Height: m.height - actionChromeHeight})
+		tuiutil.UpdateInPlace(&a, tea.WindowSizeMsg{Width: m.width, Height: m.height - actionFrameHeight})
 	}
 	m.activeAction = a
 	m.phase = menuPhaseRunningAction
@@ -344,30 +321,6 @@ func (m MenuModel) renderButtons(b *strings.Builder) {
 	row := lipgloss.JoinHorizontal(lipgloss.Top, buttons...)
 	b.WriteString(centerHorizontally(m.width, row))
 }
-
-// buttonsRowWidth measures the rendered buttons row so action sub-views can
-// align under [1] regardless of changes to button labels.
-func buttonsRowWidth() int {
-	buttons := make([]string, len(menuActions))
-	for i, a := range menuActions {
-		label := fmt.Sprintf("[%d] %s", i+1, a)
-		buttons[i] = menuButtonStyle.Render(label)
-	}
-	row := lipgloss.JoinHorizontal(lipgloss.Top, buttons...)
-	return lipgloss.Width(row)
-}
-
-// firstButtonLeftCol returns the terminal column where [1]'s leftmost char
-// renders: buttons row left edge plus the button style's left padding.
-func firstButtonLeftCol(termWidth int) int {
-	leftEdge := (termWidth - buttonsRowWidth()) / 2
-	if leftEdge < 0 {
-		leftEdge = 0
-	}
-	return leftEdge + menuButtonStyle.GetPaddingLeft()
-}
-
-const footerHelp = "←→/1-4 select · enter run · esc quit"
 
 // writeFooterAtBottom pads with blank lines so the footer sits on the last
 // terminal row, aligned to the header column like the rest of the UI.

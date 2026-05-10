@@ -7,10 +7,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/TwiN/go-color"
 
-	"github.com/ylniss/psw/internal/prompt"
 	"github.com/ylniss/psw/internal/storage"
 	"github.com/ylniss/psw/internal/tuiutil"
-	"github.com/ylniss/psw/internal/ui"
 )
 
 type addPhase int
@@ -33,24 +31,21 @@ type AddAction struct {
 	phase    addPhase
 	password string
 
-	spinner ui.SpinnerModel
-	yesNo   prompt.YesNoModel
-	input   prompt.InputModel
-	store   *storage.Storage
+	store *storage.Storage
 
 	isSingleValue   bool
 	recordName      string
 	username        string
 	pendingPassword string
 
-	banner string
+	inlineBanner string
 }
 
 func NewAddAction(password string) AddAction {
 	return AddAction{
-		phase:    addPhaseLoading,
-		password: password,
-		spinner:  ui.NewSpinnerModel("Syncing"),
+		baseAction: newBase("Syncing"),
+		phase:      addPhaseLoading,
+		password:   password,
 	}
 }
 
@@ -83,27 +78,12 @@ func (a AddAction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (a AddAction) updateLoading(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if m, ok := msg.(pullDoneMsg); ok {
-		if m.err != nil {
-			a.output = append(a.output, color.InRed(humanizeLoadError(m.err)))
-			a.done = true
-			return a, nil
-		}
-		a.transcript = append(a.transcript, m.warnings...)
-		a.spinner = ui.NewSpinnerModel("Decrypting")
-		return a, tea.Batch(decryptCmd(a.password), a.spinner.Init())
+	store, done, cmd := a.handleLoadingMsg(msg, a.password)
+	if done || store == nil {
+		return a, cmd
 	}
-	if m, ok := msg.(storageLoadedMsg); ok {
-		if m.err != nil {
-			a.output = append(a.output, color.InRed(humanizeLoadError(m.err)))
-			a.done = true
-			return a, nil
-		}
-		a.store = m.store
-		return a.toYesNo("Add a single value record?", addPhaseAskSingle)
-	}
-	cmd := tuiutil.UpdateInPlace(&a.spinner, msg)
-	return a, cmd
+	a.store = store
+	return a.toYesNo("Add a single value record?", addPhaseAskSingle)
 }
 
 func (a AddAction) updateAskSingle(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -112,7 +92,7 @@ func (a AddAction) updateAskSingle(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, cmd
 	}
 	a.isSingleValue = answer
-	a.banner = ""
+	a.inlineBanner = ""
 	return a.toInput("Record name", false, false, addPhaseEnterName)
 }
 
@@ -122,7 +102,7 @@ func (a AddAction) updateEnterName(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, cmd
 	}
 	lower := strings.ToLower(name)
-	if lower == "main" || lower == "main-password" {
+	if lower == storage.MainPasswordKeywordShort || lower == storage.MainPasswordKeywordLong {
 		a.output = append(a.output, fmt.Sprintf("Name %s is reserved. %s command uses it for changing main password",
 			color.InGreen(name), color.InCyan("change")))
 		a.done = true
@@ -182,7 +162,7 @@ func (a AddAction) updateEnterPasswordRepeat(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, cmd
 	}
 	if val != a.pendingPassword {
-		a.banner = passwordMismatchBanner
+		a.inlineBanner = passwordMismatchBanner
 		a.pendingPassword = ""
 		return a.toInput("Password", true, false, addPhaseEnterPassword)
 	}
@@ -225,7 +205,7 @@ func (a AddAction) View() tea.View {
 	case addPhaseAskSingle, addPhaseAskGenerate:
 		return prependTranscript(a.yesNo.View(), a.transcript)
 	case addPhaseEnterName, addPhaseEnterUsername, addPhaseEnterPassword, addPhaseEnterPasswordRepeat, addPhaseEnterValue:
-		return prependTranscript(prependBanner(a.input.View(), a.banner), a.transcript)
+		return prependTranscript(prependBanner(a.input.View(), a.inlineBanner), a.transcript)
 	}
 	return tea.NewView("")
 }
