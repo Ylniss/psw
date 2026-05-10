@@ -45,6 +45,7 @@ type InputModel struct {
 	errMsg       string
 	done         bool
 	cancelled    bool
+	password     bool
 	animateStars bool
 	stars        StarState
 	ticking      bool
@@ -66,6 +67,7 @@ func NewInputModel(label string, password, animateStars bool) InputModel {
 		prefix:       prefix,
 		prefixWidth:  lipgloss.Width(prefix),
 		input:        textInput,
+		password:     password,
 		animateStars: animateStars,
 	}
 	if animateStars {
@@ -156,10 +158,12 @@ func (m InputModel) View() tea.View {
 	return v
 }
 
-func (m InputModel) Done() bool         { return m.done }
-func (m InputModel) Cancelled() bool    { return m.cancelled }
-func (m InputModel) Value() string      { return m.input.Value() }
-func (m InputModel) StarsActive() bool  { return m.animateStars && m.stars.Active() }
+func (m InputModel) Done() bool        { return m.done }
+func (m InputModel) Cancelled() bool   { return m.cancelled }
+func (m InputModel) Value() string     { return m.input.Value() }
+func (m InputModel) StarsActive() bool { return m.animateStars && m.stars.Active() }
+func (m InputModel) Prefix() string    { return m.prefix }
+func (m InputModel) Hidden() bool      { return m.password || m.animateStars }
 
 // Reset clears value/error/done/cancelled. Prefix, mode, and animation persist.
 func (m *InputModel) Reset() {
@@ -235,9 +239,10 @@ func (m YesNoModel) View() tea.View {
 	return tea.NewView(fmt.Sprintf("%s (y/n)", m.question))
 }
 
-func (m YesNoModel) Done() bool      { return m.done }
-func (m YesNoModel) Cancelled() bool { return m.cancelled }
-func (m YesNoModel) Answer() bool    { return m.answer }
+func (m YesNoModel) Done() bool        { return m.done }
+func (m YesNoModel) Cancelled() bool   { return m.cancelled }
+func (m YesNoModel) Answer() bool      { return m.answer }
+func (m YesNoModel) Question() string  { return m.question }
 
 // YesOrNo returns false on Esc/Ctrl-C or non-TTY stdin (keeps scripts unblocked).
 func YesOrNo(question string) bool {

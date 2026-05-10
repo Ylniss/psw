@@ -23,10 +23,12 @@ const (
 )
 
 var (
-	selectedColor = lipgloss.Color("170")
-	itemStyle     = lipgloss.NewStyle().PaddingLeft(itemPaddingLeft)
-	itemSelectedStyle  = itemStyle.Foreground(selectedColor).Bold(true)
-	helpStyle     = lipgloss.NewStyle().Faint(true).PaddingLeft(itemPaddingLeft)
+	selectedColor     = lipgloss.Color("170")
+	extraColor        = lipgloss.Color("3") // ANSI yellow, matches color.InYellow
+	itemStyle         = lipgloss.NewStyle().PaddingLeft(itemPaddingLeft)
+	itemSelectedStyle = itemStyle.Foreground(selectedColor).Bold(true)
+	extraStyle        = itemStyle.Foreground(extraColor)
+	helpStyle         = lipgloss.NewStyle().Faint(true).PaddingLeft(itemPaddingLeft)
 )
 
 var ErrPickerCancelled = errors.New("selection cancelled")
@@ -36,18 +38,24 @@ type pickerItem string
 func (i pickerItem) FilterValue() string { return string(i) }
 
 // Custom ItemDelegate so each record renders on one line, not two.
-type pickerDelegate struct{}
+type pickerDelegate struct {
+	extras map[string]bool
+}
 
 func (pickerDelegate) Height() int                             { return 1 }
 func (pickerDelegate) Spacing() int                            { return 0 }
 func (pickerDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
-func (pickerDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
+func (d pickerDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
 	name := string(item.(pickerItem))
 	if index == m.Index() {
 		fmt.Fprint(w, itemSelectedStyle.Render(selectedPrefix+name))
 		return
 	}
-	fmt.Fprint(w, itemStyle.Render(name))
+	style := itemStyle
+	if d.extras[name] {
+		style = extraStyle
+	}
+	fmt.Fprint(w, style.Render(name))
 }
 
 // PickerModel is a fuzzy-filter list picker. Sets done/cancelled flags;
@@ -59,13 +67,21 @@ type PickerModel struct {
 	cancelled bool
 }
 
-// NewPickerModel builds a PickerModel over names.
-func NewPickerModel(names []string) PickerModel {
-	items := make([]list.Item, len(names))
-	for i, n := range names {
-		items[i] = pickerItem(n)
+// NewPickerModel builds a PickerModel over names + extras. Extras render
+// yellow when unselected; selected items stay purple+bold regardless.
+func NewPickerModel(names, extras []string) PickerModel {
+	extrasSet := make(map[string]bool, len(extras))
+	for _, e := range extras {
+		extrasSet[e] = true
 	}
-	l := list.New(items, pickerDelegate{}, 0, 0)
+	items := make([]list.Item, 0, len(names)+len(extras))
+	for _, n := range names {
+		items = append(items, pickerItem(n))
+	}
+	for _, e := range extras {
+		items = append(items, pickerItem(e))
+	}
+	l := list.New(items, pickerDelegate{extras: extrasSet}, 0, 0)
 	l.Title = pickerTitle
 	l.SetShowStatusBar(false)
 	l.SetShowHelp(false) // we render our own footer that matches the actual keybindings
@@ -131,16 +147,21 @@ func (m PickerModel) Done() bool       { return m.done }
 func (m PickerModel) Cancelled() bool  { return m.cancelled }
 func (m PickerModel) Selection() string { return m.chosen }
 
-// One name → return it without launching the TUI. Empty names → ("", nil).
-func GetRecordNameInteractive(names []string) (string, error) {
-	if len(names) == 0 {
+// One item across names+extras → return it without launching the TUI.
+// Empty → ("", nil).
+func GetRecordNameInteractive(names, extras []string) (string, error) {
+	total := len(names) + len(extras)
+	if total == 0 {
 		return "", nil
 	}
-	if len(names) == 1 {
-		return names[0], nil
+	if total == 1 {
+		if len(names) == 1 {
+			return names[0], nil
+		}
+		return extras[0], nil
 	}
 
-	final, err := tea.NewProgram(tuiutil.Quitter[PickerModel]{M: NewPickerModel(names)}).Run()
+	final, err := tea.NewProgram(tuiutil.Quitter[PickerModel]{M: NewPickerModel(names, extras)}).Run()
 	if err != nil {
 		return "", fmt.Errorf("interactive picker failed: %w", err)
 	}

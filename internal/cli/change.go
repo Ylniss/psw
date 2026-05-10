@@ -36,11 +36,9 @@ Arguments:
 	Short: "Change chosen record data",
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if len(args) == 1 && args[0] == "main" {
-			if cmd.Flags().Changed("rename") || cmd.Flags().Changed("username") ||
-				cmd.Flags().Changed("password") || cmd.Flags().Changed("value") {
-				fmt.Println("Record-level flags (--rename/--username/--password/--value) are not valid with 'change main'")
-				return errExit
+		if len(args) == 1 && (args[0] == "main" || args[0] == "main-password") {
+			if err := rejectMainFlagMutex(cmd); err != nil {
+				return err
 			}
 			if err := changeMainPassword(); err != nil {
 				return err
@@ -50,17 +48,11 @@ Arguments:
 			}
 			return nil
 		}
-		if err := changeRecord(cmd, args); err != nil {
-			return err
-		}
-		storage.GitCommit("record updated")
-		return nil
+		return changeRecord(cmd, args)
 	},
 }
 
 func changeMainPassword() error {
-	fmt.Println(color.InCyan("You are changing your main password!"))
-
 	store, err := storage.GetOrCreateForMutate()
 	if errors.Is(err, prompt.ErrPromptCancelled) {
 		return nil
@@ -73,7 +65,13 @@ func changeMainPassword() error {
 		fmt.Println(err.Error())
 		return nil
 	}
+	return changeMainPasswordOnStore(store)
+}
 
+// changeMainPasswordOnStore lets the picker path reuse the store loaded by
+// changeRecord instead of re-prompting via GetOrCreateForMutate.
+func changeMainPasswordOnStore(store *storage.Storage) error {
+	fmt.Println(color.InCyan("You are changing your main password!"))
 	newMainPassword, err := prompt.PromptForMainPasswordChange()
 	if errors.Is(err, prompt.ErrPromptCancelled) {
 		return nil
@@ -82,14 +80,21 @@ func changeMainPassword() error {
 		fmt.Println(err.Error())
 		return nil
 	}
-
 	store.MainPassword = newMainPassword
 	if err := store.Save(); err != nil {
 		fmt.Println(err.Error())
 		return nil
 	}
-
 	fmt.Println(color.InGreen("Main password changed"))
+	return nil
+}
+
+func rejectMainFlagMutex(cmd *cobra.Command) error {
+	if cmd.Flags().Changed("rename") || cmd.Flags().Changed("username") ||
+		cmd.Flags().Changed("password") || cmd.Flags().Changed("value") {
+		fmt.Println("Record-level flags (--rename/--username/--password/--value) are not valid with 'change main' / 'change main-password'")
+		return errExit
+	}
 	return nil
 }
 
@@ -116,7 +121,7 @@ func changeRecord(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	recordName, err := resolveRecordName(store, args, changeExactFlag)
+	recordName, err := resolveRecordName(store, args, changeExactFlag, []string{"main-password"})
 	if errors.Is(err, errExit) {
 		return errExit
 	}
@@ -125,6 +130,18 @@ func changeRecord(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 	if recordName == "" {
+		return nil
+	}
+	if recordName == "main-password" {
+		if err := rejectMainFlagMutex(cmd); err != nil {
+			return err
+		}
+		if err := changeMainPasswordOnStore(store); err != nil {
+			return err
+		}
+		if err := storage.GitCommit("main password changed"); err != nil {
+			fmt.Println(err.Error())
+		}
 		return nil
 	}
 	record, isFound := store.GetRecord(recordName)
@@ -170,6 +187,7 @@ func changeRecord(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Println(color.InGreen("Record updated"))
+	storage.GitCommit("record updated")
 	return nil
 }
 

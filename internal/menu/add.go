@@ -6,6 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/TwiN/go-color"
+	passgen "github.com/sethvargo/go-password/password"
 
 	"github.com/ylniss/psw/internal/prompt"
 	"github.com/ylniss/psw/internal/storage"
@@ -21,6 +22,7 @@ const (
 	addPhaseAskSingle
 	addPhaseEnterName
 	addPhaseEnterUsername
+	addPhaseAskGenerate
 	addPhaseEnterPassword
 	addPhaseEnterPasswordRepeat
 	addPhaseEnterValue
@@ -41,7 +43,8 @@ type AddAction struct {
 	username        string
 	pendingPassword string
 
-	banner string
+	banner     string
+	transcript []string
 
 	output    []string
 	done      bool
@@ -70,6 +73,8 @@ func (a AddAction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a.updateEnterName(msg)
 	case addPhaseEnterUsername:
 		return a.updateEnterUsername(msg)
+	case addPhaseAskGenerate:
+		return a.updateAskGenerate(msg)
 	case addPhaseEnterPassword:
 		return a.updateEnterPassword(msg)
 	case addPhaseEnterPasswordRepeat:
@@ -103,6 +108,7 @@ func (a AddAction) updateAskSingle(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 	}
 	if a.yesNo.Done() {
+		a.transcript = append(a.transcript, formatYesNoLine(a.yesNo))
 		a.isSingleValue = a.yesNo.Answer()
 		a.banner = ""
 		return a.toInput("Record name", false, false, addPhaseEnterName)
@@ -119,10 +125,12 @@ func (a AddAction) updateEnterName(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if !a.input.Done() {
 		return a, cmd
 	}
+	a.transcript = append(a.transcript, formatInputLine(a.input))
 	name := a.input.Value()
-	if strings.ToLower(name) == "main" {
+	lower := strings.ToLower(name)
+	if lower == "main" || lower == "main-password" {
 		a.output = append(a.output, fmt.Sprintf("Name %s is reserved. %s command uses it for changing main password",
-			color.InGreen("main"), color.InCyan("change")))
+			color.InGreen(name), color.InCyan("change")))
 		a.done = true
 		return a, nil
 	}
@@ -145,10 +153,34 @@ func (a AddAction) updateEnterUsername(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 	}
 	if a.input.Done() {
+		a.transcript = append(a.transcript, formatInputLine(a.input))
 		a.username = a.input.Value()
-		return a.toInput("Password", true, false, addPhaseEnterPassword)
+		return a.toYesNo("Auto-generate password?", addPhaseAskGenerate)
 	}
 	return a, cmd
+}
+
+func (a AddAction) updateAskGenerate(msg tea.Msg) (tea.Model, tea.Cmd) {
+	cmd := tuiutil.UpdateInPlace(&a.yesNo, msg)
+	if a.yesNo.Cancelled() {
+		a.cancelled = true
+		return a, nil
+	}
+	if !a.yesNo.Done() {
+		return a, cmd
+	}
+	a.transcript = append(a.transcript, formatYesNoLine(a.yesNo))
+	if !a.yesNo.Answer() {
+		return a.toInput("Password", true, false, addPhaseEnterPassword)
+	}
+	generated, err := passgen.Generate(16, 4, 6, false, true)
+	if err != nil {
+		a.output = append(a.output, color.InRed(err.Error()))
+		a.done = true
+		return a, nil
+	}
+	a.store.AddRecord(&storage.Record{Name: a.recordName, Username: a.username, Password: generated})
+	return a.toSpinner("Saving", addPhaseSaving, saveCmd(a.store, "added new record"))
 }
 
 func (a AddAction) updateEnterPassword(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -158,6 +190,7 @@ func (a AddAction) updateEnterPassword(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 	}
 	if a.input.Done() {
+		a.transcript = append(a.transcript, formatInputLine(a.input))
 		a.pendingPassword = a.input.Value()
 		return a.toInput("Repeat password", true, false, addPhaseEnterPasswordRepeat)
 	}
@@ -173,6 +206,7 @@ func (a AddAction) updateEnterPasswordRepeat(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if !a.input.Done() {
 		return a, cmd
 	}
+	a.transcript = append(a.transcript, formatInputLine(a.input))
 	if a.input.Value() != a.pendingPassword {
 		a.banner = passwordMismatchBanner
 		a.pendingPassword = ""
@@ -189,6 +223,7 @@ func (a AddAction) updateEnterValue(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 	}
 	if a.input.Done() {
+		a.transcript = append(a.transcript, formatInputLine(a.input))
 		a.store.AddRecord(&storage.Record{Name: a.recordName, Value: a.input.Value()})
 		return a.toSpinner("Saving", addPhaseSaving, saveCmd(a.store, "added new record"))
 	}
@@ -217,16 +252,17 @@ func (a AddAction) updateSaving(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (a AddAction) View() tea.View {
 	switch a.phase {
 	case addPhaseLoading, addPhaseSaving:
-		return a.spinner.View()
-	case addPhaseAskSingle:
-		return a.yesNo.View()
+		return prependTranscript(a.spinner.View(), a.transcript)
+	case addPhaseAskSingle, addPhaseAskGenerate:
+		return prependTranscript(a.yesNo.View(), a.transcript)
 	case addPhaseEnterName, addPhaseEnterUsername, addPhaseEnterPassword, addPhaseEnterPasswordRepeat, addPhaseEnterValue:
-		return prependBanner(a.input.View(), a.banner)
+		return prependTranscript(prependBanner(a.input.View(), a.banner), a.transcript)
 	}
 	return tea.NewView("")
 }
 
-func (a AddAction) Done() bool          { return a.done }
-func (a AddAction) Cancelled() bool     { return a.cancelled }
-func (a AddAction) Output() []string    { return a.output }
-func (a AddAction) NewPassword() string { return "" }
+func (a AddAction) Done() bool             { return a.done }
+func (a AddAction) Cancelled() bool        { return a.cancelled }
+func (a AddAction) Output() []string       { return a.output }
+func (a AddAction) NewPassword() string    { return "" }
+func (a AddAction) Transcript() []string   { return a.transcript }

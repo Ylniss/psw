@@ -38,7 +38,7 @@ Arguments:
 			return nil
 		}
 
-		recordName, err := resolveRecordName(store, args, removeExactFlag)
+		recordName, err := resolveRecordName(store, args, removeExactFlag, nil)
 		if errors.Is(err, errExit) {
 			return errExit
 		}

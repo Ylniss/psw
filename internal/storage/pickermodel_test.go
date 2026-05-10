@@ -12,7 +12,7 @@ func updatePicker(m PickerModel, msg tea.Msg) PickerModel {
 }
 
 func TestPickerModel_EnterSelects(t *testing.T) {
-	m := NewPickerModel([]string{"alpha", "beta", "gamma"})
+	m := NewPickerModel([]string{"alpha", "beta", "gamma"}, nil)
 	// WindowSize so list is rendered
 	m = updatePicker(m, tea.WindowSizeMsg{Width: 80, Height: 24})
 	m = updatePicker(m, tea.KeyPressMsg{Code: tea.KeyEnter})
@@ -25,7 +25,7 @@ func TestPickerModel_EnterSelects(t *testing.T) {
 }
 
 func TestPickerModel_EscCancels(t *testing.T) {
-	m := NewPickerModel([]string{"a", "b"})
+	m := NewPickerModel([]string{"a", "b"}, nil)
 	m = updatePicker(m, tea.WindowSizeMsg{Width: 80, Height: 24})
 	m = updatePicker(m, tea.KeyPressMsg{Code: tea.KeyEscape})
 	if !m.Cancelled() {
@@ -37,7 +37,7 @@ func TestPickerModel_EscCancels(t *testing.T) {
 }
 
 func TestPickerModel_CtrlCCancels(t *testing.T) {
-	m := NewPickerModel([]string{"a", "b"})
+	m := NewPickerModel([]string{"a", "b"}, nil)
 	m = updatePicker(m, tea.WindowSizeMsg{Width: 80, Height: 24})
 	m = updatePicker(m, tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
 	if !m.Cancelled() {

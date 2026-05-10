@@ -1,9 +1,11 @@
 package menu
 
 import (
+	"fmt"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/TwiN/go-color"
 
 	"github.com/ylniss/psw/internal/prompt"
@@ -66,15 +68,51 @@ func prependBanner(v tea.View, banner string) tea.View {
 	return v
 }
 
+// prependTranscript prepends transcript lines above v.Content with a newline
+// separator. Bumps the cursor row by the prepended row count.
+func prependTranscript(v tea.View, transcript []string) tea.View {
+	if len(transcript) == 0 {
+		return v
+	}
+	block := strings.Join(transcript, "\n")
+	v.Content = block + "\n" + v.Content
+	if v.Cursor != nil {
+		c := *v.Cursor
+		c.Position.Y += strings.Count(block, "\n") + 1
+		v.Cursor = &c
+	}
+	return v
+}
+
+func formatYesNoLine(m prompt.YesNoModel) string {
+	ans := "n"
+	if m.Answer() {
+		ans = "y"
+	}
+	return fmt.Sprintf("%s (y/n) %s", m.Question(), ans)
+}
+
+// formatInputLine renders a completed input as "Label: value"; hidden inputs
+// (password / animated-stars) show asterisks matching the value's cell width.
+func formatInputLine(m prompt.InputModel) string {
+	val := m.Value()
+	if m.Hidden() {
+		val = strings.Repeat("*", lipgloss.Width(val))
+	}
+	return m.Prefix() + val
+}
+
 // Action is one menu operation: get / add / change / remove.
 type Action interface {
 	tea.Model
 	Done() bool
 	Cancelled() bool
-	// Output is the lines to append to history. Read after Done.
+	// Output is the action's display lines, read after Done.
 	Output() []string
 	// NewPassword is the rotated main password, non-empty after `change main`.
 	NewPassword() string
+	// Transcript is intra-action prompt history, shown above the active sub-view.
+	Transcript() []string
 }
 
 // newAction builds an Action by name and returns its initial Cmd.

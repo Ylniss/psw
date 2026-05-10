@@ -74,7 +74,7 @@ func (a GetAction) updateLoading(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.done = true
 			return a, nil
 		}
-		a.picker = storage.NewPickerModel(names)
+		a.picker = storage.NewPickerModel(names, nil)
 		if a.width > 0 && a.height > 0 {
 			tuiutil.UpdateInPlace(&a.picker, tea.WindowSizeMsg{Width: a.width, Height: a.height})
 		}
@@ -142,7 +142,8 @@ func (a GetAction) View() tea.View {
 	return tea.NewView("")
 }
 
-func (a GetAction) Done() bool          { return a.done }
-func (a GetAction) Cancelled() bool     { return a.cancelled }
-func (a GetAction) Output() []string    { return a.output }
-func (a GetAction) NewPassword() string { return "" }
+func (a GetAction) Done() bool           { return a.done }
+func (a GetAction) Cancelled() bool      { return a.cancelled }
+func (a GetAction) Output() []string     { return a.output }
+func (a GetAction) NewPassword() string  { return "" }
+func (a GetAction) Transcript() []string { return nil }

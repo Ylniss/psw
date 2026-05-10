@@ -90,8 +90,9 @@ Arguments:
 			return nil
 		}
 
-		if strings.ToLower(recordName) == "main" {
-			fmt.Printf("Name %s is reserved. %s command uses it for changing main password\n", color.InGreen("main"), color.InCyan("change"))
+		lower := strings.ToLower(recordName)
+		if lower == "main" || lower == "main-password" {
+			fmt.Printf("Name %s is reserved. %s command uses it for changing main password\n", color.InGreen(recordName), color.InCyan("change"))
 			return nil
 		}
 

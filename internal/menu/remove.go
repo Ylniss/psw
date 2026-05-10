@@ -77,7 +77,7 @@ func (a RemoveAction) updateLoading(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.done = true
 			return a, nil
 		}
-		a.picker = storage.NewPickerModel(names)
+		a.picker = storage.NewPickerModel(names, nil)
 		if a.width > 0 && a.height > 0 {
 			tuiutil.UpdateInPlace(&a.picker, tea.WindowSizeMsg{Width: a.width, Height: a.height})
 		}
@@ -129,10 +129,11 @@ func (a RemoveAction) View() tea.View {
 	return tea.NewView("")
 }
 
-func (a RemoveAction) Done() bool         { return a.done }
-func (a RemoveAction) Cancelled() bool    { return a.cancelled }
-func (a RemoveAction) Output() []string   { return a.output }
-func (a RemoveAction) NewPassword() string { return "" }
+func (a RemoveAction) Done() bool            { return a.done }
+func (a RemoveAction) Cancelled() bool       { return a.cancelled }
+func (a RemoveAction) Output() []string      { return a.output }
+func (a RemoveAction) NewPassword() string   { return "" }
+func (a RemoveAction) Transcript() []string  { return nil }
 
 // humanizeLoadError swaps fork-undecryptable for its user-facing banner.
 func humanizeLoadError(err error) string {

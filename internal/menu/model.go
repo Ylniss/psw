@@ -15,7 +15,6 @@ import (
 
 const (
 	logoFlashDuration = 250 * time.Millisecond
-	historyCap        = 20
 	// blank line after header + buttons row + blank line after buttons.
 	extraChromeRows = 3
 )
@@ -63,8 +62,7 @@ type MenuModel struct {
 	// Running an action.
 	activeAction Action
 
-	// Output history; capped at historyCap blocks.
-	history []string
+	lastOutput string
 
 	// Main password.
 	password string
@@ -232,12 +230,8 @@ func (m MenuModel) routeToAction(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 	if m.activeAction.Done() {
-		out := strings.Join(m.activeAction.Output(), "\n")
-		if out != "" {
-			m.history = append(m.history, out)
-			if len(m.history) > historyCap {
-				m.history = m.history[len(m.history)-historyCap:]
-			}
+		if out := strings.Join(m.activeAction.Output(), "\n"); out != "" {
+			m.lastOutput = out
 		}
 		if pw := m.activeAction.NewPassword(); pw != "" {
 			m.password = pw
@@ -279,7 +273,7 @@ func (m MenuModel) View() tea.View {
 	case PhaseValidatingPassword:
 		b.WriteString(indentToHeader(m.width, m.passwordSpinner.View().Content))
 	case PhaseSelectAction:
-		m.renderHistory(&b)
+		m.renderLastOutput(&b)
 	case PhaseRunningAction:
 		if m.activeAction != nil {
 			actionView = m.activeAction.View()
@@ -346,11 +340,9 @@ func (m MenuModel) writeFooterAtBottom(b *strings.Builder) {
 	b.WriteString(footer)
 }
 
-func (m MenuModel) renderHistory(b *strings.Builder) {
-	for i, block := range m.history {
-		if i > 0 {
-			b.WriteString("\n\n")
-		}
-		b.WriteString(wrapToHeader(m.width, block))
+func (m MenuModel) renderLastOutput(b *strings.Builder) {
+	if m.lastOutput == "" {
+		return
 	}
+	b.WriteString(wrapToHeader(m.width, m.lastOutput))
 }

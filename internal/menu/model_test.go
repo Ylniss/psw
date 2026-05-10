@@ -51,19 +51,3 @@ func TestMenuModel_SelectActionQQuits(t *testing.T) {
 	}
 }
 
-func TestMenuModel_HistoryCap(t *testing.T) {
-	m := NewMenuModel()
-	for i := 0; i < historyCap+5; i++ {
-		m.history = append(m.history, "block")
-	}
-	if len(m.history) > historyCap+5 {
-		t.Fatalf("setup error: %d", len(m.history))
-	}
-	// Simulate the cap logic.
-	if len(m.history) > historyCap {
-		m.history = m.history[len(m.history)-historyCap:]
-	}
-	if len(m.history) != historyCap {
-		t.Fatalf("expected history len %d, got %d", historyCap, len(m.history))
-	}
-}

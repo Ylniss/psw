@@ -125,6 +125,23 @@ func TestChange_Main(t *testing.T) {
 	mustContain(t, result3.stdout, "Wrong password.")
 }
 
+func TestChange_MainPasswordAlias(t *testing.T) {
+	t.Parallel()
+	// Arrange
+	vault := newVault(t)
+	runPsw(t, vault, "add", "foo", "-u", "u", "--password=p")
+	// Act
+	result := runPswEnv(t, vault, map[string]string{"PSW_NEW_MAIN_PASSWORD": "newpass"},
+		"change", "main-password")
+	// Assert
+	mustExit(t, result, 0)
+	mustContain(t, result.stdout, "Main password changed")
+	result2 := runPswEnv(t, vault, map[string]string{"PSW_MAIN_PASSWORD": "newpass"},
+		"get", "foo", "--exact", "--stdout")
+	mustExit(t, result2, 0)
+	mustEqual(t, trimmed(result2), "p")
+}
+
 func TestChange_MainWithRecordFlagRejected(t *testing.T) {
 	t.Parallel()
 	// Arrange

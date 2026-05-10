@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/TwiN/go-color"
 	"github.com/ylniss/psw/internal/storage"
@@ -15,31 +16,50 @@ func printForkUndecryptable() {
 }
 
 // resolveRecordName returns the name of the record selected by the user.
-// When exact is set, args[0] must be present and match a record name
+// When exact is set, args[0] must match a record name or an entry in extras
 // exactly; on miss, prints an error and returns errExit (exit 1). Otherwise
-// falls back to substring + interactive selection. If the user cancels the
-// picker, returns ("", nil) so the caller exits silently.
-func resolveRecordName(store *storage.Storage, args []string, exact bool) (string, error) {
+// falls back to substring + interactive selection. extras (e.g. "main-password"
+// for `change`) appear after real records in the picker and survive
+// substring filtering by the same predicate. If the user cancels the picker,
+// returns ("", nil) so the caller exits silently.
+func resolveRecordName(store *storage.Storage, args []string, exact bool, extras []string) (string, error) {
 	if exact {
 		if len(args) == 0 {
 			fmt.Println("--exact requires a record name argument")
 			return "", errExit
 		}
 		name := args[0]
-		if !store.Exists(name) {
-			fmt.Printf("Record %s was not found\n", color.InGreen(name))
-			return "", errExit
+		if store.Exists(name) {
+			return name, nil
 		}
-		return name, nil
+		for _, e := range extras {
+			if e == name {
+				return name, nil
+			}
+		}
+		fmt.Printf("Record %s was not found\n", color.InGreen(name))
+		return "", errExit
 	}
 
 	names := store.GetNames()
 	if len(args) > 0 {
 		names = store.GetNamesWithPart(args[0])
+		extras = filterExtrasByPart(extras, args[0])
 	}
-	name, err := storage.GetRecordNameInteractive(names)
+	name, err := storage.GetRecordNameInteractive(names, extras)
 	if errors.Is(err, storage.ErrPickerCancelled) {
 		return "", nil
 	}
 	return name, err
+}
+
+func filterExtrasByPart(extras []string, part string) []string {
+	lp := strings.ToLower(part)
+	var matched []string
+	for _, e := range extras {
+		if strings.Contains(strings.ToLower(e), lp) {
+			matched = append(matched, e)
+		}
+	}
+	return matched
 }

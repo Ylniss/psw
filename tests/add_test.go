@@ -56,6 +56,17 @@ func TestAdd_ReservedMainRejected(t *testing.T) {
 	mustContain(t, result.stdout, "Name main is reserved")
 }
 
+func TestAdd_ReservedMainPasswordRejected(t *testing.T) {
+	t.Parallel()
+	// Arrange
+	vault := newVault(t)
+	// Act
+	result := runPsw(t, vault, "add", "main-password", "-u", "u", "--password=p")
+	// Assert
+	mustExit(t, result, 0)
+	mustContain(t, result.stdout, "Name main-password is reserved")
+}
+
 func TestAdd_DuplicateRejected(t *testing.T) {
 	t.Parallel()
 	// Arrange

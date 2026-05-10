@@ -16,7 +16,6 @@ type changePhase int
 
 const (
 	changePhaseLoading changePhase = iota
-	changePhaseAskMainChange
 	changePhaseEnterNewMain
 	changePhaseEnterNewMainRepeat
 	changePhasePicking
@@ -51,7 +50,8 @@ type ChangeAction struct {
 
 	width, height int
 
-	banner string
+	banner     string
+	transcript []string
 
 	output      []string
 	done        bool
@@ -75,8 +75,6 @@ func (a ChangeAction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch a.phase {
 	case changePhaseLoading:
 		return a.updateLoading(msg)
-	case changePhaseAskMainChange:
-		return a.updateAskMainChange(msg)
 	case changePhaseEnterNewMain:
 		return a.updateEnterNewMain(msg)
 	case changePhaseEnterNewMainRepeat:
@@ -118,37 +116,14 @@ func (a ChangeAction) updateLoading(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, nil
 		}
 		a.store = m.store
-		return a.toYesNo("Change main password?", changePhaseAskMainChange)
-	}
-	cmd := tuiutil.UpdateInPlace(&a.spinner, msg)
-	return a, cmd
-}
-
-func (a ChangeAction) updateAskMainChange(msg tea.Msg) (tea.Model, tea.Cmd) {
-	cmd := tuiutil.UpdateInPlace(&a.yesNo, msg)
-	if a.yesNo.Cancelled() {
-		a.cancelled = true
-		return a, nil
-	}
-	if a.yesNo.Done() {
-		if a.yesNo.Answer() {
-			a.rotatingMainPassword = true
-			return a.toInput("New main password", true, true, changePhaseEnterNewMain)
-		}
-		// "n" branch: pick a record
-		names := a.store.GetNames()
-		if len(names) == 0 {
-			a.output = append(a.output, "No records to change.")
-			a.done = true
-			return a, nil
-		}
-		a.picker = storage.NewPickerModel(names)
+		a.picker = storage.NewPickerModel(a.store.GetNames(), []string{"main-password"})
 		if a.width > 0 && a.height > 0 {
 			tuiutil.UpdateInPlace(&a.picker, tea.WindowSizeMsg{Width: a.width, Height: a.height})
 		}
 		a.phase = changePhasePicking
 		return a, nil
 	}
+	cmd := tuiutil.UpdateInPlace(&a.spinner, msg)
 	return a, cmd
 }
 
@@ -159,6 +134,7 @@ func (a ChangeAction) updateEnterNewMain(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 	}
 	if a.input.Done() {
+		a.transcript = append(a.transcript, formatInputLine(a.input))
 		a.newMain = a.input.Value()
 		a.banner = ""
 		return a.toInput("Repeat new main password", true, true, changePhaseEnterNewMainRepeat)
@@ -175,6 +151,7 @@ func (a ChangeAction) updateEnterNewMainRepeat(msg tea.Msg) (tea.Model, tea.Cmd)
 	if !a.input.Done() {
 		return a, cmd
 	}
+	a.transcript = append(a.transcript, formatInputLine(a.input))
 	if a.input.Value() != a.newMain {
 		a.banner = passwordMismatchBanner
 		a.newMain = ""
@@ -191,10 +168,16 @@ func (a ChangeAction) updatePicking(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 	}
 	if a.picker.Done() {
-		a.nameBeforeRename = a.picker.Selection()
-		rec, ok := a.store.GetRecord(a.nameBeforeRename)
+		sel := a.picker.Selection()
+		a.transcript = append(a.transcript, "> "+sel)
+		if sel == "main-password" {
+			a.rotatingMainPassword = true
+			return a.toInput("New main password", true, true, changePhaseEnterNewMain)
+		}
+		a.nameBeforeRename = sel
+		rec, ok := a.store.GetRecord(sel)
 		if !ok {
-			a.output = append(a.output, fmt.Sprintf("Record %s was not found", color.InGreen(a.nameBeforeRename)))
+			a.output = append(a.output, fmt.Sprintf("Record %s was not found", color.InGreen(sel)))
 			a.done = true
 			return a, nil
 		}
@@ -211,6 +194,7 @@ func (a ChangeAction) updateConfirmRename(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 	}
 	if a.yesNo.Done() {
+		a.transcript = append(a.transcript, formatYesNoLine(a.yesNo))
 		if a.yesNo.Answer() {
 			a.banner = fmt.Sprintf("Current name: %s", color.InGreen(a.record.Name))
 			return a.toInput("New name", false, false, changePhaseEnterRename)
@@ -229,6 +213,7 @@ func (a ChangeAction) updateEnterRename(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if !a.input.Done() {
 		return a, cmd
 	}
+	a.transcript = append(a.transcript, formatInputLine(a.input))
 	newName := a.input.Value()
 	if a.store.Exists(newName) {
 		a.output = append(a.output, fmt.Sprintf("Record with name %s already exists", color.InGreen(newName)))
@@ -259,6 +244,7 @@ func (a ChangeAction) updateConfirmUsername(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 	}
 	if a.yesNo.Done() {
+		a.transcript = append(a.transcript, formatYesNoLine(a.yesNo))
 		if a.yesNo.Answer() {
 			return a.toInput("New username", false, false, changePhaseEnterUsername)
 		}
@@ -274,6 +260,7 @@ func (a ChangeAction) updateEnterUsername(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 	}
 	if a.input.Done() {
+		a.transcript = append(a.transcript, formatInputLine(a.input))
 		a.record.Username = a.input.Value()
 		return a.toYesNo("Do you want to change password?", changePhaseConfirmPassword)
 	}
@@ -287,6 +274,7 @@ func (a ChangeAction) updateConfirmPassword(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 	}
 	if a.yesNo.Done() {
+		a.transcript = append(a.transcript, formatYesNoLine(a.yesNo))
 		if a.yesNo.Answer() {
 			a.banner = ""
 			return a.toInput("New password", true, false, changePhaseEnterPassword)
@@ -303,6 +291,7 @@ func (a ChangeAction) updateEnterPassword(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 	}
 	if a.input.Done() {
+		a.transcript = append(a.transcript, formatInputLine(a.input))
 		a.pendingPassword = a.input.Value()
 		return a.toInput("Repeat new password", true, false, changePhaseEnterPasswordRepeat)
 	}
@@ -318,6 +307,7 @@ func (a ChangeAction) updateEnterPasswordRepeat(msg tea.Msg) (tea.Model, tea.Cmd
 	if !a.input.Done() {
 		return a, cmd
 	}
+	a.transcript = append(a.transcript, formatInputLine(a.input))
 	if a.input.Value() != a.pendingPassword {
 		a.banner = passwordMismatchBanner
 		a.pendingPassword = ""
@@ -334,6 +324,7 @@ func (a ChangeAction) updateConfirmValue(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 	}
 	if a.yesNo.Done() {
+		a.transcript = append(a.transcript, formatYesNoLine(a.yesNo))
 		if a.yesNo.Answer() {
 			return a.toInput("New value", false, false, changePhaseEnterValue)
 		}
@@ -349,6 +340,7 @@ func (a ChangeAction) updateEnterValue(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 	}
 	if a.input.Done() {
+		a.transcript = append(a.transcript, formatInputLine(a.input))
 		a.record.Value = a.input.Value()
 		return a.startSavePath()
 	}
@@ -383,15 +375,14 @@ func (a ChangeAction) updateSaving(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (a ChangeAction) View() tea.View {
 	switch a.phase {
 	case changePhaseLoading, changePhaseSaving:
-		return a.spinner.View()
+		return prependTranscript(a.spinner.View(), a.transcript)
 	case changePhasePicking:
 		return a.picker.View()
-	case changePhaseAskMainChange,
-		changePhaseConfirmRename,
+	case changePhaseConfirmRename,
 		changePhaseConfirmUsername,
 		changePhaseConfirmPassword,
 		changePhaseConfirmValue:
-		return a.yesNo.View()
+		return prependTranscript(a.yesNo.View(), a.transcript)
 	case changePhaseEnterNewMain,
 		changePhaseEnterNewMainRepeat,
 		changePhaseEnterRename,
@@ -399,7 +390,7 @@ func (a ChangeAction) View() tea.View {
 		changePhaseEnterPassword,
 		changePhaseEnterPasswordRepeat,
 		changePhaseEnterValue:
-		return prependBanner(a.input.View(), a.banner)
+		return prependTranscript(prependBanner(a.input.View(), a.banner), a.transcript)
 	}
 	return tea.NewView("")
 }
@@ -408,3 +399,4 @@ func (a ChangeAction) Done() bool          { return a.done }
 func (a ChangeAction) Cancelled() bool     { return a.cancelled }
 func (a ChangeAction) Output() []string    { return a.output }
 func (a ChangeAction) NewPassword() string { return a.newPassword }
+func (a ChangeAction) Transcript() []string { return a.transcript }
