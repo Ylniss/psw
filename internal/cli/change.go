@@ -186,7 +186,7 @@ func changeRecord(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	fmt.Println(color.InGreen("Record updated"))
+	fmt.Printf("Record %s was updated successfully\n", color.InGreen(record.Name))
 	storage.GitCommit("record updated")
 	return nil
 }

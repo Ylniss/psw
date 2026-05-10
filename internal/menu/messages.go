@@ -17,3 +17,11 @@ type storageSavedMsg struct {
 type passwordValidatedMsg struct {
 	err error
 }
+
+// pullDoneMsg is the result of pullCmd. Warnings captured via storage.WarnSink
+// during the pull are surfaced here so the action can append them to its
+// transcript before swapping the spinner to "Decrypting".
+type pullDoneMsg struct {
+	err      error
+	warnings []string
+}

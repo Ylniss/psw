@@ -22,6 +22,14 @@ const (
 	helpReservedLines = 2
 )
 
+// PickerHelpStyled returns the styled help line View() emits, so menu hosts
+// that want to re-position the help footer can detect and replace it.
+func PickerHelpStyled() string { return helpStyle.Render(pickerHelp) }
+
+// PickerHelp returns the plain help text for hosts to render with their own
+// styling (e.g. the menu footer style).
+func PickerHelp() string { return pickerHelp }
+
 var (
 	selectedColor     = lipgloss.Color("170")
 	extraColor        = lipgloss.Color("3") // ANSI yellow, matches color.InYellow

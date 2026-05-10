@@ -11,7 +11,7 @@ func TestChange_Password(t *testing.T) {
 	result := runPsw(t, vault, "change", "foo", "--password=new", "--exact")
 	// Assert
 	mustExit(t, result, 0)
-	mustContain(t, result.stdout, "Record updated")
+	mustContain(t, result.stdout, "was updated successfully")
 	result2 := runPsw(t, vault, "get", "foo", "--exact", "--stdout")
 	mustExit(t, result2, 0)
 	mustEqual(t, trimmed(result2), "new")
@@ -26,7 +26,7 @@ func TestChange_Username(t *testing.T) {
 	result := runPsw(t, vault, "change", "foo", "--username=newuser", "--exact")
 	// Assert
 	mustExit(t, result, 0)
-	mustContain(t, result.stdout, "Record updated")
+	mustContain(t, result.stdout, "was updated successfully")
 	result2 := runPsw(t, vault)
 	mustExit(t, result2, 0)
 	mustContain(t, result2.stdout, "(newuser)")
@@ -41,7 +41,7 @@ func TestChange_Rename(t *testing.T) {
 	result := runPsw(t, vault, "change", "foo", "--rename=bar", "--exact")
 	// Assert
 	mustExit(t, result, 0)
-	mustContain(t, result.stdout, "Record updated")
+	mustContain(t, result.stdout, "was updated successfully")
 	result2 := runPsw(t, vault, "get", "bar", "--exact", "--stdout")
 	mustExit(t, result2, 0)
 	mustEqual(t, trimmed(result2), "p")
@@ -75,7 +75,7 @@ func TestChange_Value(t *testing.T) {
 	result := runPsw(t, vault, "change", "foo", "--value=v2", "--exact")
 	// Assert
 	mustExit(t, result, 0)
-	mustContain(t, result.stdout, "Record updated")
+	mustContain(t, result.stdout, "was updated successfully")
 	result2 := runPsw(t, vault, "get", "foo", "--exact", "--stdout")
 	mustExit(t, result2, 0)
 	mustEqual(t, trimmed(result2), "v2")

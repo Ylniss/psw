@@ -11,7 +11,6 @@ require (
 	github.com/atotto/clipboard v0.1.4
 	github.com/go-git/go-git/v5 v5.19.0
 	github.com/pelletier/go-toml/v2 v2.3.1
-	github.com/sethvargo/go-password v0.3.1
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/crypto v0.50.0
 	golang.org/x/term v0.42.0

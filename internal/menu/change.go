@@ -63,12 +63,12 @@ func NewChangeAction(password string) ChangeAction {
 	return ChangeAction{
 		phase:    changePhaseLoading,
 		password: password,
-		spinner:  ui.NewSpinnerModel("Decrypting"),
+		spinner:  ui.NewSpinnerModel("Syncing"),
 	}
 }
 
 func (a ChangeAction) Init() tea.Cmd {
-	return tea.Batch(loadCmd(a.password, true), a.spinner.Init())
+	return tea.Batch(pullCmd(a.password), a.spinner.Init())
 }
 
 func (a ChangeAction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -108,6 +108,16 @@ func (a ChangeAction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (a ChangeAction) updateLoading(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if w, ok := msg.(tea.WindowSizeMsg); ok {
 		a.width, a.height = w.Width, w.Height
+	}
+	if m, ok := msg.(pullDoneMsg); ok {
+		if m.err != nil {
+			a.output = append(a.output, color.InRed(humanizeLoadError(m.err)))
+			a.done = true
+			return a, nil
+		}
+		a.transcript = append(a.transcript, m.warnings...)
+		a.spinner = ui.NewSpinnerModel("Decrypting")
+		return a, tea.Batch(decryptCmd(a.password), a.spinner.Init())
 	}
 	if m, ok := msg.(storageLoadedMsg); ok {
 		if m.err != nil {
@@ -363,7 +373,7 @@ func (a ChangeAction) updateSaving(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.output = append(a.output, color.InGreen("Main password changed"))
 			a.newPassword = a.newMain
 		} else {
-			a.output = append(a.output, color.InGreen("Record updated"))
+			a.output = append(a.output, fmt.Sprintf("Record %s was updated successfully", color.InGreen(a.record.Name)))
 		}
 		a.done = true
 		return a, nil

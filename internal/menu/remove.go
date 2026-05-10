@@ -31,6 +31,8 @@ type RemoveAction struct {
 
 	width, height int
 
+	transcript []string
+
 	output    []string
 	done      bool
 	cancelled bool
@@ -40,12 +42,12 @@ func NewRemoveAction(password string) RemoveAction {
 	return RemoveAction{
 		phase:    removePhaseLoading,
 		password: password,
-		spinner:  ui.NewSpinnerModel("Decrypting"),
+		spinner:  ui.NewSpinnerModel("Syncing"),
 	}
 }
 
 func (a RemoveAction) Init() tea.Cmd {
-	return tea.Batch(loadCmd(a.password, true), a.spinner.Init())
+	return tea.Batch(pullCmd(a.password), a.spinner.Init())
 }
 
 func (a RemoveAction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -63,6 +65,16 @@ func (a RemoveAction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (a RemoveAction) updateLoading(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if w, ok := msg.(tea.WindowSizeMsg); ok {
 		a.width, a.height = w.Width, w.Height
+	}
+	if m, ok := msg.(pullDoneMsg); ok {
+		if m.err != nil {
+			a.output = append(a.output, color.InRed(humanizeLoadError(m.err)))
+			a.done = true
+			return a, nil
+		}
+		a.transcript = append(a.transcript, m.warnings...)
+		a.spinner = ui.NewSpinnerModel("Decrypting")
+		return a, tea.Batch(decryptCmd(a.password), a.spinner.Init())
 	}
 	if m, ok := msg.(storageLoadedMsg); ok {
 		if m.err != nil {
@@ -122,18 +134,18 @@ func (a RemoveAction) updateSaving(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (a RemoveAction) View() tea.View {
 	switch a.phase {
 	case removePhaseLoading, removePhaseSaving:
-		return a.spinner.View()
+		return prependTranscript(a.spinner.View(), a.transcript)
 	case removePhasePicking:
-		return a.picker.View()
+		return prependTranscript(a.picker.View(), a.transcript)
 	}
 	return tea.NewView("")
 }
 
-func (a RemoveAction) Done() bool            { return a.done }
-func (a RemoveAction) Cancelled() bool       { return a.cancelled }
-func (a RemoveAction) Output() []string      { return a.output }
-func (a RemoveAction) NewPassword() string   { return "" }
-func (a RemoveAction) Transcript() []string  { return nil }
+func (a RemoveAction) Done() bool           { return a.done }
+func (a RemoveAction) Cancelled() bool      { return a.cancelled }
+func (a RemoveAction) Output() []string     { return a.output }
+func (a RemoveAction) NewPassword() string  { return "" }
+func (a RemoveAction) Transcript() []string { return a.transcript }
 
 // humanizeLoadError swaps fork-undecryptable for its user-facing banner.
 func humanizeLoadError(err error) string {

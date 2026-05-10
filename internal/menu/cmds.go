@@ -14,6 +14,25 @@ func loadCmd(password string, pull bool) tea.Cmd {
 	}
 }
 
+// pullCmd runs storage.GitPullAndMerge and captures any warnings emitted
+// during the pull (timeout fallback, merge summary lines).
+func pullCmd(password string) tea.Cmd {
+	return func() tea.Msg {
+		drainWarnings() // discard noise from before this run
+		err := storage.GitPullAndMerge(password)
+		return pullDoneMsg{err: err, warnings: drainWarnings()}
+	}
+}
+
+// decryptCmd loads storage.psw with the cached password. Assumes the vault
+// and git repo already exist (validatePasswordCmd ran earlier).
+func decryptCmd(password string) tea.Cmd {
+	return func() tea.Msg {
+		s, err := storage.Get(password)
+		return storageLoadedMsg{store: s, err: err}
+	}
+}
+
 // validatePasswordCmd decrypts (or creates) the vault and reports the result.
 func validatePasswordCmd(password string) tea.Cmd {
 	return func() tea.Msg {

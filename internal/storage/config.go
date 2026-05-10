@@ -9,6 +9,8 @@ import (
 	"log/slog"
 
 	"github.com/pelletier/go-toml/v2"
+
+	"github.com/ylniss/psw/internal/passgen"
 )
 
 type StorageConfig struct {
@@ -27,8 +29,44 @@ var Paths = StorageConfig{
 }
 
 type Config struct {
-	ClipboardTimeout int    `toml:"clipboard_timeout"`
-	Remote           string `toml:"remote"`
+	ClipboardTimeout int         `toml:"clipboard_timeout"`
+	Remote           string      `toml:"remote"`
+	PasswordGen      PasswordGen `toml:"password_gen"`
+}
+
+// PasswordGen mirrors the [password_gen] section. Pointer fields distinguish
+// "key absent" (nil → use default) from "key explicitly set to 0/false".
+type PasswordGen struct {
+	Length       *int  `toml:"length"`
+	MinDigits    *int  `toml:"min_digits"`
+	MinSymbols   *int  `toml:"min_symbols"`
+	MinUppercase *int  `toml:"min_uppercase"`
+	MinLowercase *int  `toml:"min_lowercase"`
+	AllowRepeat  *bool `toml:"allow_repeat"`
+}
+
+// Resolve fills in passgen defaults for any nil pointer fields.
+func (p PasswordGen) Resolve() passgen.Options {
+	o := passgen.DefaultOptions()
+	if p.Length != nil {
+		o.Length = *p.Length
+	}
+	if p.MinDigits != nil {
+		o.MinDigits = *p.MinDigits
+	}
+	if p.MinSymbols != nil {
+		o.MinSymbols = *p.MinSymbols
+	}
+	if p.MinUppercase != nil {
+		o.MinUppercase = *p.MinUppercase
+	}
+	if p.MinLowercase != nil {
+		o.MinLowercase = *p.MinLowercase
+	}
+	if p.AllowRepeat != nil {
+		o.AllowRepeat = *p.AllowRepeat
+	}
+	return o
 }
 
 var AppConfig Config

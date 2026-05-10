@@ -6,7 +6,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/TwiN/go-color"
-	passgen "github.com/sethvargo/go-password/password"
 
 	"github.com/ylniss/psw/internal/prompt"
 	"github.com/ylniss/psw/internal/storage"
@@ -55,12 +54,12 @@ func NewAddAction(password string) AddAction {
 	return AddAction{
 		phase:    addPhaseLoading,
 		password: password,
-		spinner:  ui.NewSpinnerModel("Decrypting"),
+		spinner:  ui.NewSpinnerModel("Syncing"),
 	}
 }
 
 func (a AddAction) Init() tea.Cmd {
-	return tea.Batch(loadCmd(a.password, true), a.spinner.Init())
+	return tea.Batch(pullCmd(a.password), a.spinner.Init())
 }
 
 func (a AddAction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -88,6 +87,16 @@ func (a AddAction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (a AddAction) updateLoading(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if m, ok := msg.(pullDoneMsg); ok {
+		if m.err != nil {
+			a.output = append(a.output, color.InRed(humanizeLoadError(m.err)))
+			a.done = true
+			return a, nil
+		}
+		a.transcript = append(a.transcript, m.warnings...)
+		a.spinner = ui.NewSpinnerModel("Decrypting")
+		return a, tea.Batch(decryptCmd(a.password), a.spinner.Init())
+	}
 	if m, ok := msg.(storageLoadedMsg); ok {
 		if m.err != nil {
 			a.output = append(a.output, color.InRed(humanizeLoadError(m.err)))
@@ -173,7 +182,7 @@ func (a AddAction) updateAskGenerate(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if !a.yesNo.Answer() {
 		return a.toInput("Password", true, false, addPhaseEnterPassword)
 	}
-	generated, err := passgen.Generate(16, 4, 6, false, true)
+	generated, err := storage.GenerateRecordPassword()
 	if err != nil {
 		a.output = append(a.output, color.InRed(err.Error()))
 		a.done = true

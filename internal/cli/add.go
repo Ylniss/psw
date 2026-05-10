@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/TwiN/go-color"
-	passgen "github.com/sethvargo/go-password/password"
 	"github.com/ylniss/psw/internal/prompt"
 	"github.com/ylniss/psw/internal/storage"
 
@@ -177,7 +176,7 @@ func getOrPromptValue(flagSet bool) (string, error) {
 
 func getOrGenerateRecordPassword() (string, error) {
 	if generatePasswordFlag {
-		return passgen.Generate(16, 4, 6, false, true)
+		return storage.GenerateRecordPassword()
 	}
 	return prompt.PromptForRecordPassword()
 }

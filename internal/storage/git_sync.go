@@ -44,7 +44,21 @@ func shouldUseRemote() bool {
 }
 
 // gitNetworkTimeout caps fetch/push to prevent indefinite hangs.
-const gitNetworkTimeout = 30 * time.Second
+const gitNetworkTimeout = 5 * time.Second
+
+// WarnSink, when non-nil, receives warning messages instead of stderr.
+// Set by hosts that own the screen (e.g. menu mode).
+var WarnSink func(string)
+
+// Warn writes a yellow line through WarnSink, or stderr when sink is nil.
+func Warn(format string, args ...any) {
+	msg := color.InYellow(fmt.Sprintf(format, args...))
+	if WarnSink != nil {
+		WarnSink(msg)
+		return
+	}
+	fmt.Fprintln(os.Stderr, msg)
+}
 
 // runGit and runGitNetwork are the shell-git fallback path for auth/signing cases go-git can't handle.
 
@@ -75,10 +89,9 @@ func redactURL(u string) string {
 	return p.Redacted()
 }
 
-// printWarn writes a yellow line to stderr.
-func printWarn(format string, args ...any) {
-	fmt.Fprintln(os.Stderr, color.InYellow(fmt.Sprintf(format, args...)))
-}
+// printWarn delegates to Warn — kept as a thin wrapper so existing callers
+// across the package don't need to be updated when a host installs WarnSink.
+func printWarn(format string, args ...any) { Warn(format, args...) }
 
 // shouldFallbackToShell reports whether a go-git network error means we should retry via shell git: our own pre-call sentinel, go-git's transport sentinels, or the SSH "no supported methods" handshake error.
 func shouldFallbackToShell(err error) bool {

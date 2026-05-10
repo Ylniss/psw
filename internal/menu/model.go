@@ -1,6 +1,7 @@
 package menu
 
 import (
+	"fmt"
 	imgcolor "image/color"
 	"strings"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/ylniss/psw/internal/prompt"
+	"github.com/ylniss/psw/internal/storage"
 	"github.com/ylniss/psw/internal/tuiutil"
 	"github.com/ylniss/psw/internal/ui"
 )
@@ -200,6 +202,12 @@ func (m MenuModel) updateSelectAction(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.actionCursor < len(menuActions)-1 {
 			m.actionCursor++
 		}
+	case "1", "2", "3", "4":
+		idx := int(k.String()[0] - '1')
+		if idx < len(menuActions) {
+			m.actionCursor = idx
+			return m.startAction(menuActions[idx])
+		}
 	case "enter", "j":
 		return m.startAction(menuActions[m.actionCursor])
 	}
@@ -261,6 +269,7 @@ func (m MenuModel) View() tea.View {
 	var actionView tea.View
 	pwErrHeight := 0
 	yBeforeSubView := strings.Count(b.String(), "\n")
+	actionIndent := 0
 	switch m.phase {
 	case PhaseEnterPassword:
 		if m.passwordError != "" {
@@ -277,7 +286,20 @@ func (m MenuModel) View() tea.View {
 	case PhaseRunningAction:
 		if m.activeAction != nil {
 			actionView = m.activeAction.View()
-			b.WriteString(indentToHeader(m.width, actionView.Content))
+			content := actionView.Content
+			var helpLine string
+			suffix := "\n\n" + storage.PickerHelpStyled()
+			if strings.HasSuffix(content, suffix) {
+				content = content[:len(content)-len(suffix)]
+				helpLine = menuHelpStyle.Render(storage.PickerHelp())
+			}
+			rendered, indent := alignBlock(m.width, buttonContentLeftCol(m.width), content)
+			b.WriteString(rendered)
+			actionIndent = indent
+			if helpLine != "" {
+				b.WriteString("\n\n")
+				b.WriteString(indentToFooter(m.width, helpLine))
+			}
 		}
 	}
 	m.writeFooterAtBottom(&b)
@@ -285,22 +307,22 @@ func (m MenuModel) View() tea.View {
 	v.AltScreen = true
 
 	// Bubble the sub-view's cursor up, offset for chrome rows and indent.
-	xIndent := 0
+	headerIndent := 0
 	if m.width > pswHeaderWidth {
-		xIndent = (m.width - pswHeaderWidth) / 2
+		headerIndent = (m.width - pswHeaderWidth) / 2
 	}
 	switch m.phase {
 	case PhaseEnterPassword:
 		if src := m.passwordInput.View().Cursor; src != nil {
 			c := *src
-			c.Position.X += xIndent
+			c.Position.X += headerIndent
 			c.Position.Y += yBeforeSubView + pwErrHeight
 			v.Cursor = &c
 		}
 	case PhaseRunningAction:
 		if src := actionView.Cursor; src != nil {
 			c := *src
-			c.Position.X += xIndent
+			c.Position.X += actionIndent
 			c.Position.Y += yBeforeSubView
 			v.Cursor = &c
 		}
@@ -311,25 +333,49 @@ func (m MenuModel) View() tea.View {
 func (m MenuModel) renderButtons(b *strings.Builder) {
 	buttons := make([]string, len(menuActions))
 	for i, a := range menuActions {
+		label := fmt.Sprintf("[%d] %s", i+1, a)
 		if i == m.actionCursor {
-			buttons[i] = menuSelectStyle.Render(a)
+			buttons[i] = menuSelectStyle.Render(label)
 		} else {
-			buttons[i] = menuButtonStyle.Render(a)
+			buttons[i] = menuButtonStyle.Render(label)
 		}
 	}
 	row := lipgloss.JoinHorizontal(lipgloss.Top, buttons...)
 	b.WriteString(centerHorizontally(m.width, row))
 }
 
-const footerHelp = "←/→ or h/l select · enter/j run · q/esc quit"
+// buttonsRowWidth measures the rendered buttons row so action sub-views can
+// align under [1] regardless of changes to button labels.
+func buttonsRowWidth() int {
+	buttons := make([]string, len(menuActions))
+	for i, a := range menuActions {
+		label := fmt.Sprintf("[%d] %s", i+1, a)
+		buttons[i] = menuButtonStyle.Render(label)
+	}
+	row := lipgloss.JoinHorizontal(lipgloss.Top, buttons...)
+	return lipgloss.Width(row)
+}
+
+// buttonContentLeftCol returns the terminal column where [1]'s leftmost char
+// renders: buttons row left edge plus the button style's left padding.
+func buttonContentLeftCol(termWidth int) int {
+	leftEdge := (termWidth - buttonsRowWidth()) / 2
+	if leftEdge < 0 {
+		leftEdge = 0
+	}
+	return leftEdge + menuButtonStyle.GetPaddingLeft()
+}
+
+const footerHelp = "←→/1-4 select · enter run · esc quit"
 
 // writeFooterAtBottom pads with blank lines so the footer sits on the last
-// terminal row. Falls back to one blank line when the content is too tall.
+// terminal row, aligned to the header column like the rest of the UI.
+// Falls back to one blank line when the content is too tall.
 func (m MenuModel) writeFooterAtBottom(b *strings.Builder) {
 	if m.phase != PhaseSelectAction || m.height == 0 {
 		return
 	}
-	footer := centerHorizontally(m.width, menuHelpStyle.Render(footerHelp))
+	footer := indentToFooter(m.width, menuHelpStyle.Render(footerHelp))
 	used := lipgloss.Height(b.String())
 	fh := lipgloss.Height(footer)
 	pad := m.height - used - fh
