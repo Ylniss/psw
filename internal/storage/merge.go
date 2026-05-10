@@ -158,15 +158,15 @@ func (m mergeSummary) printIfNonempty() {
 		}
 	}
 	if len(added) > 0 {
-		printWarn("Pulled %d new records from remote: %s", len(added), strings.Join(added, ", "))
+		Warn("Pulled %d new records from remote: %s", len(added), strings.Join(added, ", "))
 	}
 	if len(replaced) > 0 {
-		printWarn("Replaced %d records with newer version from remote: %s", len(replaced), strings.Join(replaced, ", "))
+		Warn("Replaced %d records with newer version from remote: %s", len(replaced), strings.Join(replaced, ", "))
 	}
 	if len(dropped) > 0 {
-		printWarn("Dropped %d records removed on remote: %s", len(dropped), strings.Join(dropped, ", "))
+		Warn("Dropped %d records removed on remote: %s", len(dropped), strings.Join(dropped, ", "))
 	}
 	if len(kept) > 0 {
-		printWarn("Kept %d local records (newer than remote): %s", len(kept), strings.Join(kept, ", "))
+		Warn("Kept %d local records (newer than remote): %s", len(kept), strings.Join(kept, ", "))
 	}
 }

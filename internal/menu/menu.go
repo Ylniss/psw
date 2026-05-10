@@ -11,38 +11,43 @@ import (
 	"github.com/ylniss/psw/internal/ui"
 )
 
-// Captured storage warnings. The bubbletea cmd goroutine writes via
-// appendWarning; the main loop reads via drainWarnings.
-var (
-	warnMu       sync.Mutex
-	warnCaptured []string
-)
-
-func appendWarning(s string) {
-	warnMu.Lock()
-	warnCaptured = append(warnCaptured, s)
-	warnMu.Unlock()
+// warnCollector funnels storage.Warn output into the menu transcript.
+// The bubbletea cmd goroutine writes via append; the main loop reads via drain.
+type warnCollector struct {
+	mu    sync.Mutex
+	lines []string
 }
 
-// drainWarnings returns and clears the captured warning slice.
-func drainWarnings() []string {
-	warnMu.Lock()
-	defer warnMu.Unlock()
-	out := warnCaptured
-	warnCaptured = nil
+func (c *warnCollector) append(s string) {
+	c.mu.Lock()
+	c.lines = append(c.lines, s)
+	c.mu.Unlock()
+}
+
+func (c *warnCollector) drain() []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	out := c.lines
+	c.lines = nil
 	return out
 }
+
+// warns is the active collector for the running menu session.
+// storage.WarnSink is a package-level hook by design (the storage package
+// can't depend on menu); the collector itself is reentrancy-safe but only
+// one menu Run() owns the sink at a time.
+var warns warnCollector
 
 // Run blocks until the user quits. Caller does the TTY check.
 func Run() error {
 	// The menu owns the screen; suppress nested spinners and route storage
 	// warnings into the transcript instead of leaking onto stderr.
 	ui.SpinnersQuiet = true
-	storage.WarnSink = appendWarning
+	storage.WarnSink = warns.append
 	defer func() {
 		ui.SpinnersQuiet = false
 		storage.WarnSink = nil
-		drainWarnings()
+		warns.drain()
 	}()
 	if _, err := tea.NewProgram(NewMenuModel()).Run(); err != nil {
 		return fmt.Errorf("menu: %w", err)

@@ -3,6 +3,7 @@ package menu
 import (
 	"fmt"
 	imgcolor "image/color"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -10,20 +11,29 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/ylniss/psw/internal/prompt"
-	"github.com/ylniss/psw/internal/storage"
 	"github.com/ylniss/psw/internal/tuiutil"
 	"github.com/ylniss/psw/internal/ui"
 )
 
-const (
-	logoFlashDuration = 250 * time.Millisecond
-	// blank line after header + buttons row + blank line after buttons.
-	extraChromeRows = 3
-)
+const logoFlashDuration = 250 * time.Millisecond
 
-// chromeHeight is rows used by header + buttons + spacing. Action sub-view
-// height = terminal height - chromeHeight.
-var chromeHeight = lipgloss.Height(renderHeader(defaultHeaderColor)) + extraChromeRows
+// chromeHeight is rows used by header + buttons + spacing in
+// menuPhaseRunningAction. Action sub-view height = terminal height - chromeHeight.
+// Computed by rendering the same chrome shape View() emits, so any layout
+// change there is reflected here without having to update a magic constant.
+var chromeHeight = lipgloss.Height(renderRunningChrome())
+
+// renderRunningChrome reproduces the header + spacers + buttons-row layout
+// that View() emits in menuPhaseRunningAction, with placeholder content. Kept in
+// the same file as View() so the two shapes stay in sync visually.
+func renderRunningChrome() string {
+	var b strings.Builder
+	b.WriteString(renderHeader(defaultHeaderColor))
+	b.WriteString("\n\n")
+	b.WriteString(menuButtonStyle.Render("[1] x"))
+	b.WriteString("\n\n")
+	return b.String()
+}
 
 var menuActions = []string{"get", "add", "change", "remove"}
 
@@ -34,17 +44,17 @@ var (
 	menuErrStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("203"))
 )
 
-type Phase int
+type menuPhase int
 
 const (
-	PhaseEnterPassword Phase = iota
-	PhaseValidatingPassword
-	PhaseSelectAction
-	PhaseRunningAction
+	menuPhaseEnterPassword menuPhase = iota
+	menuPhaseValidatingPassword
+	menuPhaseSelectAction
+	menuPhaseRunningAction
 )
 
 type MenuModel struct {
-	phase         Phase
+	phase         menuPhase
 	width, height int
 
 	// Password phase.
@@ -72,7 +82,7 @@ type MenuModel struct {
 
 func NewMenuModel() MenuModel {
 	return MenuModel{
-		phase:         PhaseEnterPassword,
+		phase:         menuPhaseEnterPassword,
 		passwordInput: prompt.NewInputModel("Main password", true, true),
 		stars:         prompt.NewStarState(),
 	}
@@ -85,7 +95,7 @@ func (m MenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		if m.phase == PhaseRunningAction && m.activeAction != nil {
+		if m.phase == menuPhaseRunningAction && m.activeAction != nil {
 			adj := tea.WindowSizeMsg{Width: msg.Width, Height: msg.Height - chromeHeight}
 			cmd := tuiutil.UpdateInPlace(&m.activeAction, adj)
 			return m, cmd
@@ -93,7 +103,7 @@ func (m MenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case prompt.StarTickMsg:
-		if m.phase != PhaseEnterPassword {
+		if m.phase != menuPhaseEnterPassword {
 			m.tickInFlight = false
 			return m, nil
 		}
@@ -110,24 +120,26 @@ func (m MenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.passwordError = msg.err.Error()
 			m.passwordInput.Reset()
 			m.password = ""
-			m.phase = PhaseEnterPassword
+			m.phase = menuPhaseEnterPassword
 			return m, m.passwordInput.Init()
 		}
 		m.passwordError = ""
-		m.phase = PhaseSelectAction
+		m.phase = menuPhaseSelectAction
 		return m, nil
 
 	case storageLoadedMsg, storageSavedMsg:
-		if m.phase == PhaseRunningAction && m.activeAction != nil {
+		if m.phase == menuPhaseRunningAction && m.activeAction != nil {
 			return m.routeToAction(msg)
 		}
+		// Late delivery: action already finished or never ran. Drop quietly.
+		slog.Debug("menu: dropping stale storage msg", "phase", m.phase, "msg", fmt.Sprintf("%T", msg))
 		return m, nil
 	}
 
 	switch m.phase {
-	case PhaseEnterPassword:
+	case menuPhaseEnterPassword:
 		return m.updateEnterPassword(msg)
-	case PhaseValidatingPassword:
+	case menuPhaseValidatingPassword:
 		if k, ok := msg.(tea.KeyPressMsg); ok {
 			switch k.String() {
 			case "ctrl+c", "esc":
@@ -136,9 +148,9 @@ func (m MenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		cmd := tuiutil.UpdateInPlace(&m.passwordSpinner, msg)
 		return m, cmd
-	case PhaseSelectAction:
+	case menuPhaseSelectAction:
 		return m.updateSelectAction(msg)
-	case PhaseRunningAction:
+	case menuPhaseRunningAction:
 		return m.routeToAction(msg)
 	}
 	return m, nil
@@ -176,7 +188,7 @@ func (m MenuModel) updateEnterPassword(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.password = m.passwordInput.Value()
 		m.passwordError = ""
 		m.passwordSpinner = ui.NewSpinnerModel("Decrypting")
-		m.phase = PhaseValidatingPassword
+		m.phase = menuPhaseValidatingPassword
 		return m, tea.Batch(validatePasswordCmd(m.password), m.passwordSpinner.Init())
 	}
 	tickCmd := m.scheduleHeaderTick()
@@ -224,13 +236,13 @@ func (m MenuModel) startAction(name string) (tea.Model, tea.Cmd) {
 		tuiutil.UpdateInPlace(&a, tea.WindowSizeMsg{Width: m.width, Height: m.height - chromeHeight})
 	}
 	m.activeAction = a
-	m.phase = PhaseRunningAction
+	m.phase = menuPhaseRunningAction
 	return m, init
 }
 
 func (m MenuModel) routeToAction(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if m.activeAction == nil {
-		m.phase = PhaseSelectAction
+		m.phase = menuPhaseSelectAction
 		return m, nil
 	}
 	cmd := tuiutil.UpdateInPlace(&m.activeAction, msg)
@@ -246,7 +258,7 @@ func (m MenuModel) routeToAction(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 	m.activeAction = nil
-	m.phase = PhaseSelectAction
+	m.phase = menuPhaseSelectAction
 	return m, cmd
 }
 
@@ -261,7 +273,7 @@ func (m MenuModel) View() tea.View {
 		b.WriteString("\n\n")
 	}
 	// Buttons hidden until the password is validated.
-	if m.phase != PhaseEnterPassword && m.phase != PhaseValidatingPassword {
+	if m.phase != menuPhaseEnterPassword && m.phase != menuPhaseValidatingPassword {
 		m.renderButtons(&b)
 		b.WriteString("\n\n")
 	}
@@ -271,7 +283,7 @@ func (m MenuModel) View() tea.View {
 	yBeforeSubView := strings.Count(b.String(), "\n")
 	actionIndent := 0
 	switch m.phase {
-	case PhaseEnterPassword:
+	case menuPhaseEnterPassword:
 		if m.passwordError != "" {
 			rendered := wrapToHeader(m.width, menuErrStyle.Render(m.passwordError))
 			b.WriteString(rendered)
@@ -279,26 +291,19 @@ func (m MenuModel) View() tea.View {
 			pwErrHeight = lipgloss.Height(rendered)
 		}
 		b.WriteString(indentToHeader(m.width, m.passwordInput.View().Content))
-	case PhaseValidatingPassword:
+	case menuPhaseValidatingPassword:
 		b.WriteString(indentToHeader(m.width, m.passwordSpinner.View().Content))
-	case PhaseSelectAction:
+	case menuPhaseSelectAction:
 		m.renderLastOutput(&b)
-	case PhaseRunningAction:
+	case menuPhaseRunningAction:
 		if m.activeAction != nil {
 			actionView = m.activeAction.View()
-			content := actionView.Content
-			var helpLine string
-			suffix := "\n\n" + storage.PickerHelpStyled()
-			if strings.HasSuffix(content, suffix) {
-				content = content[:len(content)-len(suffix)]
-				helpLine = menuHelpStyle.Render(storage.PickerHelp())
-			}
-			rendered, indent := alignBlock(m.width, buttonContentLeftCol(m.width), content)
+			rendered, indent := alignBlock(m.width, buttonContentLeftCol(m.width), actionView.Content)
 			b.WriteString(rendered)
 			actionIndent = indent
-			if helpLine != "" {
+			if help := m.activeAction.FooterHelp(); help != "" {
 				b.WriteString("\n\n")
-				b.WriteString(indentToFooter(m.width, helpLine))
+				b.WriteString(indentToFooter(m.width, menuHelpStyle.Render(help)))
 			}
 		}
 	}
@@ -312,14 +317,14 @@ func (m MenuModel) View() tea.View {
 		headerIndent = (m.width - pswHeaderWidth) / 2
 	}
 	switch m.phase {
-	case PhaseEnterPassword:
+	case menuPhaseEnterPassword:
 		if src := m.passwordInput.View().Cursor; src != nil {
 			c := *src
 			c.Position.X += headerIndent
 			c.Position.Y += yBeforeSubView + pwErrHeight
 			v.Cursor = &c
 		}
-	case PhaseRunningAction:
+	case menuPhaseRunningAction:
 		if src := actionView.Cursor; src != nil {
 			c := *src
 			c.Position.X += actionIndent
@@ -372,7 +377,7 @@ const footerHelp = "←→/1-4 select · enter run · esc quit"
 // terminal row, aligned to the header column like the rest of the UI.
 // Falls back to one blank line when the content is too tall.
 func (m MenuModel) writeFooterAtBottom(b *strings.Builder) {
-	if m.phase != PhaseSelectAction || m.height == 0 {
+	if m.phase != menuPhaseSelectAction || m.height == 0 {
 		return
 	}
 	footer := indentToFooter(m.width, menuHelpStyle.Render(footerHelp))

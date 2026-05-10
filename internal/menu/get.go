@@ -21,6 +21,8 @@ const (
 )
 
 type GetAction struct {
+	baseAction
+
 	phase    getPhase
 	password string
 
@@ -29,10 +31,6 @@ type GetAction struct {
 	store   *storage.Storage
 
 	width, height int
-
-	output    []string
-	done      bool
-	cancelled bool
 }
 
 func NewGetAction(password string) GetAction {
@@ -74,7 +72,7 @@ func (a GetAction) updateLoading(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.done = true
 			return a, nil
 		}
-		a.picker = storage.NewPickerModel(names, nil)
+		a.picker = storage.NewPickerModel(names, nil).WithoutHelp()
 		if a.width > 0 && a.height > 0 {
 			tuiutil.UpdateInPlace(&a.picker, tea.WindowSizeMsg{Width: a.width, Height: a.height})
 		}
@@ -86,16 +84,12 @@ func (a GetAction) updateLoading(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (a GetAction) updatePicking(msg tea.Msg) (tea.Model, tea.Cmd) {
-	cmd := tuiutil.UpdateInPlace(&a.picker, msg)
-	if a.picker.Cancelled() {
-		a.cancelled = true
-		return a, nil
+	sel, ok, cmd := a.stepPicker(&a.picker, msg)
+	if a.cancelled || !ok {
+		return a, cmd
 	}
-	if a.picker.Done() {
-		a.copyAndFinish(a.picker.Selection())
-		return a, nil
-	}
-	return a, cmd
+	a.copyAndFinish(sel)
+	return a, nil
 }
 
 func (a *GetAction) copyAndFinish(name string) {
@@ -142,8 +136,10 @@ func (a GetAction) View() tea.View {
 	return tea.NewView("")
 }
 
-func (a GetAction) Done() bool           { return a.done }
-func (a GetAction) Cancelled() bool      { return a.cancelled }
-func (a GetAction) Output() []string     { return a.output }
-func (a GetAction) NewPassword() string  { return "" }
-func (a GetAction) Transcript() []string { return nil }
+func (a GetAction) NewPassword() string { return "" }
+func (a GetAction) FooterHelp() string {
+	if a.phase == getPhasePicking {
+		return a.picker.Help()
+	}
+	return ""
+}

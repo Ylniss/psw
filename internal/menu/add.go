@@ -13,7 +13,6 @@ import (
 	"github.com/ylniss/psw/internal/ui"
 )
 
-
 type addPhase int
 
 const (
@@ -29,6 +28,8 @@ const (
 )
 
 type AddAction struct {
+	baseAction
+
 	phase    addPhase
 	password string
 
@@ -42,12 +43,7 @@ type AddAction struct {
 	username        string
 	pendingPassword string
 
-	banner     string
-	transcript []string
-
-	output    []string
-	done      bool
-	cancelled bool
+	banner string
 }
 
 func NewAddAction(password string) AddAction {
@@ -111,31 +107,20 @@ func (a AddAction) updateLoading(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (a AddAction) updateAskSingle(msg tea.Msg) (tea.Model, tea.Cmd) {
-	cmd := tuiutil.UpdateInPlace(&a.yesNo, msg)
-	if a.yesNo.Cancelled() {
-		a.cancelled = true
-		return a, nil
+	answer, ok, cmd := a.stepYesNo(&a.yesNo, msg)
+	if a.cancelled || !ok {
+		return a, cmd
 	}
-	if a.yesNo.Done() {
-		a.transcript = append(a.transcript, formatYesNoLine(a.yesNo))
-		a.isSingleValue = a.yesNo.Answer()
-		a.banner = ""
-		return a.toInput("Record name", false, false, addPhaseEnterName)
-	}
-	return a, cmd
+	a.isSingleValue = answer
+	a.banner = ""
+	return a.toInput("Record name", false, false, addPhaseEnterName)
 }
 
 func (a AddAction) updateEnterName(msg tea.Msg) (tea.Model, tea.Cmd) {
-	cmd := tuiutil.UpdateInPlace(&a.input, msg)
-	if a.input.Cancelled() {
-		a.cancelled = true
-		return a, nil
-	}
-	if !a.input.Done() {
+	name, ok, cmd := a.stepInput(&a.input, msg)
+	if a.cancelled || !ok {
 		return a, cmd
 	}
-	a.transcript = append(a.transcript, formatInputLine(a.input))
-	name := a.input.Value()
 	lower := strings.ToLower(name)
 	if lower == "main" || lower == "main-password" {
 		a.output = append(a.output, fmt.Sprintf("Name %s is reserved. %s command uses it for changing main password",
@@ -156,30 +141,20 @@ func (a AddAction) updateEnterName(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (a AddAction) updateEnterUsername(msg tea.Msg) (tea.Model, tea.Cmd) {
-	cmd := tuiutil.UpdateInPlace(&a.input, msg)
-	if a.input.Cancelled() {
-		a.cancelled = true
-		return a, nil
+	val, ok, cmd := a.stepInput(&a.input, msg)
+	if a.cancelled || !ok {
+		return a, cmd
 	}
-	if a.input.Done() {
-		a.transcript = append(a.transcript, formatInputLine(a.input))
-		a.username = a.input.Value()
-		return a.toYesNo("Auto-generate password?", addPhaseAskGenerate)
-	}
-	return a, cmd
+	a.username = val
+	return a.toYesNo("Auto-generate password?", addPhaseAskGenerate)
 }
 
 func (a AddAction) updateAskGenerate(msg tea.Msg) (tea.Model, tea.Cmd) {
-	cmd := tuiutil.UpdateInPlace(&a.yesNo, msg)
-	if a.yesNo.Cancelled() {
-		a.cancelled = true
-		return a, nil
-	}
-	if !a.yesNo.Done() {
+	answer, ok, cmd := a.stepYesNo(&a.yesNo, msg)
+	if a.cancelled || !ok {
 		return a, cmd
 	}
-	a.transcript = append(a.transcript, formatYesNoLine(a.yesNo))
-	if !a.yesNo.Answer() {
+	if !answer {
 		return a.toInput("Password", true, false, addPhaseEnterPassword)
 	}
 	generated, err := storage.GenerateRecordPassword()
@@ -193,30 +168,20 @@ func (a AddAction) updateAskGenerate(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (a AddAction) updateEnterPassword(msg tea.Msg) (tea.Model, tea.Cmd) {
-	cmd := tuiutil.UpdateInPlace(&a.input, msg)
-	if a.input.Cancelled() {
-		a.cancelled = true
-		return a, nil
+	val, ok, cmd := a.stepInput(&a.input, msg)
+	if a.cancelled || !ok {
+		return a, cmd
 	}
-	if a.input.Done() {
-		a.transcript = append(a.transcript, formatInputLine(a.input))
-		a.pendingPassword = a.input.Value()
-		return a.toInput("Repeat password", true, false, addPhaseEnterPasswordRepeat)
-	}
-	return a, cmd
+	a.pendingPassword = val
+	return a.toInput("Repeat password", true, false, addPhaseEnterPasswordRepeat)
 }
 
 func (a AddAction) updateEnterPasswordRepeat(msg tea.Msg) (tea.Model, tea.Cmd) {
-	cmd := tuiutil.UpdateInPlace(&a.input, msg)
-	if a.input.Cancelled() {
-		a.cancelled = true
-		return a, nil
-	}
-	if !a.input.Done() {
+	val, ok, cmd := a.stepInput(&a.input, msg)
+	if a.cancelled || !ok {
 		return a, cmd
 	}
-	a.transcript = append(a.transcript, formatInputLine(a.input))
-	if a.input.Value() != a.pendingPassword {
+	if val != a.pendingPassword {
 		a.banner = passwordMismatchBanner
 		a.pendingPassword = ""
 		return a.toInput("Password", true, false, addPhaseEnterPassword)
@@ -226,17 +191,12 @@ func (a AddAction) updateEnterPasswordRepeat(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (a AddAction) updateEnterValue(msg tea.Msg) (tea.Model, tea.Cmd) {
-	cmd := tuiutil.UpdateInPlace(&a.input, msg)
-	if a.input.Cancelled() {
-		a.cancelled = true
-		return a, nil
+	val, ok, cmd := a.stepInput(&a.input, msg)
+	if a.cancelled || !ok {
+		return a, cmd
 	}
-	if a.input.Done() {
-		a.transcript = append(a.transcript, formatInputLine(a.input))
-		a.store.AddRecord(&storage.Record{Name: a.recordName, Value: a.input.Value()})
-		return a.toSpinner("Saving", addPhaseSaving, saveCmd(a.store, "added new record"))
-	}
-	return a, cmd
+	a.store.AddRecord(&storage.Record{Name: a.recordName, Value: val})
+	return a.toSpinner("Saving", addPhaseSaving, saveCmd(a.store, "added new record"))
 }
 
 func (a AddAction) updateSaving(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -270,8 +230,5 @@ func (a AddAction) View() tea.View {
 	return tea.NewView("")
 }
 
-func (a AddAction) Done() bool             { return a.done }
-func (a AddAction) Cancelled() bool        { return a.cancelled }
-func (a AddAction) Output() []string       { return a.output }
-func (a AddAction) NewPassword() string    { return "" }
-func (a AddAction) Transcript() []string   { return a.transcript }
+func (a AddAction) NewPassword() string { return "" }
+func (a AddAction) FooterHelp() string  { return "" }

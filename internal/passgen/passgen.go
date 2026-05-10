@@ -115,50 +115,24 @@ func generateWithRepeat(o Options) (string, error) {
 }
 
 func generateNoRepeat(o Options) (string, error) {
-	digits, err := sampleNoRepeat(DigitPool, o.MinDigits)
-	if err != nil {
-		return "", err
-	}
-	symbols, err := sampleNoRepeat(SymbolPool, o.MinSymbols)
-	if err != nil {
-		return "", err
-	}
-	uppers, err := sampleNoRepeat(UpperPool, o.MinUppercase)
-	if err != nil {
-		return "", err
-	}
-	lowers, err := sampleNoRepeat(LowerPool, o.MinLowercase)
-	if err != nil {
-		return "", err
-	}
-
 	used := make(map[byte]bool, o.Length)
-	for _, b := range append(append(append(digits, symbols...), uppers...), lowers...) {
-		used[b] = true
-	}
-
-	full := DigitPool + SymbolPool + UpperPool + LowerPool
-	remainingPool := make([]byte, 0, len(full))
-	for i := 0; i < len(full); i++ {
-		if !used[full[i]] {
-			remainingPool = append(remainingPool, full[i])
-		}
-	}
-	remainingCount := o.Length - len(digits) - len(symbols) - len(uppers) - len(lowers)
-	if remainingCount > len(remainingPool) {
-		return "", errors.New("internal: remaining pool too small (validation should have caught this)")
-	}
-	remainder, err := sampleNoRepeatBytes(remainingPool, remainingCount)
-	if err != nil {
+	buf := make([]byte, 0, o.Length)
+	if err := pickDistinct(&buf, used, DigitPool, o.MinDigits); err != nil {
 		return "", err
 	}
-
-	buf := make([]byte, 0, o.Length)
-	buf = append(buf, digits...)
-	buf = append(buf, symbols...)
-	buf = append(buf, uppers...)
-	buf = append(buf, lowers...)
-	buf = append(buf, remainder...)
+	if err := pickDistinct(&buf, used, SymbolPool, o.MinSymbols); err != nil {
+		return "", err
+	}
+	if err := pickDistinct(&buf, used, UpperPool, o.MinUppercase); err != nil {
+		return "", err
+	}
+	if err := pickDistinct(&buf, used, LowerPool, o.MinLowercase); err != nil {
+		return "", err
+	}
+	remainder := o.Length - len(buf)
+	if err := pickDistinct(&buf, used, DigitPool+SymbolPool+UpperPool+LowerPool, remainder); err != nil {
+		return "", err
+	}
 	if err := shuffle(buf); err != nil {
 		return "", err
 	}
@@ -167,7 +141,7 @@ func generateNoRepeat(o Options) (string, error) {
 
 // appendN picks n random bytes from pool (with replacement) and appends them.
 func appendN(buf *[]byte, pool string, n int) error {
-	for i := 0; i < n; i++ {
+	for range n {
 		idx, err := randIndex(len(pool))
 		if err != nil {
 			return err
@@ -177,21 +151,33 @@ func appendN(buf *[]byte, pool string, n int) error {
 	return nil
 }
 
-// sampleNoRepeat returns n distinct random bytes from pool (without replacement).
-func sampleNoRepeat(pool string, n int) ([]byte, error) {
-	return sampleNoRepeatBytes([]byte(pool), n)
-}
-
-func sampleNoRepeatBytes(pool []byte, n int) ([]byte, error) {
+// pickDistinct appends n random bytes from pool that aren't already in `used`.
+// Bytes are added to both buf and used. Partial Fisher-Yates over the unused
+// candidates avoids shuffling the whole pool when n is small.
+func pickDistinct(buf *[]byte, used map[byte]bool, pool string, n int) error {
 	if n == 0 {
-		return nil, nil
+		return nil
 	}
-	cp := make([]byte, len(pool))
-	copy(cp, pool)
-	if err := shuffle(cp); err != nil {
-		return nil, err
+	avail := make([]byte, 0, len(pool))
+	for i := range len(pool) {
+		if !used[pool[i]] {
+			avail = append(avail, pool[i])
+		}
 	}
-	return cp[:n], nil
+	if n > len(avail) {
+		return errors.New("internal: pool too small for distinct picks (validation should have caught this)")
+	}
+	for i := range n {
+		j, err := randIndex(len(avail) - i)
+		if err != nil {
+			return err
+		}
+		j += i
+		avail[i], avail[j] = avail[j], avail[i]
+		used[avail[i]] = true
+		*buf = append(*buf, avail[i])
+	}
+	return nil
 }
 
 // shuffle Fisher-Yates the buffer in place using crypto/rand.

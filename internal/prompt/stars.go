@@ -2,7 +2,7 @@ package prompt
 
 import (
 	"image/color"
-	"math/rand"
+	"math/rand/v2"
 	"strings"
 	"time"
 
@@ -50,7 +50,8 @@ type StarState struct {
 }
 
 func NewStarState() StarState {
-	return StarState{rng: rand.New(rand.NewSource(time.Now().UnixNano()))}
+	now := uint64(time.Now().UnixNano())
+	return StarState{rng: rand.New(rand.NewPCG(now, now^0x9E3779B97F4A7C15))}
 }
 
 // pickDistinctIdx picks a uniformly random index in [0, paletteLen) that is
@@ -62,7 +63,7 @@ func (s *StarState) pickDistinctIdx(paletteLen, lastIdx int) int {
 		return 0
 	}
 	s.ensureRNG()
-	idx := s.rng.Intn(paletteLen - 1)
+	idx := s.rng.IntN(paletteLen - 1)
 	if idx >= lastIdx {
 		idx++
 	}
@@ -89,7 +90,7 @@ func (s *StarState) addWithColor(n int, c color.Color) {
 		return
 	}
 	until := time.Now().Add(starBlinkDuration)
-	for i := 0; i < n; i++ {
+	for range n {
 		s.stars = append(s.stars, star{flashColor: c, blinkUntil: until})
 	}
 }
@@ -146,8 +147,8 @@ func (s *StarState) ApplyKeystrokeAdd(deltaChars int) bool {
 	s.lastStarIdx = idx
 	c := starPalette[idx]
 	total := 0
-	for i := 0; i < deltaChars; i++ {
-		total += 1 + s.rng.Intn(2) // 1 or 2
+	for range deltaChars {
+		total += 1 + s.rng.IntN(2) // 1 or 2
 	}
 	s.addWithColor(total, c)
 	return true
@@ -184,7 +185,8 @@ func (s *StarState) RandomHeaderColor() color.Color {
 
 func (s *StarState) ensureRNG() {
 	if s.rng == nil {
-		s.rng = rand.New(rand.NewSource(time.Now().UnixNano()))
+		now := uint64(time.Now().UnixNano())
+		s.rng = rand.New(rand.NewPCG(now, now^0x9E3779B97F4A7C15))
 	}
 }
 

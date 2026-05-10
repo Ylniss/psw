@@ -73,7 +73,7 @@ func GitCommit(message string) error {
 	if errors.Is(err, ErrSigningRequired) {
 		if !gitOnPath() {
 			// Data is on disk; only the commit step is missing. Warn and continue, like push failures.
-			printWarn("commit signing requires git on PATH (commit.gpgsign=true is set); record saved but not committed")
+			Warn("commit signing requires git on PATH (commit.gpgsign=true is set); record saved but not committed")
 			return nil
 		}
 		if out, runErr := runGit("commit", "--message="+message); runErr != nil {

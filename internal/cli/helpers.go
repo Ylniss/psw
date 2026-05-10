@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/TwiN/go-color"
@@ -29,13 +30,8 @@ func resolveRecordName(store *storage.Storage, args []string, exact bool, extras
 			return "", errExit
 		}
 		name := args[0]
-		if store.Exists(name) {
+		if store.Exists(name) || slices.Contains(extras, name) {
 			return name, nil
-		}
-		for _, e := range extras {
-			if e == name {
-				return name, nil
-			}
 		}
 		fmt.Printf("Record %s was not found\n", color.InGreen(name))
 		return "", errExit

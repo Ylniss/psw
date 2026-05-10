@@ -111,8 +111,9 @@ type Action interface {
 	Output() []string
 	// NewPassword is the rotated main password, non-empty after `change main`.
 	NewPassword() string
-	// Transcript is intra-action prompt history, shown above the active sub-view.
-	Transcript() []string
+	// FooterHelp is the help line to render at the menu's bottom row;
+	// empty when the action's current sub-view doesn't want a footer.
+	FooterHelp() string
 }
 
 // newAction builds an Action by name and returns its initial Cmd.

@@ -89,10 +89,6 @@ func redactURL(u string) string {
 	return p.Redacted()
 }
 
-// printWarn delegates to Warn — kept as a thin wrapper so existing callers
-// across the package don't need to be updated when a host installs WarnSink.
-func printWarn(format string, args ...any) { Warn(format, args...) }
-
 // shouldFallbackToShell reports whether a go-git network error means we should retry via shell git: our own pre-call sentinel, go-git's transport sentinels, or the SSH "no supported methods" handshake error.
 func shouldFallbackToShell(err error) bool {
 	if errors.Is(err, ErrAuthRequiresHelper) {
@@ -178,12 +174,12 @@ func GitPush() {
 		return
 	}
 	if err := ensureGitRemote(); err != nil {
-		printWarn("git remote setup failed: %v", err)
+		Warn("git remote setup failed: %v", err)
 		return
 	}
 	branch, err := detectBranch()
 	if err != nil {
-		printWarn("git push: %v", err)
+		Warn("git push: %v", err)
 		return
 	}
 	err = ui.WithSpinner("Pushing to remote", func() error {
@@ -205,7 +201,7 @@ func GitPush() {
 	})
 	if err != nil {
 		slog.Debug("git push failed", "remote", redactURL(AppConfig.Remote), "branch", branch, "err", err)
-		printWarn("git push to %s failed: %v", redactURL(AppConfig.Remote), err)
+		Warn("git push to %s failed: %v", redactURL(AppConfig.Remote), err)
 		return
 	}
 	slog.Debug("git push ok", "remote", redactURL(AppConfig.Remote), "branch", branch)
@@ -232,7 +228,7 @@ func gitPushGoGit(ctx context.Context, branch string) error {
 	return err
 }
 
-// gitPullAndMerge fetches origin/<branch> and reconciles before mutation.
+// GitPullAndMerge fetches origin/<branch> and reconciles before mutation.
 // Worktree.Pull only handles fast-forward; the divergent case here decrypts
 // both sides and runs the 3-way smart merge.
 //
@@ -241,13 +237,13 @@ func gitPushGoGit(ctx context.Context, branch string) error {
 //	nil                  — success, no-op, or warning printed
 //	ErrForkUndecryptable — fork or remote can't decrypt with current password
 //	wrapped error        — unexpected git failure
-func gitPullAndMerge(mainPassword string) error {
+func GitPullAndMerge(mainPassword string) error {
 	if !shouldUseRemote() {
 		return nil
 	}
 
 	if err := GitFetch(); err != nil {
-		printWarn("%v (continuing with local state)", err)
+		Warn("%v (continuing with local state)", err)
 		return nil
 	}
 

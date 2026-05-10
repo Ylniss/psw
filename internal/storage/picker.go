@@ -22,14 +22,6 @@ const (
 	helpReservedLines = 2
 )
 
-// PickerHelpStyled returns the styled help line View() emits, so menu hosts
-// that want to re-position the help footer can detect and replace it.
-func PickerHelpStyled() string { return helpStyle.Render(pickerHelp) }
-
-// PickerHelp returns the plain help text for hosts to render with their own
-// styling (e.g. the menu footer style).
-func PickerHelp() string { return pickerHelp }
-
 var (
 	selectedColor     = lipgloss.Color("170")
 	extraColor        = lipgloss.Color("3") // ANSI yellow, matches color.InYellow
@@ -73,6 +65,7 @@ type PickerModel struct {
 	chosen    string
 	done      bool
 	cancelled bool
+	showHelp  bool
 }
 
 // NewPickerModel builds a PickerModel over names + extras. Extras render
@@ -99,14 +92,27 @@ func NewPickerModel(names, extras []string) PickerModel {
 	// would render a blank list (only the '/' key handler fills filteredItems).
 	l.SetFilterText("")
 	l.SetFilterState(list.Filtering)
-	return PickerModel{list: l}
+	return PickerModel{list: l, showHelp: true}
 }
+
+// WithoutHelp disables the in-view help footer. Use when the host renders
+// its own footer (e.g. menu mode anchors help to the bottom row).
+func (m PickerModel) WithoutHelp() PickerModel {
+	m.showHelp = false
+	return m
+}
+
+// Help returns the plain (unstyled) help text. Hosts that suppressed the
+// in-view footer via WithoutHelp can render this with their own styling.
+func (m PickerModel) Help() string { return pickerHelp }
 
 func (m PickerModel) Init() tea.Cmd { return nil }
 
 func (m PickerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
+		// Always reserve 2 lines below the list — either picker's own help
+		// (showHelp=true) or the host's external footer (showHelp=false).
 		m.list.SetSize(msg.Width, msg.Height-helpReservedLines)
 	case tea.KeyPressMsg:
 		switch msg.String() {
@@ -144,15 +150,18 @@ func (m PickerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m PickerModel) View() tea.View {
 	content := ""
 	if !m.done && !m.cancelled {
-		content = m.list.View() + "\n\n" + helpStyle.Render(pickerHelp)
+		content = m.list.View()
+		if m.showHelp {
+			content += "\n\n" + helpStyle.Render(pickerHelp)
+		}
 	}
 	v := tea.NewView(content)
 	v.AltScreen = true
 	return v
 }
 
-func (m PickerModel) Done() bool       { return m.done }
-func (m PickerModel) Cancelled() bool  { return m.cancelled }
+func (m PickerModel) Done() bool        { return m.done }
+func (m PickerModel) Cancelled() bool   { return m.cancelled }
 func (m PickerModel) Selection() string { return m.chosen }
 
 // One item across names+extras → return it without launching the TUI.

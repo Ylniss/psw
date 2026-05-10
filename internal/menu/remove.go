@@ -1,7 +1,6 @@
 package menu
 
 import (
-	"errors"
 	"fmt"
 
 	tea "charm.land/bubbletea/v2"
@@ -21,6 +20,8 @@ const (
 )
 
 type RemoveAction struct {
+	baseAction
+
 	phase    removePhase
 	password string
 
@@ -30,12 +31,6 @@ type RemoveAction struct {
 	recordName string
 
 	width, height int
-
-	transcript []string
-
-	output    []string
-	done      bool
-	cancelled bool
 }
 
 func NewRemoveAction(password string) RemoveAction {
@@ -89,7 +84,7 @@ func (a RemoveAction) updateLoading(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.done = true
 			return a, nil
 		}
-		a.picker = storage.NewPickerModel(names, nil)
+		a.picker = storage.NewPickerModel(names, nil).WithoutHelp()
 		if a.width > 0 && a.height > 0 {
 			tuiutil.UpdateInPlace(&a.picker, tea.WindowSizeMsg{Width: a.width, Height: a.height})
 		}
@@ -101,19 +96,15 @@ func (a RemoveAction) updateLoading(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (a RemoveAction) updatePicking(msg tea.Msg) (tea.Model, tea.Cmd) {
-	cmd := tuiutil.UpdateInPlace(&a.picker, msg)
-	if a.picker.Cancelled() {
-		a.cancelled = true
-		return a, nil
+	sel, ok, cmd := a.stepPicker(&a.picker, msg)
+	if a.cancelled || !ok {
+		return a, cmd
 	}
-	if a.picker.Done() {
-		a.recordName = a.picker.Selection()
-		a.store.RemoveRecord(a.recordName)
-		a.spinner = ui.NewSpinnerModel("Saving")
-		a.phase = removePhaseSaving
-		return a, tea.Batch(saveCmd(a.store, "record removed"), a.spinner.Init())
-	}
-	return a, cmd
+	a.recordName = sel
+	a.store.RemoveRecord(a.recordName)
+	a.spinner = ui.NewSpinnerModel("Saving")
+	a.phase = removePhaseSaving
+	return a, tea.Batch(saveCmd(a.store, "record removed"), a.spinner.Init())
 }
 
 func (a RemoveAction) updateSaving(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -141,16 +132,10 @@ func (a RemoveAction) View() tea.View {
 	return tea.NewView("")
 }
 
-func (a RemoveAction) Done() bool           { return a.done }
-func (a RemoveAction) Cancelled() bool      { return a.cancelled }
-func (a RemoveAction) Output() []string     { return a.output }
-func (a RemoveAction) NewPassword() string  { return "" }
-func (a RemoveAction) Transcript() []string { return a.transcript }
-
-// humanizeLoadError swaps fork-undecryptable for its user-facing banner.
-func humanizeLoadError(err error) string {
-	if errors.Is(err, storage.ErrForkUndecryptable) {
-		return storage.ForkUndecryptableUserMessage
+func (a RemoveAction) NewPassword() string { return "" }
+func (a RemoveAction) FooterHelp() string {
+	if a.phase == removePhasePicking {
+		return a.picker.Help()
 	}
-	return err.Error()
+	return ""
 }

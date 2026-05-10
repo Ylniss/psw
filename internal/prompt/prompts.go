@@ -239,10 +239,10 @@ func (m YesNoModel) View() tea.View {
 	return tea.NewView(fmt.Sprintf("%s (y/n)", m.question))
 }
 
-func (m YesNoModel) Done() bool        { return m.done }
-func (m YesNoModel) Cancelled() bool   { return m.cancelled }
-func (m YesNoModel) Answer() bool      { return m.answer }
-func (m YesNoModel) Question() string  { return m.question }
+func (m YesNoModel) Done() bool       { return m.done }
+func (m YesNoModel) Cancelled() bool  { return m.cancelled }
+func (m YesNoModel) Answer() bool     { return m.answer }
+func (m YesNoModel) Question() string { return m.question }
 
 // YesOrNo returns false on Esc/Ctrl-C or non-TTY stdin (keeps scripts unblocked).
 func YesOrNo(question string) bool {

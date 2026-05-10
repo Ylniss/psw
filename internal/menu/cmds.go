@@ -1,10 +1,20 @@
 package menu
 
 import (
+	"errors"
+
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/ylniss/psw/internal/storage"
 )
+
+// humanizeLoadError swaps fork-undecryptable for its user-facing banner.
+func humanizeLoadError(err error) string {
+	if errors.Is(err, storage.ErrForkUndecryptable) {
+		return storage.ForkUndecryptableUserMessage
+	}
+	return err.Error()
+}
 
 // loadCmd decrypts storage. pull=true also fetches and merges from remote.
 func loadCmd(password string, pull bool) tea.Cmd {
@@ -18,9 +28,9 @@ func loadCmd(password string, pull bool) tea.Cmd {
 // during the pull (timeout fallback, merge summary lines).
 func pullCmd(password string) tea.Cmd {
 	return func() tea.Msg {
-		drainWarnings() // discard noise from before this run
+		warns.drain() // discard noise from before this run
 		err := storage.GitPullAndMerge(password)
-		return pullDoneMsg{err: err, warnings: drainWarnings()}
+		return pullDoneMsg{err: err, warnings: warns.drain()}
 	}
 }
 

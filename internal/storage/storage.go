@@ -126,10 +126,6 @@ func (s *Storage) Save() error {
 	return EncryptStringToStorage(storageJson, s.MainPassword)
 }
 
-// GitPullAndMerge fetches origin/<branch>, reconciles, and updates local
-// storage. Exposed so callers can split pull from decrypt for honest progress.
-func GitPullAndMerge(mainPassword string) error { return gitPullAndMerge(mainPassword) }
-
 // GetOrCreateForRead loads storage without network access.
 // Used by `psw`, `psw get`, `psw log`.
 func GetOrCreateForRead() (*Storage, error) { return getOrCreate(false) }
@@ -154,7 +150,7 @@ func getOrCreate(pull bool) (*Storage, error) {
 		}
 	}
 	if pull {
-		if err := gitPullAndMerge(mainPassword); err != nil {
+		if err := GitPullAndMerge(mainPassword); err != nil {
 			return nil, err
 		}
 	}
@@ -178,7 +174,7 @@ func LoadOrCreate(password string, pull bool) (*Storage, error) {
 		return nil, err
 	}
 	if pull {
-		if err := gitPullAndMerge(password); err != nil {
+		if err := GitPullAndMerge(password); err != nil {
 			return nil, err
 		}
 	}
