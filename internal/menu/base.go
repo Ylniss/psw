@@ -124,3 +124,21 @@ func (b *baseAction) stepPicker(p *storage.PickerModel, msg tea.Msg) (selection 
 	}
 	return "", false, cmd
 }
+
+// stepPickerMulti drives a multi-mode PickerModel. Returns ResolvedSelections
+// on done; appends one transcript line per returned name.
+func (b *baseAction) stepPickerMulti(p *storage.PickerModel, msg tea.Msg) (selections []string, ready bool, cmd tea.Cmd) {
+	cmd = tuiutil.UpdateInPlace(p, msg)
+	if p.Cancelled() {
+		b.cancelled = true
+		return nil, false, nil
+	}
+	if p.Done() {
+		sels := p.ResolvedSelections()
+		for _, s := range sels {
+			b.transcript = append(b.transcript, "> "+s)
+		}
+		return sels, true, nil
+	}
+	return nil, false, cmd
+}

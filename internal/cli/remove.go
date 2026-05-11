@@ -15,40 +15,39 @@ func init() {
 }
 
 var removeCmd = &cobra.Command{
-	Use: `remove [name] [flags]
+	Use: `remove [name...] [flags]
 
 Arguments:
-  name    Optional name of the record to remove. If omitted, you'll be prompted to provide it`,
-	Short: "Remove chosen record",
-	Long:  `Remove chosen record, all its data will be lost permanently`,
-	Args:  cobra.MaximumNArgs(1),
+  name    Optional record name(s). With --exact, every listed name must match an existing record. Without --exact, an interactive picker opens; one substring filter argument is allowed.`,
+	Short: "Remove chosen records",
+	Long:  `Remove chosen records, all their data will be lost permanently`,
+	Args:  cobra.ArbitraryArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		store, err := storage.GetOrCreateForMutate()
 		if done, ret := handleCmdErr(err); done {
 			return ret
 		}
 
-		recordName, err := resolveRecordName(store, args, removeExactFlag, nil)
+		names, err := resolveRecordNames(store, args, removeExactFlag)
 		if done, ret := handleCmdErr(err); done {
 			return ret
 		}
-		if recordName == "" {
+		if len(names) == 0 {
 			return nil
 		}
 
-		if !store.Exists(recordName) {
-			fmt.Printf("Record with name %s doesn't exist\n", color.InGreen(recordName))
-			return nil
+		for _, n := range names {
+			store.RemoveRecord(n)
 		}
-
-		store.RemoveRecord(recordName)
 
 		if done, ret := handleCmdErr(store.Save()); done {
 			return ret
 		}
 
-		fmt.Printf("Record %s successfully removed\n", color.InGreen(recordName))
-		storage.GitCommit("record removed")
+		for _, n := range names {
+			fmt.Printf("Record %s successfully removed\n", color.InGreen(n))
+		}
+		storage.GitCommit(storage.RemoveCommitMessage(len(names)))
 		return nil
 	},
 }

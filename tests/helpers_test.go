@@ -99,6 +99,13 @@ func mustContain(t *testing.T, haystack, needle string) {
 	}
 }
 
+func mustNotContain(t *testing.T, haystack, needle string) {
+	t.Helper()
+	if strings.Contains(haystack, needle) {
+		t.Fatalf("expected to NOT contain %q\ngot: %s", needle, haystack)
+	}
+}
+
 func mustEqual(t *testing.T, got, want string) {
 	t.Helper()
 	if got != want {

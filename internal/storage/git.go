@@ -57,6 +57,14 @@ func initGitRepoIfNotExists() error {
 	return GitCommit("initial main password set")
 }
 
+// RemoveCommitMessage returns the git commit subject for removing n records.
+func RemoveCommitMessage(n int) string {
+	if n == 1 {
+		return "record removed"
+	}
+	return fmt.Sprintf("removed %d records", n)
+}
+
 // GitCommit stages storage.psw + pswcfg.toml, commits, then best-effort
 // pushes. Errors are printed via Warn and returned for tests; CLI/menu
 // paths can ignore the return.
