@@ -15,8 +15,8 @@ import (
 // Picker visual / behavior knobs.
 const (
 	pickerTitle     = "Select a record"
-	pickerHelp      = "↑/↓ or ctrl+n/p navigate · enter select\nesc cancel · type to filter"
-	pickerMultiHelp = "↑/↓ navigate · space toggle · enter confirm\nesc cancel · type to filter"
+	pickerHelp      = "↑/↓ or ctrl+n/p or tab/shift+tab navigate · enter select\nesc cancel · type to filter"
+	pickerMultiHelp = "↑/↓ or tab/shift+tab navigate · space toggle · enter confirm\nesc cancel · type to filter"
 	selectedPrefix  = "> "
 	itemPaddingLeft = 2
 	// Height reserved for the blank line + footer below the list.
@@ -45,9 +45,9 @@ func (i pickerItem) FilterValue() string { return string(i) }
 // toggled map is shared by reference with PickerModel — Render sees toggle
 // changes without a SetDelegate call.
 type pickerDelegate struct {
-	extras  map[string]bool
-	multi   bool
-	toggled map[string]bool
+	highlighted map[string]bool
+	multi       bool
+	toggled     map[string]bool
 }
 
 func (pickerDelegate) Height() int                             { return 1 }
@@ -65,7 +65,7 @@ func (d pickerDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 			return
 		}
 		style := itemStyle
-		if d.extras[name] {
+		if d.highlighted[name] {
 			style = extraStyle
 		}
 		fmt.Fprint(w, style.Render(marker+name))
@@ -76,7 +76,7 @@ func (d pickerDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 		return
 	}
 	style := itemStyle
-	if d.extras[name] {
+	if d.highlighted[name] {
 		style = extraStyle
 	}
 	fmt.Fprint(w, style.Render(name))
@@ -96,25 +96,26 @@ type PickerModel struct {
 	toggled    map[string]bool
 }
 
-// NewPickerModel builds a single-select PickerModel over names + extras.
-// Extras render yellow when unselected; selected items stay purple+bold.
-func NewPickerModel(names, extras []string) PickerModel {
-	extrasSet := make(map[string]bool, len(extras))
-	for _, e := range extras {
-		extrasSet[e] = true
+// NewPickerModel builds a single-select PickerModel over names plus optional
+// highlightedNames. Highlighted names render yellow when unselected; selected
+// items stay purple+bold.
+func NewPickerModel(names, highlightedNames []string) PickerModel {
+	highlightedSet := make(map[string]bool, len(highlightedNames))
+	for _, n := range highlightedNames {
+		highlightedSet[n] = true
 	}
-	items := make([]list.Item, 0, len(names)+len(extras))
+	items := make([]list.Item, 0, len(names)+len(highlightedNames))
 	for _, n := range names {
 		items = append(items, pickerItem(n))
 	}
-	for _, e := range extras {
-		items = append(items, pickerItem(e))
+	for _, n := range highlightedNames {
+		items = append(items, pickerItem(n))
 	}
-	return PickerModel{list: newPickerList(items, pickerDelegate{extras: extrasSet}), showHelp: true}
+	return PickerModel{list: newPickerList(items, pickerDelegate{highlighted: highlightedSet}), showHelp: true}
 }
 
-// NewPickerModelMulti builds a multi-select PickerModel. No extras —
-// main-password (the one extras caller) stays single-select.
+// NewPickerModelMulti builds a multi-select PickerModel. No highlighted names —
+// main-password (the only caller that highlights) stays single-select.
 func NewPickerModelMulti(names []string) PickerModel {
 	toggled := map[string]bool{}
 	items := make([]list.Item, 0, len(names))
@@ -201,11 +202,11 @@ func (m PickerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				return m, nil
 			}
-		case "up", "ctrl+p":
-			// bubbles/list disables arrow-nav while filtering; call directly. Also wires ctrl+n/p.
+		case "up", "ctrl+p", "shift+tab":
+			// bubbles/list disables arrow-nav while filtering; call directly.
 			m.list.CursorUp()
 			return m, nil
-		case "down", "ctrl+n":
+		case "down", "ctrl+n", "tab":
 			m.list.CursorDown()
 			return m, nil
 		}
@@ -264,10 +265,10 @@ func (m PickerModel) ResolvedSelections() []string {
 	return []string{m.chosen}
 }
 
-// One item across names+extras → return it without launching the TUI.
+// One item across names+highlightedNames → return it without launching the TUI.
 // Empty → ("", nil).
-func GetRecordNameInteractive(names, extras []string) (string, error) {
-	total := len(names) + len(extras)
+func GetRecordNameInteractive(names, highlightedNames []string) (string, error) {
+	total := len(names) + len(highlightedNames)
 	if total == 0 {
 		return "", nil
 	}
@@ -275,10 +276,10 @@ func GetRecordNameInteractive(names, extras []string) (string, error) {
 		if len(names) == 1 {
 			return names[0], nil
 		}
-		return extras[0], nil
+		return highlightedNames[0], nil
 	}
 
-	final, err := tea.NewProgram(tuiutil.QuittingWrapper[PickerModel]{M: NewPickerModel(names, extras)}).Run()
+	final, err := tea.NewProgram(tuiutil.QuittingWrapper[PickerModel]{M: NewPickerModel(names, highlightedNames)}).Run()
 	if err != nil {
 		return "", fmt.Errorf("interactive picker failed: %w", err)
 	}

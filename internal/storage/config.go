@@ -34,9 +34,9 @@ var Paths = StorageConfig{
 func (StorageConfig) ConfigFilePath() string { return Paths.configFilePath }
 
 type Config struct {
-	ClipboardTimeout int         `toml:"clipboard_timeout"`
-	Remote           string      `toml:"remote"`
-	PasswordGen      PasswordGen `toml:"password_gen"`
+	ClipboardTimeoutSeconds int         `toml:"clipboard_timeout"`
+	Remote                  string      `toml:"remote"`
+	PasswordGen             PasswordGen `toml:"password_gen"`
 }
 
 // PasswordGen mirrors the [password_gen] section. Pointer fields distinguish
@@ -245,71 +245,92 @@ type ConfigKey struct {
 }
 
 // ConfigKeys drives both `psw config set` and the menu settings grid.
-var ConfigKeys = []ConfigKey{
-	{
-		Name: "clipboard_timeout", Kind: "int",
-		Description: "Seconds before clipclean wipes a copied secret from the clipboard.",
-		Apply: func(c *Config, s string) error {
-			n, err := parseInt(s, "clipboard_timeout")
-			if err != nil {
-				return err
-			}
-			c.ClipboardTimeout = n
-			return nil
+var ConfigKeys = buildConfigKeys()
+
+func buildConfigKeys() []ConfigKey {
+	defaults := passgen.DefaultOptions()
+	return []ConfigKey{
+		{
+			Name: "clipboard_timeout", Kind: "int",
+			Description: "Seconds before clipclean wipes a copied secret from the clipboard.",
+			Apply: func(c *Config, s string) error {
+				n, err := parseInt(s, "clipboard_timeout")
+				if err != nil {
+					return err
+				}
+				c.ClipboardTimeoutSeconds = n
+				return nil
+			},
+			Current: func(c *Config) string { return strconv.Itoa(c.ClipboardTimeoutSeconds) },
+			Adjust:  func(c *Config, d int) { c.ClipboardTimeoutSeconds = clamp0(c.ClipboardTimeoutSeconds + d) },
 		},
-		Current: func(c *Config) string { return strconv.Itoa(c.ClipboardTimeout) },
-		Adjust:  func(c *Config, d int) { c.ClipboardTimeout = clamp0(c.ClipboardTimeout + d) },
-	},
-	{
-		Name: "remote", Kind: "string",
-		Description: "Git remote URL for cross-device sync. Empty disables sync.",
-		Apply:       func(c *Config, s string) error { c.Remote = s; return nil },
-		Current:     func(c *Config) string { return c.Remote },
-	},
-	passgenIntKey("length", "Total length of auto-generated passwords.",
-		func(p *PasswordGen) **int { return &p.Length },
-		func(o passgen.Options) int { return o.Length }),
-	passgenIntKey("min_digits", "Minimum digits (0-9) in generated passwords.",
-		func(p *PasswordGen) **int { return &p.MinDigits },
-		func(o passgen.Options) int { return o.MinDigits }),
-	passgenIntKey("min_symbols", "Minimum symbols (!@#$%^&*()-_=+[]{}<>?,./) in generated passwords.",
-		func(p *PasswordGen) **int { return &p.MinSymbols },
-		func(o passgen.Options) int { return o.MinSymbols }),
-	passgenIntKey("min_uppercase", "Minimum uppercase letters (A-Z) in generated passwords.",
-		func(p *PasswordGen) **int { return &p.MinUppercase },
-		func(o passgen.Options) int { return o.MinUppercase }),
-	passgenIntKey("min_lowercase", "Minimum lowercase letters (a-z) in generated passwords.",
-		func(p *PasswordGen) **int { return &p.MinLowercase },
-		func(o passgen.Options) int { return o.MinLowercase }),
-	{
-		Name: "allow_repeat", Kind: "bool",
-		Description: "Whether a character may appear more than once in a generated password.",
-		Apply:       func(c *Config, s string) error { return applyBoolPtr(s, "allow_repeat", &c.PasswordGen.AllowRepeat) },
-		Current: func(c *Config) string {
-			return passgenBoolCurrent(c.PasswordGen.AllowRepeat, c.PasswordGen.Resolve().AllowRepeat)
+		{
+			Name: "remote", Kind: "string",
+			Description: "Git remote URL for cross-device sync. Empty disables sync.",
+			Apply:       func(c *Config, s string) error { c.Remote = s; return nil },
+			Current:     func(c *Config) string { return c.Remote },
 		},
-		Display: func(c *Config) string {
-			return passgenBoolDisplay(c.PasswordGen.AllowRepeat, c.PasswordGen.Resolve().AllowRepeat)
-		},
-	},
+		passgenIntKey("length", "Total length of auto-generated passwords.",
+			func(p *PasswordGen) **int { return &p.Length }, defaults.Length),
+		passgenIntKey("min_digits", "Minimum digits (0-9) in generated passwords.",
+			func(p *PasswordGen) **int { return &p.MinDigits }, defaults.MinDigits),
+		passgenIntKey("min_symbols", "Minimum symbols (!@#$%^&*()-_=+[]{}<>?,./) in generated passwords.",
+			func(p *PasswordGen) **int { return &p.MinSymbols }, defaults.MinSymbols),
+		passgenIntKey("min_uppercase", "Minimum uppercase letters (A-Z) in generated passwords.",
+			func(p *PasswordGen) **int { return &p.MinUppercase }, defaults.MinUppercase),
+		passgenIntKey("min_lowercase", "Minimum lowercase letters (a-z) in generated passwords.",
+			func(p *PasswordGen) **int { return &p.MinLowercase }, defaults.MinLowercase),
+		passgenBoolKey("allow_repeat", "Whether a character may appear more than once in a generated password.",
+			func(p *PasswordGen) **bool { return &p.AllowRepeat }, defaults.AllowRepeat),
+	}
 }
 
 // passgenIntKey builds a ConfigKey for one [password_gen] int-pointer field.
-// fieldPtr is the storage slot; resolvedVal reads the same field after
-// Resolve fills defaults.
-func passgenIntKey(name, desc string, fieldPtr func(*PasswordGen) **int, resolvedVal func(passgen.Options) int) ConfigKey {
+// fieldSlot returns the storage slot; defaultValue is the package default,
+// captured once at init.
+func passgenIntKey(name, desc string, fieldSlot func(*PasswordGen) **int, defaultValue int) ConfigKey {
 	return ConfigKey{
 		Name: name, Kind: "int", Description: desc,
-		Apply: func(c *Config, s string) error { return applyIntPtr(s, name, fieldPtr(&c.PasswordGen)) },
+		Apply: func(c *Config, s string) error {
+			return applyIntPtr(s, name, fieldSlot(&c.PasswordGen))
+		},
 		Current: func(c *Config) string {
-			return passgenIntCurrent(*fieldPtr(&c.PasswordGen), resolvedVal(c.PasswordGen.Resolve()))
+			return intAsString(*fieldSlot(&c.PasswordGen), defaultValue)
 		},
 		Display: func(c *Config) string {
-			return passgenIntDisplay(*fieldPtr(&c.PasswordGen), resolvedVal(c.PasswordGen.Resolve()))
+			return intAsStringWithDefaultTag(*fieldSlot(&c.PasswordGen), defaultValue)
 		},
-		Adjust: func(c *Config, d int) {
-			v := clamp0(resolvedVal(c.PasswordGen.Resolve()) + d)
-			*fieldPtr(&c.PasswordGen) = &v
+		Adjust: func(c *Config, delta int) {
+			current := defaultValue
+			if existing := *fieldSlot(&c.PasswordGen); existing != nil {
+				current = *existing
+			}
+			next := clamp0(current + delta)
+			*fieldSlot(&c.PasswordGen) = &next
+		},
+	}
+}
+
+// passgenBoolKey is passgenIntKey for bool fields. h/l both flip the value.
+func passgenBoolKey(name, desc string, fieldSlot func(*PasswordGen) **bool, defaultValue bool) ConfigKey {
+	return ConfigKey{
+		Name: name, Kind: "bool", Description: desc,
+		Apply: func(c *Config, s string) error {
+			return applyBoolPtr(s, name, fieldSlot(&c.PasswordGen))
+		},
+		Current: func(c *Config) string {
+			return boolAsString(*fieldSlot(&c.PasswordGen), defaultValue)
+		},
+		Display: func(c *Config) string {
+			return boolAsStringWithDefaultTag(*fieldSlot(&c.PasswordGen), defaultValue)
+		},
+		Adjust: func(c *Config, _ int) {
+			current := defaultValue
+			if existing := *fieldSlot(&c.PasswordGen); existing != nil {
+				current = *existing
+			}
+			flipped := !current
+			*fieldSlot(&c.PasswordGen) = &flipped
 		},
 	}
 }
@@ -396,34 +417,42 @@ func applyBoolPtr(s, name string, dst **bool) error {
 	return nil
 }
 
-// passgenIntCurrent returns the raw value, falling back to the resolved
-// default. Round-trips through Apply.
-func passgenIntCurrent(p *int, fallback int) string {
-	if p == nil {
-		return strconv.Itoa(fallback)
+// intAsString returns the value as a string. configured is the toml-loaded
+// pointer (nil = key absent); falls back to defaultValue.
+func intAsString(configured *int, defaultValue int) string {
+	if configured == nil {
+		return strconv.Itoa(defaultValue)
 	}
-	return strconv.Itoa(*p)
+	return strconv.Itoa(*configured)
 }
 
-// passgenIntDisplay adds "(default)" when the pointer is nil; raw value
-// otherwise.
-func passgenIntDisplay(p *int, fallback int) string {
-	if p == nil {
-		return fmt.Sprintf("%d (default)", fallback)
+// intAsStringWithDefaultTag is intAsString plus a "(default)" suffix when
+// the resolved value equals defaultValue.
+func intAsStringWithDefaultTag(configured *int, defaultValue int) string {
+	value := defaultValue
+	if configured != nil {
+		value = *configured
 	}
-	return strconv.Itoa(*p)
+	if value == defaultValue {
+		return fmt.Sprintf("%d (default)", defaultValue)
+	}
+	return strconv.Itoa(value)
 }
 
-func passgenBoolCurrent(p *bool, fallback bool) string {
-	if p == nil {
-		return strconv.FormatBool(fallback)
+func boolAsString(configured *bool, defaultValue bool) string {
+	if configured == nil {
+		return strconv.FormatBool(defaultValue)
 	}
-	return strconv.FormatBool(*p)
+	return strconv.FormatBool(*configured)
 }
 
-func passgenBoolDisplay(p *bool, fallback bool) string {
-	if p == nil {
-		return fmt.Sprintf("%v (default)", fallback)
+func boolAsStringWithDefaultTag(configured *bool, defaultValue bool) string {
+	value := defaultValue
+	if configured != nil {
+		value = *configured
 	}
-	return strconv.FormatBool(*p)
+	if value == defaultValue {
+		return fmt.Sprintf("%v (default)", defaultValue)
+	}
+	return strconv.FormatBool(value)
 }

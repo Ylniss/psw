@@ -35,7 +35,7 @@ Arguments:
 		if done, ret := handleCmdErr(err); done {
 			return ret
 		}
-		clipDuration := storage.AppConfig.ClipboardTimeout
+		clipboardTimeoutSeconds := storage.AppConfig.ClipboardTimeoutSeconds
 
 		recordName, err := resolveRecordName(store, args, getExactFlag, nil)
 		if done, ret := handleCmdErr(err); done {
@@ -72,16 +72,16 @@ Arguments:
 			fmt.Println("Username")
 			fmt.Println(color.InYellow(record.Username))
 			fmt.Println()
-			printSecret("Password", record.Password, revealFlag, clipDuration)
+			printSecret("Password", recordName, record.Password, revealFlag, clipboardTimeoutSeconds)
 		} else {
 			if err := clipboard.WriteAll(record.Value); err != nil {
 				fmt.Printf("Failed to copy value to clipboard: %s\n", err)
 				return nil
 			}
-			printSecret("Value", record.Value, revealFlag, clipDuration)
+			printSecret("Value", recordName, record.Value, revealFlag, clipboardTimeoutSeconds)
 		}
 
-		if err := clipclean.Spawn(clipDuration); err != nil {
+		if err := clipclean.Spawn(clipboardTimeoutSeconds); err != nil {
 			fmt.Printf("clipclean error: %s\n", err)
 			return nil
 		}
@@ -89,11 +89,13 @@ Arguments:
 	},
 }
 
-func printSecret(label, secret string, reveal bool, clipDuration int) {
+func printSecret(label, recordName, secret string, reveal bool, clipboardTimeoutSeconds int) {
 	if reveal {
 		fmt.Println(color.InYellow(secret))
 		return
 	}
-	msg := fmt.Sprintf("%s copied to the clipboard, it will be cleared in %d seconds", label, clipDuration)
-	fmt.Println(color.InYellow(msg))
+	// Yellow each segment — InCyan's trailing reset would kill an outer yellow wrap.
+	fmt.Println(color.InYellow(label+" for ") +
+		color.InCyan(recordName) +
+		color.InYellow(fmt.Sprintf(" copied to the clipboard, it will be cleared in %d seconds", clipboardTimeoutSeconds)))
 }

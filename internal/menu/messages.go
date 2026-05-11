@@ -31,3 +31,5 @@ type rollbackAppliedMsg struct {
 type configSavedMsg struct {
 	err error
 }
+
+type countdownTickMsg struct{}

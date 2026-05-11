@@ -187,11 +187,11 @@ func (m MenuModel) updateSelectAction(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if c, ok := actionNeighbor(m.actionCursor, dirRight); ok {
 			m.actionCursor = c
 		}
-	case "up", "k":
+	case "up", "k", "shift+tab":
 		if c, ok := actionNeighbor(m.actionCursor, dirUp); ok {
 			m.actionCursor = c
 		}
-	case "down", "j":
+	case "down", "j", "tab":
 		if c, ok := actionNeighbor(m.actionCursor, dirDown); ok {
 			m.actionCursor = c
 		}
@@ -231,9 +231,7 @@ func (m MenuModel) routeToAction(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 	if m.activeAction.Done() {
-		if out := strings.Join(m.activeAction.Output(), "\n"); out != "" {
-			m.lastOutput = out
-		}
+		m.lastOutput = strings.Join(m.activeAction.Output(), "\n")
 		if pw := m.activeAction.NewPassword(); pw != "" {
 			m.password = pw
 		}
@@ -315,12 +313,16 @@ func (m MenuModel) View() tea.View {
 func (m MenuModel) renderButtons(b *strings.Builder) {
 	rendered := make([]string, len(menuActions))
 	widths := make([]int, len(menuActions))
+	unselectedStyle := menuButtonStyle
+	if m.phase == menuPhaseRunningAction {
+		unselectedStyle = menuButtonStyleFaint
+	}
 	for i, a := range menuActions {
 		label := fmt.Sprintf("[%d] %s", i+1, a)
 		if i == m.actionCursor {
 			rendered[i] = menuSelectStyle.Render(buttonPrefixSelected + label)
 		} else {
-			rendered[i] = menuButtonStyle.Render(buttonPrefixBlank + label)
+			rendered[i] = unselectedStyle.Render(buttonPrefixBlank + label)
 		}
 		widths[i] = lipgloss.Width(rendered[i])
 	}

@@ -26,6 +26,7 @@ var (
 	settingsValueStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
 	settingsSelectedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("170")).Bold(true)
 	settingsDescStyle     = lipgloss.NewStyle().Italic(true).Faint(true)
+	settingsDotsStyle     = lipgloss.NewStyle().Faint(true)
 )
 
 type SettingsAction struct {
@@ -82,11 +83,11 @@ func (a SettingsAction) updateGrid(msg tea.Msg) (tea.Model, tea.Cmd) {
 		spinnerCmd := a.initSpinner("Saving")
 		a.phase = settingsPhaseSaving
 		return a, tea.Batch(saveConfigCmd(), spinnerCmd)
-	case "up", "k":
+	case "up", "k", "shift+tab":
 		if a.cursor > 0 {
 			a.cursor--
 		}
-	case "down", "j":
+	case "down", "j", "tab":
 		if a.cursor < len(storage.ConfigKeys)-1 {
 			a.cursor++
 		}
@@ -194,16 +195,20 @@ func (a SettingsAction) renderGrid() string {
 			prefix = "> "
 		}
 		gap := rowWidth - lipgloss.Width(prefix) - lipgloss.Width(name) - lipgloss.Width(value)
-		if gap < 2 {
-			gap = 2
+		if gap < 4 {
+			gap = 4
 		}
-		gapStr := strings.Repeat(" ", gap)
+		dots := strings.Repeat(".", gap-2)
 
 		var line string
 		if i == a.cursor {
-			line = settingsSelectedStyle.Render(prefix + name + gapStr + value)
+			line = settingsSelectedStyle.Render(prefix+name+" ") +
+				settingsDotsStyle.Render(dots) +
+				settingsSelectedStyle.Render(" "+value)
 		} else {
-			line = prefix + name + gapStr + settingsValueStyle.Render(value)
+			line = prefix + name + " " +
+				settingsDotsStyle.Render(dots) +
+				" " + settingsValueStyle.Render(value)
 		}
 		b.WriteString(line)
 		if i < len(storage.ConfigKeys)-1 {
@@ -226,7 +231,7 @@ func (a SettingsAction) NewPassword() string { return "" }
 func (a SettingsAction) FooterHelp() string {
 	switch a.phase {
 	case settingsPhaseGrid:
-		return "↑/↓ or k/j navigate · ←/→ or h/l ±1\nenter edit · esc save & exit"
+		return "↑/↓ or k/j or tab/shift+tab navigate · ←/→ or h/l ±1\nenter edit · esc save & exit"
 	case settingsPhaseEditing:
 		return "enter accept · esc back to grid"
 	}

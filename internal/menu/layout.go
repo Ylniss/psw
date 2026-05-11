@@ -148,10 +148,11 @@ func actionNeighbor(idx int, dir navDir) (int, bool) {
 // would push the visible right edge 2 cells short of the content column.
 // Gaps in renderButtons separate buttons instead.
 var (
-	menuButtonStyle = lipgloss.NewStyle()
-	menuSelectStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("170")).Bold(true)
-	menuHelpStyle   = lipgloss.NewStyle().Faint(true)
-	menuErrStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("203"))
+	menuButtonStyle      = lipgloss.NewStyle()
+	menuButtonStyleFaint = lipgloss.NewStyle().Faint(true)
+	menuSelectStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("170")).Bold(true)
+	menuHelpStyle        = lipgloss.NewStyle().Faint(true)
+	menuErrStyle         = lipgloss.NewStyle().Foreground(lipgloss.Color("203"))
 )
 
 // 2-cell indicator slot at the left of every button. Both prefixes are the
@@ -162,7 +163,7 @@ const (
 	buttonPrefixWidth    = 2
 )
 
-const footerHelp = "←→/hjkl/1-6 select · enter run · esc/q quit"
+const footerHelp = "←→/hjkl/tab nav · 1-6 jump · enter run · esc/q quit"
 
 // actionFrameHeight = row count of header + spacers + button rows.
 // Computed from renderActionFrame so it tracks layout changes.

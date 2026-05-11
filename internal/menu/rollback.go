@@ -29,7 +29,7 @@ type RollbackAction struct {
 
 	store   *storage.Storage
 	picker  storage.PickerModel
-	labelToEntry map[string]storage.LogEntry
+	entryByLabel map[string]storage.LogEntry
 	target  storage.LogEntry
 	records []storage.Record
 
@@ -96,11 +96,11 @@ func (a RollbackAction) updateLoading(msg tea.Msg) (tea.Model, tea.Cmd) {
 	slices.Reverse(picks)
 
 	labels := make([]string, len(picks))
-	a.labelToEntry = make(map[string]storage.LogEntry, len(picks))
+	a.entryByLabel = make(map[string]storage.LogEntry, len(picks))
 	for i, e := range picks {
 		label := fmt.Sprintf("%s  %s  %s", e.ShortSHA, e.Time.Format("2006-01-02 15:04"), e.Message)
 		labels[i] = label
-		a.labelToEntry[label] = e
+		a.entryByLabel[label] = e
 	}
 	a.picker = storage.NewPickerModel(labels, nil).WithoutHelp()
 	if a.width > 0 && a.height > 0 {
@@ -115,7 +115,7 @@ func (a RollbackAction) updatePicking(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if a.cancelled || !ok {
 		return a, cmd
 	}
-	entry, found := a.labelToEntry[sel]
+	entry, found := a.entryByLabel[sel]
 	if !found {
 		a.finish(color.InRed(fmt.Sprintf("internal: picker returned unrecognized label %q", sel)))
 		return a, nil
