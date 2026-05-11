@@ -131,6 +131,12 @@ func newAction(name, password string) (Action, tea.Cmd) {
 	case "remove":
 		a := NewRemoveAction(password)
 		return a, a.Init()
+	case "settings":
+		a := NewSettingsAction()
+		return a, a.Init()
+	case "rollback":
+		a := NewRollbackAction(password)
+		return a, a.Init()
 	}
 	return nil, nil
 }

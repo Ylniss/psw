@@ -15,8 +15,8 @@ import (
 // Picker visual / behavior knobs.
 const (
 	pickerTitle     = "Select a record"
-	pickerHelp      = "↑/↓ or ctrl+n/p navigate · enter select · esc cancel · type to filter"
-	pickerMultiHelp = "↑/↓ navigate · space toggle · enter confirm · esc cancel · type to filter"
+	pickerHelp      = "↑/↓ or ctrl+n/p navigate · enter select\nesc cancel · type to filter"
+	pickerMultiHelp = "↑/↓ navigate · space toggle · enter confirm\nesc cancel · type to filter"
 	selectedPrefix  = "> "
 	itemPaddingLeft = 2
 	// Height reserved for the blank line + footer below the list.

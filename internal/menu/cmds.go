@@ -61,3 +61,18 @@ func saveCmd(s *storage.Storage, commitMsg string) tea.Cmd {
 		return storageSavedMsg{}
 	}
 }
+
+// applyRollbackCmd runs storage.ApplyRollback (which owns the commit subject).
+func applyRollbackCmd(s *storage.Storage, target storage.LogEntry, records []storage.Record) tea.Cmd {
+	return func() tea.Msg {
+		return rollbackAppliedMsg{err: storage.ApplyRollback(s, target, records)}
+	}
+}
+
+// saveConfigCmd runs storage.WriteAndCommitConfig("config updated").
+// Shared with `psw config set`.
+func saveConfigCmd() tea.Cmd {
+	return func() tea.Msg {
+		return configSavedMsg{err: storage.WriteAndCommitConfig("config updated")}
+	}
+}

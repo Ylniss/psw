@@ -71,8 +71,7 @@ func (a RemoveAction) updateLoading(msg tea.Msg) (tea.Model, tea.Cmd) {
 	a.store = store
 	names := store.GetNames()
 	if len(names) == 0 {
-		a.output = append(a.output, "No records to remove.")
-		a.done = true
+		a.finish("No records to remove.")
 		return a, nil
 	}
 	a.picker = storage.NewPickerModelMulti(names).WithoutHelp()
@@ -138,12 +137,10 @@ func (a RemoveAction) bounceToPicker() (tea.Model, tea.Cmd) {
 func (a RemoveAction) updateSaving(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if m, ok := msg.(storageSavedMsg); ok {
 		if m.err != nil {
-			a.output = append(a.output, color.InRed(m.err.Error()))
-			a.done = true
+			a.finishErr(m.err)
 			return a, nil
 		}
-		a.output = append(a.output, removedSuccessLine(a.chosenNames))
-		a.done = true
+		a.finish(removedSuccessLine(a.chosenNames))
 		return a, nil
 	}
 	cmd := tuiutil.UpdateInPlace(&a.spinner, msg)

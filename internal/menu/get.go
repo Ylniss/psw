@@ -64,8 +64,7 @@ func (a GetAction) updateLoading(msg tea.Msg) (tea.Model, tea.Cmd) {
 	a.store = store
 	names := store.GetNames()
 	if len(names) == 0 {
-		a.output = append(a.output, fmt.Sprintf("No secrets found. Use %s command first.", color.InCyan("add")))
-		a.done = true
+		a.finish(fmt.Sprintf("No secrets found. Use %s command first.", color.InCyan("add")))
 		return a, nil
 	}
 	a.picker = storage.NewPickerModel(names, nil).WithoutHelp()
@@ -88,15 +87,13 @@ func (a GetAction) updatePicking(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (a *GetAction) copyAndFinish(name string) {
 	record, ok := a.store.GetRecord(name)
 	if !ok {
-		a.output = append(a.output, fmt.Sprintf("Record %s was not found", color.InGreen(name)))
-		a.done = true
+		a.finish(fmt.Sprintf("Record %s was not found", color.InGreen(name)))
 		return
 	}
 	clipDuration := storage.AppConfig.ClipboardTimeout
 	if record.Value == "" {
 		if err := clipboard.WriteAll(record.Password); err != nil {
-			a.output = append(a.output, fmt.Sprintf("Failed to copy value to clipboard: %s", err))
-			a.done = true
+			a.finish(fmt.Sprintf("Failed to copy value to clipboard: %s", err))
 			return
 		}
 		a.output = append(a.output,
@@ -107,8 +104,7 @@ func (a *GetAction) copyAndFinish(name string) {
 		)
 	} else {
 		if err := clipboard.WriteAll(record.Value); err != nil {
-			a.output = append(a.output, fmt.Sprintf("Failed to copy value to clipboard: %s", err))
-			a.done = true
+			a.finish(fmt.Sprintf("Failed to copy value to clipboard: %s", err))
 			return
 		}
 		a.output = append(a.output, color.InYellow(fmt.Sprintf("Value copied to the clipboard, it will be cleared in %d seconds", clipDuration)))

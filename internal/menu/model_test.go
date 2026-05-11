@@ -50,22 +50,35 @@ func TestMenuModel_PasswordPhaseEscQuits(t *testing.T) {
 	}
 }
 
-func TestMenuModel_SelectActionLKeyAdvancesCursor(t *testing.T) {
+func TestMenuModel_SelectActionLKeyMovesRight(t *testing.T) {
+	// In the column-major 3x2 grid, 'l' from get (0,0) jumps to change (0,1)
+	// — index 2 in menuActions.
 	m := NewMenuModel()
 	m.phase = menuPhaseSelectAction
 	m = updateMenu(m, tea.KeyPressMsg{Code: 'l', Text: "l"})
-	if m.actionCursor != 1 {
-		t.Fatalf("expected cursor 1 after 'l', got %d", m.actionCursor)
+	if m.actionCursor != 2 {
+		t.Fatalf("expected cursor 2 (change) after 'l' from get, got %d", m.actionCursor)
 	}
 }
 
-func TestMenuModel_SelectActionHKeyDecrementsCursor(t *testing.T) {
+func TestMenuModel_SelectActionHKeyMovesLeft(t *testing.T) {
+	// 'h' from change (0,1) jumps to get (0,0).
 	m := NewMenuModel()
 	m.phase = menuPhaseSelectAction
 	m.actionCursor = 2
 	m = updateMenu(m, tea.KeyPressMsg{Code: 'h', Text: "h"})
+	if m.actionCursor != 0 {
+		t.Fatalf("expected cursor 0 (get) after 'h' from change, got %d", m.actionCursor)
+	}
+}
+
+func TestMenuModel_SelectActionJKeyMovesDown(t *testing.T) {
+	// 'j' from get (0,0) drops to add (1,0).
+	m := NewMenuModel()
+	m.phase = menuPhaseSelectAction
+	m = updateMenu(m, tea.KeyPressMsg{Code: 'j', Text: "j"})
 	if m.actionCursor != 1 {
-		t.Fatalf("expected cursor 1 after 'h', got %d", m.actionCursor)
+		t.Fatalf("expected cursor 1 (add) after 'j' from get, got %d", m.actionCursor)
 	}
 }
 

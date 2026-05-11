@@ -21,3 +21,13 @@ type pullDoneMsg struct {
 	err      error
 	warnings []string
 }
+
+// rollbackAppliedMsg signals storage.ApplyRollback returned.
+type rollbackAppliedMsg struct {
+	err error
+}
+
+// configSavedMsg signals WriteAndCommitConfig returned.
+type configSavedMsg struct {
+	err error
+}
