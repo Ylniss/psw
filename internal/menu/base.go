@@ -10,9 +10,8 @@ import (
 	"github.com/ylniss/psw/internal/ui"
 )
 
-// baseAction is embedded by every concrete Action. It holds output/done/
-// cancelled state plus the input/yesNo/spinner sub-models managed by the
-// initX helpers below.
+// baseAction is embedded by every Action. Holds output/done/cancelled state
+// and the input/yesNo/spinner sub-models managed by initX helpers.
 type baseAction struct {
 	output     []string
 	transcript []string
@@ -33,6 +32,18 @@ func (b baseAction) Done() bool       { return b.done }
 func (b baseAction) Cancelled() bool  { return b.cancelled }
 func (b baseAction) Output() []string { return b.output }
 
+// finishErr appends a red error line and marks the action done.
+func (b *baseAction) finishErr(err error) {
+	b.output = append(b.output, color.InRed(err.Error()))
+	b.done = true
+}
+
+// finish appends a pre-styled line and marks the action done.
+func (b *baseAction) finish(line string) {
+	b.output = append(b.output, line)
+	b.done = true
+}
+
 func (b *baseAction) initInput(label string, password, animate bool) tea.Cmd {
 	b.input = prompt.NewInputModel(label, password, animate)
 	return b.input.Init()
@@ -45,8 +56,8 @@ func (b *baseAction) initYesNo(question string) tea.Cmd {
 	return nil
 }
 
-// initYesNoWithHint is initYesNo plus a styled secondary line rendered below
-// the (y/n) prompt. Caller owns the hint's coloring.
+// initYesNoWithHint is initYesNo with a hint line below the (y/n) prompt.
+// Caller styles the hint.
 func (b *baseAction) initYesNoWithHint(question, hint string) tea.Cmd {
 	b.yesNo = prompt.NewYesNoModel(question).WithHint(hint)
 	return nil
@@ -87,8 +98,8 @@ func (b *baseAction) handleLoadingMsg(msg tea.Msg, password string) (store *stor
 	return nil, false, tuiutil.UpdateInPlace(&b.spinner, msg)
 }
 
-// stepInput drives an InputModel sub-step. Sets b.cancelled on cancel; on
-// done appends to the transcript and returns the value.
+// stepInput drives an InputModel sub-step. Cancel sets b.cancelled; done
+// appends to transcript and returns the value.
 func (b *baseAction) stepInput(input *prompt.InputModel, msg tea.Msg) (value string, ready bool, cmd tea.Cmd) {
 	cmd = tuiutil.UpdateInPlace(input, msg)
 	if input.Cancelled() {
@@ -116,8 +127,7 @@ func (b *baseAction) stepYesNo(yn *prompt.YesNoModel, msg tea.Msg) (answer bool,
 	return false, false, cmd
 }
 
-// stepPicker is the PickerModel counterpart of stepInput. Records the
-// selection in the transcript with a "> " marker.
+// stepPicker is stepInput for a PickerModel. Transcript gets "> <selection>".
 func (b *baseAction) stepPicker(p *storage.PickerModel, msg tea.Msg) (selection string, ready bool, cmd tea.Cmd) {
 	cmd = tuiutil.UpdateInPlace(p, msg)
 	if p.Cancelled() {
@@ -132,8 +142,8 @@ func (b *baseAction) stepPicker(p *storage.PickerModel, msg tea.Msg) (selection 
 	return "", false, cmd
 }
 
-// stepPickerMulti drives a multi-mode PickerModel. Returns ResolvedSelections
-// on done; appends one transcript line per returned name.
+// stepPickerMulti is stepPicker for multi-select. Returns ResolvedSelections;
+// transcript gets one line per name.
 func (b *baseAction) stepPickerMulti(p *storage.PickerModel, msg tea.Msg) (selections []string, ready bool, cmd tea.Cmd) {
 	cmd = tuiutil.UpdateInPlace(p, msg)
 	if p.Cancelled() {

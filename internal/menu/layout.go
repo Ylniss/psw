@@ -1,7 +1,6 @@
 package menu
 
 import (
-	"fmt"
 	imgcolor "image/color"
 	"strings"
 
@@ -23,34 +22,160 @@ const pswHeader = `
 // pswHeaderWidth is the widest line; header hides below this terminal width.
 var pswHeaderWidth = lipgloss.Width(pswHeader)
 
-// headerPaddingX widens the effective header column on each side. Footer
-// content is centered within (pswHeaderWidth + 2*headerPaddingX); set so the
-// picker help line (≈71 cells) fits without wrapping at typical widths.
-const headerPaddingX = 18
+// contentPaddingX is the side margin around the header.
+// Body-content column = pswHeaderWidth + 2*contentPaddingX.
+// Sized so picker help (~71 cells) fits without wrapping.
+const contentPaddingX = 8
+
+// contentColumnWidth caps the layout column to the terminal width so narrow
+// terminals don't overflow.
+func contentColumnWidth(termWidth int) int {
+	w := pswHeaderWidth + 2*contentPaddingX
+	if termWidth > 0 && termWidth < w {
+		return termWidth
+	}
+	return w
+}
+
+// contentColumnLeft is the terminal column where the body-content column starts.
+func contentColumnLeft(termWidth int) int {
+	left := (termWidth - contentColumnWidth(termWidth)) / 2
+	if left < 0 {
+		return 0
+	}
+	return left
+}
 
 var defaultHeaderColor = lipgloss.Color("6")
 
-var menuActions = []string{"get", "add", "change", "remove"}
+// menuActions is the ordered list of buttons. Index maps directly to:
+//   - the [N] hotkey (1-based)
+//   - the cell in menuCells (same index)
+//   - the dispatch name in newAction
+// Keep the three in sync when adding entries.
+var menuActions = []string{"get", "add", "change", "remove", "settings", "rollback"}
 
-var (
-	menuButtonStyle = lipgloss.NewStyle().Padding(0, 2)
-	menuSelectStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("170")).Bold(true).Padding(0, 2)
-	menuHelpStyle   = lipgloss.NewStyle().Faint(true)
-	menuErrStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("203"))
+// menuCells lays out the actions in a column-major 3x2 grid:
+//
+//	[1] get      [3] change    [5] settings
+//	[2] add      [4] remove    [6] rollback
+var menuCells = [...]struct{ row, col int }{
+	{0, 0}, // [1] get
+	{1, 0}, // [2] add
+	{0, 1}, // [3] change
+	{1, 1}, // [4] remove
+	{0, 2}, // [5] settings
+	{1, 2}, // [6] rollback
+}
+
+const menuGridCols = 3
+const menuGridRows = 2
+
+// menuCellLookup[row][col] = menuActions index, or -1 if empty.
+// Inverse of menuCells, built at init.
+var menuCellLookup = func() [menuGridRows][menuGridCols]int {
+	var m [menuGridRows][menuGridCols]int
+	for r := 0; r < menuGridRows; r++ {
+		for c := 0; c < menuGridCols; c++ {
+			m[r][c] = -1
+		}
+	}
+	for i, cell := range menuCells {
+		m[cell.row][cell.col] = i
+	}
+	return m
+}()
+
+type navDir int
+
+const (
+	dirLeft navDir = iota
+	dirRight
+	dirUp
+	dirDown
 )
 
-const footerHelp = "←→/1-4 select · enter run · esc/q quit"
+// actionNeighbor returns the next menuActions index in dir from idx, or
+// (idx, false) if none. Horizontal stays in row, vertical in column.
+func actionNeighbor(idx int, dir navDir) (int, bool) {
+	r, c := menuCells[idx].row, menuCells[idx].col
+	switch dir {
+	case dirLeft:
+		best := -1
+		for i, cell := range menuCells {
+			if cell.row == r && cell.col < c && (best < 0 || cell.col > menuCells[best].col) {
+				best = i
+			}
+		}
+		if best >= 0 {
+			return best, true
+		}
+	case dirRight:
+		best := -1
+		for i, cell := range menuCells {
+			if cell.row == r && cell.col > c && (best < 0 || cell.col < menuCells[best].col) {
+				best = i
+			}
+		}
+		if best >= 0 {
+			return best, true
+		}
+	case dirUp:
+		best := -1
+		for i, cell := range menuCells {
+			if cell.col == c && cell.row < r && (best < 0 || cell.row > menuCells[best].row) {
+				best = i
+			}
+		}
+		if best >= 0 {
+			return best, true
+		}
+	case dirDown:
+		best := -1
+		for i, cell := range menuCells {
+			if cell.col == c && cell.row > r && (best < 0 || cell.row < menuCells[best].row) {
+				best = i
+			}
+		}
+		if best >= 0 {
+			return best, true
+		}
+	}
+	return idx, false
+}
 
-// actionFrameHeight is the rows above an action sub-view (header + spacers
-// + buttons row). Computed from the same shape View() emits so it tracks
-// layout changes automatically.
+// No PaddingRight on button styles: trailing pad on the rightmost button
+// would push the visible right edge 2 cells short of the content column.
+// Gaps in renderButtons separate buttons instead.
+var (
+	menuButtonStyle      = lipgloss.NewStyle()
+	menuButtonStyleFaint = lipgloss.NewStyle().Faint(true)
+	menuSelectStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("170")).Bold(true)
+	menuHelpStyle        = lipgloss.NewStyle().Faint(true)
+	menuErrStyle         = lipgloss.NewStyle().Foreground(lipgloss.Color("203"))
+)
+
+// 2-cell indicator slot at the left of every button. Both prefixes are the
+// same width so selection doesn't shift cells.
+const (
+	buttonPrefixSelected = "> "
+	buttonPrefixBlank    = "  "
+	buttonPrefixWidth    = 2
+)
+
+const footerHelp = "←→/hjkl/tab nav · 1-6 jump · enter run · esc/q quit"
+
+// actionFrameHeight = row count of header + spacers + button rows.
+// Computed from renderActionFrame so it tracks layout changes.
 var actionFrameHeight = lipgloss.Height(renderActionFrame())
 
 func renderActionFrame() string {
 	var b strings.Builder
 	b.WriteString(renderHeader(defaultHeaderColor))
 	b.WriteString("\n\n")
-	b.WriteString(menuButtonStyle.Render("[1] x"))
+	b.WriteString(menuButtonStyle.Render(buttonPrefixBlank + "[1] x"))
+	b.WriteString("\n")
+	b.WriteString(menuButtonStyle.Render(buttonPrefixBlank + "[2] y"))
 	b.WriteString("\n\n")
 	return b.String()
 }
@@ -59,24 +184,60 @@ func renderHeader(c imgcolor.Color) string {
 	return lipgloss.NewStyle().Foreground(c).Render(pswHeader)
 }
 
-func indentToHeader(termWidth int, content string) string {
-	if termWidth <= pswHeaderWidth {
+// indentToContent indents content to contentColumnLeft.
+// No wrap; use for short single-line content.
+func indentToContent(termWidth int, content string) string {
+	if termWidth == 0 {
 		return content
 	}
-	indent := (termWidth - pswHeaderWidth) / 2
-	return lipgloss.NewStyle().MarginLeft(indent).Render(content)
+	return lipgloss.NewStyle().MarginLeft(contentColumnLeft(termWidth)).Render(content)
 }
 
-// wrapToHeader indents and wraps to the header column.
+// wrapToContent indents and wraps content to the body-content column.
+func wrapToContent(termWidth int, content string) string {
+	if termWidth == 0 {
+		return content
+	}
+	return lipgloss.NewStyle().
+		Width(contentColumnWidth(termWidth)).
+		MarginLeft(contentColumnLeft(termWidth)).
+		Render(content)
+}
+
+// headerColumnLeft is the column where the header starts.
+// Password-phase content aligns flush with the header, not the wider body
+// column.
+func headerColumnLeft(termWidth int) int {
+	if termWidth <= pswHeaderWidth {
+		return 0
+	}
+	return (termWidth - pswHeaderWidth) / 2
+}
+
+// indentToHeader indents content to the header's left edge (no wrap).
+func indentToHeader(termWidth int, content string) string {
+	if termWidth == 0 {
+		return content
+	}
+	return lipgloss.NewStyle().MarginLeft(headerColumnLeft(termWidth)).Render(content)
+}
+
+// wrapToHeader wraps and indents content to the header column.
 func wrapToHeader(termWidth int, content string) string {
+	if termWidth == 0 {
+		return content
+	}
 	if termWidth <= pswHeaderWidth {
 		return lipgloss.NewStyle().Width(termWidth).Render(content)
 	}
-	indent := (termWidth - pswHeaderWidth) / 2
-	return lipgloss.NewStyle().Width(pswHeaderWidth).MarginLeft(indent).Render(content)
+	return lipgloss.NewStyle().
+		Width(pswHeaderWidth).
+		MarginLeft(headerColumnLeft(termWidth)).
+		Render(content)
 }
 
-// centerHorizontally returns content as-is at width 0 (terminal size unknown).
+// centerHorizontally centers content in width. Returns content unchanged
+// at width 0.
 func centerHorizontally(width int, content string) string {
 	if width == 0 {
 		return content
@@ -84,8 +245,7 @@ func centerHorizontally(width int, content string) string {
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center, content)
 }
 
-// indentToFooter centers footer content within (pswHeaderWidth + 2*headerPaddingX),
-// capped to termWidth so narrow terminals stay centered.
+// indentToFooter centers footer content within the body-content column.
 func indentToFooter(termWidth int, content string) string {
 	if termWidth == 0 {
 		return content
@@ -94,23 +254,17 @@ func indentToFooter(termWidth int, content string) string {
 	if termWidth <= contentWidth {
 		return content
 	}
-	column := pswHeaderWidth + 2*headerPaddingX
-	if column > termWidth {
-		column = termWidth
-	}
-	columnLeft := (termWidth - column) / 2
+	column := contentColumnWidth(termWidth)
 	extra := (column - contentWidth) / 2
 	if extra < 0 {
 		extra = 0
 	}
-	return lipgloss.NewStyle().MarginLeft(columnLeft + extra).Render(content)
+	return lipgloss.NewStyle().MarginLeft(contentColumnLeft(termWidth) + extra).Render(content)
 }
 
-// alignBlock left-margins content so its first non-space char lands at
-// targetCol. Backs out any leading padding the content brings (bubbles/list
-// items have 2 cells of left padding; bare prompts and spinners have none
-// — both should align under [1]). Trims trailing spaces from each line
-// because bubbles/list pads to its full width.
+// alignBlock indents content so its first non-space char lands at targetCol.
+// Backs out content's own leading padding (bubbles/list items have 2; bare
+// prompts have 0). Trims trailing spaces (bubbles/list pads to full width).
 func alignBlock(termWidth, targetCol int, content string) (string, int) {
 	trimmed := trimTrailingPerLine(content)
 	if termWidth == 0 || termWidth <= targetCol {
@@ -131,11 +285,10 @@ func trimTrailingPerLine(s string) string {
 	return strings.Join(lines, "\n")
 }
 
-// minLeadingSpaces returns the smallest count of leading space characters
-// across non-blank lines. Used to back out content's own left padding when
-// aligning to a target column.
+// minLeadingSpaces returns the smallest leading-space count across non-blank
+// lines.
 func minLeadingSpaces(content string) int {
-	min := -1
+	best := -1
 	for _, l := range strings.Split(content, "\n") {
 		if strings.TrimSpace(l) == "" {
 			continue
@@ -147,34 +300,13 @@ func minLeadingSpaces(content string) int {
 			}
 			n++
 		}
-		if min == -1 || n < min {
-			min = n
+		if best == -1 || n < best {
+			best = n
 		}
 	}
-	if min < 0 {
+	if best < 0 {
 		return 0
 	}
-	return min
+	return best
 }
 
-// buttonsRowWidth measures the rendered buttons row so action sub-views can
-// align under [1] regardless of changes to button labels.
-func buttonsRowWidth() int {
-	buttons := make([]string, len(menuActions))
-	for i, a := range menuActions {
-		label := fmt.Sprintf("[%d] %s", i+1, a)
-		buttons[i] = menuButtonStyle.Render(label)
-	}
-	row := lipgloss.JoinHorizontal(lipgloss.Top, buttons...)
-	return lipgloss.Width(row)
-}
-
-// firstButtonLeftCol returns the terminal column where [1]'s leftmost char
-// renders: buttons row left edge plus the button style's left padding.
-func firstButtonLeftCol(termWidth int) int {
-	leftEdge := (termWidth - buttonsRowWidth()) / 2
-	if leftEdge < 0 {
-		leftEdge = 0
-	}
-	return leftEdge + menuButtonStyle.GetPaddingLeft()
-}

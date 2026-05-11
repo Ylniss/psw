@@ -24,7 +24,7 @@ var verboseFlag bool
 func init() {
 	cobra.EnableCommandSorting = false
 	rootCmd.PersistentFlags().BoolVarP(&verboseFlag, "verbose", "v", false, "verbose output, sensitive data will be logged")
-	rootCmd.AddCommand(getCmd, addCmd, changeCmd, removeCmd, menuCmd, logCmd, rollbackCmd, versionCmd)
+	rootCmd.AddCommand(getCmd, addCmd, changeCmd, removeCmd, menuCmd, logCmd, rollbackCmd, configCmd, versionCmd)
 	// completion before help in --help; cobra defaults to help-first.
 	rootCmd.InitDefaultCompletionCmd()
 	rootCmd.InitDefaultHelpCmd()

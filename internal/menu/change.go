@@ -127,8 +127,7 @@ func (a ChangeAction) updatePicking(msg tea.Msg) (tea.Model, tea.Cmd) {
 	a.nameBeforeRename = sel
 	rec, found := a.store.GetRecord(sel)
 	if !found {
-		a.output = append(a.output, fmt.Sprintf("Record %s was not found", color.InGreen(sel)))
-		a.done = true
+		a.finish(fmt.Sprintf("Record %s was not found", color.InGreen(sel)))
 		return a, nil
 	}
 	a.record = rec
@@ -138,17 +137,15 @@ func (a ChangeAction) updatePicking(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (a ChangeAction) updateSaving(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if m, ok := msg.(storageSavedMsg); ok {
 		if m.err != nil {
-			a.output = append(a.output, color.InRed(m.err.Error()))
-			a.done = true
+			a.finishErr(m.err)
 			return a, nil
 		}
 		if a.rotatingMainPassword {
-			a.output = append(a.output, color.InGreen("Main password changed"))
 			a.rotatedMainPassword = a.newMainPassword
+			a.finish(color.InGreen("Main password changed"))
 		} else {
-			a.output = append(a.output, fmt.Sprintf("Record %s was updated successfully", color.InGreen(a.record.Name)))
+			a.finish(fmt.Sprintf("Record %s was updated successfully", color.InGreen(a.record.Name)))
 		}
-		a.done = true
 		return a, nil
 	}
 	cmd := tuiutil.UpdateInPlace(&a.spinner, msg)

@@ -36,7 +36,7 @@ type MenuModel struct {
 	passwordSpinner ui.SpinnerModel
 
 	// Header animation.
-	stars          prompt.StarState
+	headerStars    prompt.StarState
 	tickPending    bool
 	logoFlashColor imgcolor.Color
 	logoFlashUntil time.Time
@@ -57,7 +57,7 @@ func NewMenuModel() MenuModel {
 	return MenuModel{
 		phase:         menuPhaseEnterPassword,
 		passwordInput: prompt.NewInputModel("Main password", true, true),
-		stars:         prompt.NewStarState(),
+		headerStars:   prompt.NewStarState(),
 	}
 }
 
@@ -69,7 +69,7 @@ func (m MenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		if m.phase == menuPhaseRunningAction && m.activeAction != nil {
-			adj := tea.WindowSizeMsg{Width: msg.Width, Height: msg.Height - actionFrameHeight}
+			adj := tea.WindowSizeMsg{Width: contentColumnWidth(msg.Width), Height: msg.Height - actionFrameHeight}
 			cmd := tuiutil.UpdateInPlace(&m.activeAction, adj)
 			return m, cmd
 		}
@@ -130,7 +130,7 @@ func (m MenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m MenuModel) headerAnimationActive() bool {
-	return m.stars.Active() || time.Now().Before(m.logoFlashUntil)
+	return m.headerStars.Active() || time.Now().Before(m.logoFlashUntil)
 }
 
 func (m *MenuModel) scheduleHeaderTick() tea.Cmd {
@@ -149,7 +149,7 @@ func (m MenuModel) updateEnterPassword(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		// Flash the logo on each typed key. Enter is the phase exit, so skip it.
 		if k.String() != "enter" {
-			m.logoFlashColor = m.stars.RandomHeaderColor()
+			m.logoFlashColor = m.headerStars.RandomHeaderColor()
 			m.logoFlashUntil = time.Now().Add(logoFlashDuration)
 		}
 	}
@@ -180,20 +180,28 @@ func (m MenuModel) updateSelectAction(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case "ctrl+c", "esc", "q":
 		return m, tea.Quit
 	case "left", "h":
-		if m.actionCursor > 0 {
-			m.actionCursor--
+		if c, ok := actionNeighbor(m.actionCursor, dirLeft); ok {
+			m.actionCursor = c
 		}
 	case "right", "l":
-		if m.actionCursor < len(menuActions)-1 {
-			m.actionCursor++
+		if c, ok := actionNeighbor(m.actionCursor, dirRight); ok {
+			m.actionCursor = c
 		}
-	case "1", "2", "3", "4":
+	case "up", "k", "shift+tab":
+		if c, ok := actionNeighbor(m.actionCursor, dirUp); ok {
+			m.actionCursor = c
+		}
+	case "down", "j", "tab":
+		if c, ok := actionNeighbor(m.actionCursor, dirDown); ok {
+			m.actionCursor = c
+		}
+	case "1", "2", "3", "4", "5", "6":
 		idx := int(k.String()[0] - '1')
 		if idx < len(menuActions) {
 			m.actionCursor = idx
 			return m.startAction(menuActions[idx])
 		}
-	case "enter", "j":
+	case "enter":
 		return m.startAction(menuActions[m.actionCursor])
 	}
 	return m, nil
@@ -206,7 +214,7 @@ func (m MenuModel) startAction(name string) (tea.Model, tea.Cmd) {
 	}
 	// Action's picker needs a size before its first render or the list is empty.
 	if m.width > 0 && m.height > 0 {
-		tuiutil.UpdateInPlace(&a, tea.WindowSizeMsg{Width: m.width, Height: m.height - actionFrameHeight})
+		tuiutil.UpdateInPlace(&a, tea.WindowSizeMsg{Width: contentColumnWidth(m.width), Height: m.height - actionFrameHeight})
 	}
 	m.activeAction = a
 	m.phase = menuPhaseRunningAction
@@ -223,9 +231,7 @@ func (m MenuModel) routeToAction(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 	if m.activeAction.Done() {
-		if out := strings.Join(m.activeAction.Output(), "\n"); out != "" {
-			m.lastOutput = out
-		}
+		m.lastOutput = strings.Join(m.activeAction.Output(), "\n")
 		if pw := m.activeAction.NewPassword(); pw != "" {
 			m.password = pw
 		}
@@ -271,13 +277,9 @@ func (m MenuModel) View() tea.View {
 	case menuPhaseRunningAction:
 		if m.activeAction != nil {
 			actionView = m.activeAction.View()
-			rendered, indent := alignBlock(m.width, firstButtonLeftCol(m.width), actionView.Content)
+			rendered, indent := alignBlock(m.width, contentColumnLeft(m.width), actionView.Content)
 			b.WriteString(rendered)
 			actionIndent = indent
-			if help := m.activeAction.FooterHelp(); help != "" {
-				b.WriteString("\n\n")
-				b.WriteString(indentToFooter(m.width, menuHelpStyle.Render(help)))
-			}
 		}
 	}
 	m.writeFooterAtBottom(&b)
@@ -309,27 +311,88 @@ func (m MenuModel) View() tea.View {
 }
 
 func (m MenuModel) renderButtons(b *strings.Builder) {
-	buttons := make([]string, len(menuActions))
+	rendered := make([]string, len(menuActions))
+	widths := make([]int, len(menuActions))
+	unselectedStyle := menuButtonStyle
+	if m.phase == menuPhaseRunningAction {
+		unselectedStyle = menuButtonStyleFaint
+	}
 	for i, a := range menuActions {
 		label := fmt.Sprintf("[%d] %s", i+1, a)
 		if i == m.actionCursor {
-			buttons[i] = menuSelectStyle.Render(label)
+			rendered[i] = menuSelectStyle.Render(buttonPrefixSelected + label)
 		} else {
-			buttons[i] = menuButtonStyle.Render(label)
+			rendered[i] = unselectedStyle.Render(buttonPrefixBlank + label)
+		}
+		widths[i] = lipgloss.Width(rendered[i])
+	}
+	cw := contentColumnWidth(m.width)
+
+	rows := make([]string, menuGridRows)
+	for r := 0; r < menuGridRows; r++ {
+		// Buttons of row r, ordered left-to-right by column. Lookup table
+		// is precomputed in layout.go.
+		btnIdxs := make([]int, 0, menuGridCols)
+		for c := 0; c < menuGridCols; c++ {
+			if idx := menuCellLookup[r][c]; idx >= 0 {
+				btnIdxs = append(btnIdxs, idx)
+			}
+		}
+		rows[r] = layoutRowSpaceBetween(rendered, widths, btnIdxs, cw)
+	}
+	grid := lipgloss.JoinVertical(lipgloss.Left, rows...)
+	// MarginLeft anchors the grid at the column's left edge — same anchor
+	// settings rows use, so leftmost/rightmost visible content align.
+	b.WriteString(lipgloss.NewStyle().MarginLeft(contentColumnLeft(m.width)).Render(grid))
+}
+
+// layoutRowSpaceBetween places buttons with equal gaps. Leftmost hugs cw's
+// left, rightmost its right.
+func layoutRowSpaceBetween(rendered []string, widths []int, btnIdxs []int, cw int) string {
+	n := len(btnIdxs)
+	if n == 0 {
+		return ""
+	}
+	sumW := 0
+	for _, i := range btnIdxs {
+		sumW += widths[i]
+	}
+	totalGap := cw - sumW
+	if totalGap < 0 {
+		totalGap = 0
+	}
+	gaps := make([]int, n-1)
+	if n > 1 {
+		base := totalGap / (n - 1)
+		rem := totalGap % (n - 1)
+		for i := range gaps {
+			gaps[i] = base
+			if i < rem {
+				gaps[i]++
+			}
 		}
 	}
-	row := lipgloss.JoinHorizontal(lipgloss.Top, buttons...)
-	b.WriteString(centerHorizontally(m.width, row))
+	var sb strings.Builder
+	for i, btn := range btnIdxs {
+		sb.WriteString(rendered[btn])
+		if i < len(gaps) {
+			sb.WriteString(strings.Repeat(" ", gaps[i]))
+		}
+	}
+	return sb.String()
 }
 
 // writeFooterAtBottom pads with blank lines so the footer sits on the last
-// terminal row, aligned to the header column like the rest of the UI.
-// Falls back to one blank line when the content is too tall.
+// terminal row. Minimum one blank line when content overflows.
 func (m MenuModel) writeFooterAtBottom(b *strings.Builder) {
-	if m.phase != menuPhaseSelectAction || m.height == 0 {
+	if m.height == 0 {
 		return
 	}
-	footer := indentToFooter(m.width, menuHelpStyle.Render(footerHelp))
+	help := m.footerHelpText()
+	if help == "" {
+		return
+	}
+	footer := indentToFooter(m.width, menuHelpStyle.Render(help))
 	used := lipgloss.Height(b.String())
 	fh := lipgloss.Height(footer)
 	pad := m.height - used - fh
@@ -340,9 +403,23 @@ func (m MenuModel) writeFooterAtBottom(b *strings.Builder) {
 	b.WriteString(footer)
 }
 
+// footerHelpText returns the action's FooterHelp when running, footerHelp
+// otherwise.
+func (m MenuModel) footerHelpText() string {
+	switch m.phase {
+	case menuPhaseSelectAction:
+		return footerHelp
+	case menuPhaseRunningAction:
+		if m.activeAction != nil {
+			return m.activeAction.FooterHelp()
+		}
+	}
+	return ""
+}
+
 func (m MenuModel) renderLastOutput(b *strings.Builder) {
 	if m.lastOutput == "" {
 		return
 	}
-	b.WriteString(wrapToHeader(m.width, m.lastOutput))
+	b.WriteString(wrapToContent(m.width, m.lastOutput))
 }

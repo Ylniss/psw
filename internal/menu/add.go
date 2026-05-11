@@ -103,14 +103,12 @@ func (a AddAction) updateEnterName(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	lower := strings.ToLower(name)
 	if lower == storage.MainPasswordKeywordShort || lower == storage.MainPasswordKeywordLong {
-		a.output = append(a.output, fmt.Sprintf("Name %s is reserved. %s command uses it for changing main password",
+		a.finish(fmt.Sprintf("Name %s is reserved. %s command uses it for changing main password",
 			color.InGreen(name), color.InCyan("change")))
-		a.done = true
 		return a, nil
 	}
 	if a.store.Exists(name) {
-		a.output = append(a.output, fmt.Sprintf("Record with name %s already exists", color.InGreen(name)))
-		a.done = true
+		a.finish(fmt.Sprintf("Record with name %s already exists", color.InGreen(name)))
 		return a, nil
 	}
 	a.recordName = name
@@ -139,8 +137,7 @@ func (a AddAction) updateAskGenerate(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	generated, err := storage.GenerateRecordPassword()
 	if err != nil {
-		a.output = append(a.output, color.InRed(err.Error()))
-		a.done = true
+		a.finishErr(err)
 		return a, nil
 	}
 	a.store.AddRecord(&storage.Record{Name: a.recordName, Username: a.username, Password: generated})
@@ -182,16 +179,14 @@ func (a AddAction) updateEnterValue(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (a AddAction) updateSaving(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if m, ok := msg.(storageSavedMsg); ok {
 		if m.err != nil {
-			a.output = append(a.output, color.InRed(m.err.Error()))
-			a.done = true
+			a.finishErr(m.err)
 			return a, nil
 		}
 		if a.isSingleValue {
-			a.output = append(a.output, fmt.Sprintf("Value set successfully in %s record", color.InGreen(a.recordName)))
+			a.finish(fmt.Sprintf("Value set successfully in %s record", color.InGreen(a.recordName)))
 		} else {
-			a.output = append(a.output, fmt.Sprintf("Username/password set successfully in %s record", color.InGreen(a.recordName)))
+			a.finish(fmt.Sprintf("Username/password set successfully in %s record", color.InGreen(a.recordName)))
 		}
-		a.done = true
 		return a, nil
 	}
 	cmd := tuiutil.UpdateInPlace(&a.spinner, msg)

@@ -40,6 +40,16 @@ func buildAndRun(m *testing.M) (int, error) {
 		return 0, fmt.Errorf("build psw: %w", err)
 	}
 
+	// Mirror `make build`: copy pswcfg-template.toml → <bin dir>/pswcfg.toml
+	// so ensureUserConfig and config reset find it.
+	tmpl, err := os.ReadFile(filepath.Join(root, "pswcfg-template.toml"))
+	if err != nil {
+		return 0, fmt.Errorf("read template: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "pswcfg.toml"), tmpl, 0644); err != nil {
+		return 0, fmt.Errorf("write template next to binary: %w", err)
+	}
+
 	return m.Run(), nil
 }
 

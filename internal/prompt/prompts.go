@@ -180,6 +180,13 @@ func (m *InputModel) Reset() {
 	}
 }
 
+// WithInitialValue prefills the input. Plain inputs only — password/animated
+// modes mask the prefill.
+func (m InputModel) WithInitialValue(v string) InputModel {
+	m.input.SetValue(v)
+	return m
+}
+
 func runInput(label string, password, animateStars bool) (string, error) {
 	if !IsTTY() {
 		return "", errNoTTY
