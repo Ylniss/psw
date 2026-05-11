@@ -1,6 +1,6 @@
 # Multi-remove + rollback
 
-_Last updated: 2026-05-11 — commit `bec2d18` (Phase 1 implemented; not yet committed at this revision)_
+_Last updated: 2026-05-11 — commit `932f1ce` (Phase 1 committed; Phases 2-3 pending implementation. Detail: `plans/multi-remove-rollback-phase2.md`.)_
 
 ## Goal
 Add multi-select removal (menu + CLI) and a `psw rollback` CLI command that reverts records to a past commit's snapshot via a new commit (not a hard reset). Bump version after both features land.

@@ -45,6 +45,13 @@ func (b *baseAction) initYesNo(question string) tea.Cmd {
 	return nil
 }
 
+// initYesNoWithHint is initYesNo plus a styled secondary line rendered below
+// the (y/n) prompt. Caller owns the hint's coloring.
+func (b *baseAction) initYesNoWithHint(question, hint string) tea.Cmd {
+	b.yesNo = prompt.NewYesNoModel(question).WithHint(hint)
+	return nil
+}
+
 func (b *baseAction) initSpinner(label string) tea.Cmd {
 	b.spinner = ui.NewSpinnerModel(label)
 	return b.spinner.Init()

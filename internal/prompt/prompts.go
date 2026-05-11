@@ -35,7 +35,8 @@ func validateRequired(content string) error {
 	return nil
 }
 
-func isTTY() bool {
+// IsTTY reports whether stdin is an interactive terminal.
+func IsTTY() bool {
 	return term.IsTerminal(int(os.Stdin.Fd()))
 }
 
@@ -180,7 +181,7 @@ func (m *InputModel) Reset() {
 }
 
 func runInput(label string, password, animateStars bool) (string, error) {
-	if !isTTY() {
+	if !IsTTY() {
 		return "", errNoTTY
 	}
 	final, err := tea.NewProgram(tuiutil.QuittingWrapper[InputModel]{M: NewInputModel(label, password, animateStars)}).Run()
@@ -208,6 +209,7 @@ func runInput(label string, password, animateStars bool) (string, error) {
 // YesNoModel is a y/n prompt. Sets done/cancelled flags; never returns tea.Quit.
 type YesNoModel struct {
 	question  string
+	hint      string
 	answer    bool
 	done      bool
 	cancelled bool
@@ -215,6 +217,13 @@ type YesNoModel struct {
 
 func NewYesNoModel(question string) YesNoModel {
 	return YesNoModel{question: question}
+}
+
+// WithHint attaches a secondary line rendered below `(y/n)`. The caller is
+// responsible for any styling (color codes etc.).
+func (m YesNoModel) WithHint(hint string) YesNoModel {
+	m.hint = hint
+	return m
 }
 
 func (m YesNoModel) Init() tea.Cmd { return nil }
@@ -239,7 +248,11 @@ func (m YesNoModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m YesNoModel) View() tea.View {
-	return tea.NewView(fmt.Sprintf("%s (y/n)", m.question))
+	content := fmt.Sprintf("%s (y/n)", m.question)
+	if m.hint != "" {
+		content += "\n" + m.hint
+	}
+	return tea.NewView(content)
 }
 
 func (m YesNoModel) Done() bool       { return m.done }
@@ -249,7 +262,7 @@ func (m YesNoModel) Question() string { return m.question }
 
 // YesOrNo returns false on Esc/Ctrl-C or non-TTY stdin (keeps scripts unblocked).
 func YesOrNo(question string) bool {
-	if !isTTY() {
+	if !IsTTY() {
 		return false
 	}
 	final, err := tea.NewProgram(tuiutil.QuittingWrapper[YesNoModel]{M: NewYesNoModel(question)}).Run()

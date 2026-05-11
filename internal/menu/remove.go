@@ -91,7 +91,10 @@ func (a RemoveAction) updatePicking(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	a.chosenNames = sels
 	n := len(a.chosenNames)
-	a.initYesNo(fmt.Sprintf("Remove %d %s?\nYou can undo any action with %s", n, recordWord(n), color.InCyan("psw rollback")))
+	a.initYesNoWithHint(
+		fmt.Sprintf("Remove %d %s?", n, recordWord(n)),
+		color.InGray("You can undo any action with ")+color.InCyan("psw rollback"),
+	)
 	a.phase = removePhaseConfirming
 	return a, nil
 }

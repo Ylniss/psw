@@ -43,6 +43,8 @@ var logCmd = &cobra.Command{
 func colorizeLogMessage(msg string) string {
 	low := strings.ToLower(msg)
 	switch {
+	case strings.Contains(low, "rollback"):
+		return color.InPurple(msg)
 	case strings.Contains(low, "add"):
 		return color.InGreen(msg)
 	case strings.Contains(low, "update"), strings.Contains(low, "change"):
