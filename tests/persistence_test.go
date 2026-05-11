@@ -6,16 +6,16 @@ import "testing"
 func TestPersistence_AcrossInvocations(t *testing.T) {
 	t.Parallel()
 	// Arrange
-	v := newVault(t)
-	runPsw(t, v, "add", "a", "-u", "u", "--password=p1")
-	runPsw(t, v, "add", "b", "-s", "--value=v2")
-	runPsw(t, v, "change", "a", "--password=p1new", "--exact")
+	vault := newVault(t)
+	runPsw(t, vault, "add", "a", "-u", "u", "--password=p1")
+	runPsw(t, vault, "add", "b", "-s", "--value=v2")
+	runPsw(t, vault, "change", "a", "--password=p1new", "--exact")
 	// Act
-	r := runPsw(t, v, "get", "a", "--exact", "--stdout")
-	r2 := runPsw(t, v, "get", "b", "--exact", "--stdout")
+	result := runPsw(t, vault, "get", "a", "--exact", "--stdout")
+	result2 := runPsw(t, vault, "get", "b", "--exact", "--stdout")
 	// Assert
-	mustExit(t, r, 0)
-	mustEqual(t, trimmed(r), "p1new")
-	mustExit(t, r2, 0)
-	mustEqual(t, trimmed(r2), "v2")
+	mustExit(t, result, 0)
+	mustEqual(t, trimmed(result), "p1new")
+	mustExit(t, result2, 0)
+	mustEqual(t, trimmed(result2), "v2")
 }

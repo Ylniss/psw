@@ -5,70 +5,70 @@ import "testing"
 func TestGet_UserPassStdout(t *testing.T) {
 	t.Parallel()
 	// Arrange
-	v := newVault(t)
-	runPsw(t, v, "add", "foo", "-u", "u", "--password=secret")
+	vault := newVault(t)
+	runPsw(t, vault, "add", "foo", "-u", "u", "--password=secret")
 	// Act
-	r := runPsw(t, v, "get", "foo", "--exact", "--stdout")
+	result := runPsw(t, vault, "get", "foo", "--exact", "--stdout")
 	// Assert
-	mustExit(t, r, 0)
-	mustEqual(t, trimmed(r), "secret")
+	mustExit(t, result, 0)
+	mustEqual(t, trimmed(result), "secret")
 }
 
 func TestGet_ValueStdout(t *testing.T) {
 	t.Parallel()
 	// Arrange
-	v := newVault(t)
-	runPsw(t, v, "add", "foo", "-s", "--value=v")
+	vault := newVault(t)
+	runPsw(t, vault, "add", "foo", "-s", "--value=v")
 	// Act
-	r := runPsw(t, v, "get", "foo", "--exact", "--stdout")
+	result := runPsw(t, vault, "get", "foo", "--exact", "--stdout")
 	// Assert
-	mustExit(t, r, 0)
-	mustEqual(t, trimmed(r), "v")
+	mustExit(t, result, 0)
+	mustEqual(t, trimmed(result), "v")
 }
 
 func TestGet_MissingRecord(t *testing.T) {
 	t.Parallel()
 	// Arrange
-	v := newVault(t)
+	vault := newVault(t)
 	// Act
-	r := runPsw(t, v, "get", "nope", "--exact", "--stdout")
+	result := runPsw(t, vault, "get", "nope", "--exact", "--stdout")
 	// Assert
-	mustExit(t, r, 1)
-	mustContain(t, r.stdout, "Record nope was not found")
+	mustExit(t, result, 1)
+	mustContain(t, result.stdout, "Record nope was not found")
 }
 
 func TestGet_ExactRequiresName(t *testing.T) {
 	t.Parallel()
 	// Arrange
-	v := newVault(t)
+	vault := newVault(t)
 	// Act
-	r := runPsw(t, v, "get", "--exact")
+	result := runPsw(t, vault, "get", "--exact")
 	// Assert
-	mustExit(t, r, 1)
-	mustContain(t, r.stdout, "--exact requires a record name argument")
+	mustExit(t, result, 1)
+	mustContain(t, result.stdout, "--exact requires a record name argument")
 }
 
 func TestGet_WrongMainPassword(t *testing.T) {
 	t.Parallel()
 	// Arrange
-	v := newVault(t)
-	runPsw(t, v, "add", "foo", "-u", "u", "--password=p")
+	vault := newVault(t)
+	runPsw(t, vault, "add", "foo", "-u", "u", "--password=p")
 	// Act
-	r := runPswEnv(t, v, map[string]string{"PSW_MAIN_PASSWORD": "wrongpass"},
+	result := runPswEnv(t, vault, map[string]string{"PSW_MAIN_PASSWORD": "wrongpass"},
 		"get", "foo", "--exact", "--stdout")
 	// Assert
-	mustExit(t, r, 0)
-	mustContain(t, r.stdout, "Wrong password.")
+	mustExit(t, result, 0)
+	mustContain(t, result.stdout, "Wrong password.")
 }
 
 func TestGet_CaseInsensitiveLookup(t *testing.T) {
 	t.Parallel()
 	// Arrange
-	v := newVault(t)
-	runPsw(t, v, "add", "Foo", "-u", "u", "--password=secret")
+	vault := newVault(t)
+	runPsw(t, vault, "add", "Foo", "-u", "u", "--password=secret")
 	// Act
-	r := runPsw(t, v, "get", "FOO", "--exact", "--stdout")
+	result := runPsw(t, vault, "get", "FOO", "--exact", "--stdout")
 	// Assert
-	mustExit(t, r, 0)
-	mustEqual(t, trimmed(r), "secret")
+	mustExit(t, result, 0)
+	mustEqual(t, trimmed(result), "secret")
 }

@@ -13,58 +13,57 @@ import (
 
 	"github.com/TwiN/go-color"
 	"github.com/spf13/cobra"
-	"github.com/ylniss/psw/internal/prmpt"
-	"github.com/ylniss/psw/internal/strg"
+	"github.com/ylniss/psw/internal/storage"
 )
 
-// errExit: caller already printed; signals exit 1. cobra silenced in Execute.
-var errExit = errors.New("")
+// errSilentExit: caller already printed; signals exit 1. cobra silenced in Execute.
+var errSilentExit = errors.New("")
 
 var verboseFlag bool
 
 func init() {
+	cobra.EnableCommandSorting = false
 	rootCmd.PersistentFlags().BoolVarP(&verboseFlag, "verbose", "v", false, "verbose output, sensitive data will be logged")
+	rootCmd.AddCommand(getCmd, addCmd, changeCmd, removeCmd, menuCmd, logCmd, rollbackCmd, versionCmd)
+	// completion before help in --help; cobra defaults to help-first.
+	rootCmd.InitDefaultCompletionCmd()
+	rootCmd.InitDefaultHelpCmd()
 }
 
 var rootCmd = &cobra.Command{
-	Use: `psw        lists all stored record names
-  psw`,
+	Use:   "psw",
 	Short: "psw is the simplest password management tool",
-	Long: `psw is a simple password manager that secures your passwords using AES encryption with SHA256.
+	Long: `psw is a simple password manager that secures your passwords using AES-256-GCM with Argon2id key derivation.
 
-The directory ~/.psw is created to store all necessary files:
+A 'psw' directory is created under your user config directory (e.g. ~/.config/psw on Linux, %AppData%\psw on Windows) to store:
 storage.psw: an encrypted file where your passwords are saved.
 pswcfg.toml: a configuration file for customizing app behavior.
 
-On first use, you’ll set a main password to protect your stored passwords.`,
+On first use, you'll set a main password to protect your stored passwords.
+Run 'psw' with no arguments to list all stored record names.`,
 	SilenceErrors: true,
 	SilenceUsage:  true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		setupLogger()
 		slog.Debug("App started")
-		return strg.InitConfig()
+		return storage.InitConfig()
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// list all record names on 'psw' command
-		storage, err := strg.GetOrCreateIfNotExists()
-		if errors.Is(err, prmpt.ErrPromptCancelled) {
-			return nil
-		}
-		if err != nil {
-			fmt.Println(err.Error())
-			return nil
+		store, err := storage.GetOrCreateForRead()
+		if done, ret := handleCmdErr(err); done {
+			return ret
 		}
 
-		namesAndUsers := storage.GetNamesAndUsers()
+		namesAndUsers := store.GetNamesAndUsers()
 		if len(namesAndUsers) == 0 {
 			fmt.Printf("No secrets found. Use %s command first.\n", color.InCyan("add"))
 			return nil
 		}
 
-		longest := slices.MaxFunc(namesAndUsers, func(a, b strg.NameAndUser) int {
+		recordWithLongestName := slices.MaxFunc(namesAndUsers, func(a, b storage.NameAndUser) int {
 			return len(a.Name) - len(b.Name)
 		})
-		longestNameLen := len(longest.Name)
+		longestNameLen := len(recordWithLongestName.Name)
 
 		for _, nameAndUser := range namesAndUsers {
 			fmt.Println(formatRecordLine(nameAndUser, longestNameLen))
@@ -73,13 +72,13 @@ On first use, you’ll set a main password to protect your stored passwords.`,
 	},
 }
 
-func formatRecordLine(nu strg.NameAndUser, longestNameLen int) string {
-	dots := strings.Repeat(".", longestNameLen+5-len(nu.Name))
+func formatRecordLine(nameAndUser storage.NameAndUser, longestNameLen int) string {
+	dots := strings.Repeat(".", longestNameLen+5-len(nameAndUser.Name))
 	suffix := color.InCyan("<value only>")
-	if len(nu.User) > 0 {
-		suffix = color.InYellow("(" + nu.User + ")")
+	if len(nameAndUser.Username) > 0 {
+		suffix = color.InYellow("(" + nameAndUser.Username + ")")
 	}
-	return color.InGreen(nu.Name) + dots + suffix
+	return color.InGreen(nameAndUser.Name) + dots + suffix
 }
 
 func Execute() {
@@ -93,17 +92,17 @@ func Execute() {
 	slog.Debug("App finished")
 }
 
-type easyHandler struct {
+type simpleSlogHandler struct {
 	out   io.Writer
 	level slog.Level
 	mu    sync.Mutex
 }
 
-func (h *easyHandler) Enabled(_ context.Context, level slog.Level) bool {
+func (h *simpleSlogHandler) Enabled(_ context.Context, level slog.Level) bool {
 	return level >= h.level
 }
 
-func (h *easyHandler) Handle(_ context.Context, r slog.Record) error {
+func (h *simpleSlogHandler) Handle(_ context.Context, r slog.Record) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	var prefix string
@@ -125,13 +124,13 @@ func (h *easyHandler) Handle(_ context.Context, r slog.Record) error {
 }
 
 // No-op: binary doesn't use slog.With(); attrs would be silently dropped.
-func (h *easyHandler) WithAttrs(_ []slog.Attr) slog.Handler { return h }
-func (h *easyHandler) WithGroup(_ string) slog.Handler      { return h }
+func (h *simpleSlogHandler) WithAttrs(_ []slog.Attr) slog.Handler { return h }
+func (h *simpleSlogHandler) WithGroup(_ string) slog.Handler      { return h }
 
 func setupLogger() {
 	level := slog.LevelInfo
 	if verboseFlag {
 		level = slog.LevelDebug
 	}
-	slog.SetDefault(slog.New(&easyHandler{out: os.Stderr, level: level}))
+	slog.SetDefault(slog.New(&simpleSlogHandler{out: os.Stderr, level: level}))
 }

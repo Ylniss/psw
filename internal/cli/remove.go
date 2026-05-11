@@ -1,66 +1,53 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/TwiN/go-color"
 	"github.com/spf13/cobra"
-	"github.com/ylniss/psw/internal/prmpt"
-	"github.com/ylniss/psw/internal/strg"
+	"github.com/ylniss/psw/internal/storage"
 )
 
 var removeExactFlag bool
 
 func init() {
 	removeCmd.Flags().BoolVarP(&removeExactFlag, "exact", "e", false, "exact name match; skip interactive picker and substring search")
-	rootCmd.AddCommand(removeCmd)
 }
 
 var removeCmd = &cobra.Command{
-	Use: `remove [name] [flags]
+	Use: `remove [name...] [flags]
 
 Arguments:
-  name    Optional name of the record to remove. If omitted, you'll be prompted to provide it`,
-	Short: "Remove chosen record",
-	Long:  `Remove chosen record, all its data will be lost permanently`,
-	Args:  cobra.MaximumNArgs(1),
+  name    Optional record name(s). With --exact, every listed name must match an existing record. Without --exact, an interactive picker opens; one substring filter argument is allowed.`,
+	Short: "Remove chosen records",
+	Long:  `Remove chosen records, all their data will be lost permanently`,
+	Args:  cobra.ArbitraryArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		storage, err := strg.GetOrCreateIfNotExists()
-		if errors.Is(err, prmpt.ErrPromptCancelled) {
-			return nil
+		store, err := storage.GetOrCreateForMutate()
+		if done, ret := handleCmdErr(err); done {
+			return ret
 		}
-		if err != nil {
-			fmt.Println(err.Error())
+
+		names, err := resolveRecordNames(store, args, removeExactFlag)
+		if done, ret := handleCmdErr(err); done {
+			return ret
+		}
+		if len(names) == 0 {
 			return nil
 		}
 
-		recordName, err := resolveRecordName(storage, args, removeExactFlag)
-		if errors.Is(err, errExit) {
-			return errExit
-		}
-		if err != nil {
-			fmt.Println(err.Error())
-			return nil
-		}
-		if recordName == "" {
-			return nil
+		for _, n := range names {
+			store.RemoveRecord(n)
 		}
 
-		if !storage.Exists(recordName) {
-			fmt.Printf("Record with name %s doesn't exist\n", color.InGreen(recordName))
-			return nil
+		if done, ret := handleCmdErr(store.Save()); done {
+			return ret
 		}
 
-		storage.RemoveRecord(recordName)
-
-		if err := storage.Save(); err != nil {
-			fmt.Println(err.Error())
-			return nil
+		for _, n := range names {
+			fmt.Printf("Record %s successfully removed\n", color.InGreen(n))
 		}
-
-		fmt.Printf("Record %s successfully removed", color.InGreen(recordName))
-		strg.GitCommit("record removed")
+		storage.GitCommit(storage.RemoveCommitMessage(len(names)))
 		return nil
 	},
 }

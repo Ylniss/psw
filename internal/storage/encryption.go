@@ -1,4 +1,4 @@
-package strg
+package storage
 
 import (
 	"crypto/aes"
@@ -14,28 +14,28 @@ import (
 )
 
 const (
-	magicV1      = "PSW1"
-	saltLen      = 16
-	keyLen       = 32
-	argonTime    = 2
-	argonMemory  = 64 * 1024
-	argonThreads = 4
+	magicHeaderV1    = "PSW1"
+	saltLength       = 16
+	keyLength        = 32
+	argonIterations  = 2
+	argonMemoryKiB   = 64 * 1024
+	argonParallelism = 4
 )
 
 func EncryptStringToStorage(plainText, password string) error {
-	return encryptStringToFile(Cfg.storageFilePath, plainText, password)
+	return encryptStringToFile(Paths.storageFilePath, plainText, password)
 }
 
 func DecryptStringFromStorage(password string) (string, error) {
-	return decryptStringFromFile(Cfg.storageFilePath, password)
+	return decryptStringFromFile(Paths.storageFilePath, password)
 }
 
 func deriveKey(password string, salt []byte) []byte {
-	return argon2.IDKey([]byte(password), salt, argonTime, argonMemory, argonThreads, keyLen)
+	return argon2.IDKey([]byte(password), salt, argonIterations, argonMemoryKiB, argonParallelism, keyLength)
 }
 
 func encryptStringToFile(filePath, plainText, password string) error {
-	salt := make([]byte, saltLen)
+	salt := make([]byte, saltLength)
 	if _, err := io.ReadFull(rand.Reader, salt); err != nil {
 		return fmt.Errorf("failed to generate salt: %w", err)
 	}
@@ -52,8 +52,8 @@ func encryptStringToFile(filePath, plainText, password string) error {
 
 	sealed := gcm.Seal(nil, nil, []byte(plainText), nil)
 
-	payload := make([]byte, 0, len(magicV1)+saltLen+len(sealed))
-	payload = append(payload, magicV1...)
+	payload := make([]byte, 0, len(magicHeaderV1)+saltLength+len(sealed))
+	payload = append(payload, magicHeaderV1...)
 	payload = append(payload, salt...)
 	payload = append(payload, sealed...)
 
@@ -72,20 +72,25 @@ func decryptStringFromFile(filePath, password string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to read storage file: %w", err)
 	}
+	return decryptBytes(encoded, password)
+}
+
+// decryptBytes decrypts an in-memory base64 PSW1 payload.
+func decryptBytes(encoded []byte, password string) (string, error) {
 	payload, err := base64.StdEncoding.DecodeString(string(encoded))
 	if err != nil {
 		return "", fmt.Errorf("failed to decode storage: %w", err)
 	}
 
-	if len(payload) < len(magicV1)+saltLen {
+	if len(payload) < len(magicHeaderV1)+saltLength {
 		return "", errors.New("storage file is corrupted or unrecognized")
 	}
-	if string(payload[:len(magicV1)]) != magicV1 {
+	if string(payload[:len(magicHeaderV1)]) != magicHeaderV1 {
 		return "", errors.New("unrecognized storage format; expected PSW1")
 	}
 
-	salt := payload[len(magicV1) : len(magicV1)+saltLen]
-	sealed := payload[len(magicV1)+saltLen:]
+	salt := payload[len(magicHeaderV1) : len(magicHeaderV1)+saltLength]
+	sealed := payload[len(magicHeaderV1)+saltLength:]
 
 	key := deriveKey(password, salt)
 	block, err := aes.NewCipher(key)

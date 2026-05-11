@@ -67,9 +67,6 @@ schema = 3
   [mod."github.com/samber/lo"]
     version = "v1.39.0"
     hash = "sha256-bFJXbzFpUQM2xoNrHrlzn0RJZujd21H00zGBgo/JEb0="
-  [mod."github.com/sethvargo/go-password"]
-    version = "v0.2.0"
-    hash = "sha256-hX4nVQhBlioEHiadvdWm9Ec0tZXnW8mMXyC3UzlMojE="
   [mod."github.com/sirupsen/logrus"]
     version = "v1.9.3"
     hash = "sha256-EnxsWdEUPYid+aZ9H4/iMTs1XMvCLbXZRDyvj89Ebms="

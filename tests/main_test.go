@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-var pswBin string
+var pswBinary string
 
 func TestMain(m *testing.M) {
 	code, err := buildAndRun(m)
@@ -31,8 +31,8 @@ func buildAndRun(m *testing.M) (int, error) {
 	}
 	defer os.RemoveAll(dir)
 
-	pswBin = filepath.Join(dir, "psw")
-	cmd := exec.Command("go", "build", "-o", pswBin, "./cmd/psw")
+	pswBinary = filepath.Join(dir, "psw")
+	cmd := exec.Command("go", "build", "-o", pswBinary, "./cmd/psw")
 	cmd.Dir = root
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

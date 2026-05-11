@@ -1,1 +1,11 @@
-clipboard_timeout = 20  # duration in seconds
+clipboard_timeout = 20 # clipboard auto clear duration in seconds
+# remote = "git@github.com:user/psw-storage.git"	# uncomment to enable git sync (pull before mutate, push after commit)
+
+[password_gen] # settings for auto-generated record passwords
+# All keys are optional. Commented values below are the defaults applied when a key is omitted.
+# length = 16         # total password length
+# min_digits = 4      # at least this many digits (0-9)
+# min_symbols = 6     # at least this many symbols from !@#$%^&*()-_=+[]{}<>?,./
+# min_uppercase = 1   # at least this many uppercase letters (A-Z)
+# min_lowercase = 1   # at least this many lowercase letters (a-z)
+# allow_repeat = true # whether the same character may appear more than once

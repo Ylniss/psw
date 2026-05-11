@@ -26,7 +26,7 @@
       version = removeWhitespacesFunc rawVersion;
 
       vendorFile = ../gomod2nix.toml;
-      vendorHash = "sha256-neC5tZA4/9KrfhV9T83IiDF0PbQ+ZSWED6Ql4j1G07Y=";
+      vendorHash = lib.fakeHash;
       src = ../.;
 
       nativeDeps = with pkgs; [

@@ -13,6 +13,7 @@ func newGitVault(t *testing.T) (string, map[string]string) {
 	t.Helper()
 	env := map[string]string{
 		"PSW_GIT":             "",
+		"PSW_GIT_REMOTE":      "0",
 		"GIT_AUTHOR_NAME":     "psw-tests",
 		"GIT_AUTHOR_EMAIL":    "psw@tests.local",
 		"GIT_COMMITTER_NAME":  "psw-tests",
@@ -37,31 +38,31 @@ func TestLog_ShowsCommits(t *testing.T) {
 		t.Skip("git not available")
 	}
 
-	v, env := newGitVault(t)
+	vault, env := newGitVault(t)
 
-	mustExit(t, runPswEnv(t, v, env, "add", "foo", "-u", "u", "--password=p"), 0)
-	mustExit(t, runPswEnv(t, v, env, "add", "bar", "-u", "u", "--password=p"), 0)
-	mustExit(t, runPswEnv(t, v, env, "remove", "bar", "-e"), 0)
-	mustExit(t, runPswEnv(t, v, env, "change", "foo", "--password=newp", "-e"), 0)
+	mustExit(t, runPswEnv(t, vault, env, "add", "foo", "-u", "u", "--password=p"), 0)
+	mustExit(t, runPswEnv(t, vault, env, "add", "bar", "-u", "u", "--password=p"), 0)
+	mustExit(t, runPswEnv(t, vault, env, "remove", "bar", "-e"), 0)
+	mustExit(t, runPswEnv(t, vault, env, "change", "foo", "--password=newp", "-e"), 0)
 
-	r := runPswEnv(t, v, env, "log")
-	mustExit(t, r, 0)
-	mustContain(t, r.stdout, "added new record")
-	mustContain(t, r.stdout, "record removed")
+	result := runPswEnv(t, vault, env, "log")
+	mustExit(t, result, 0)
+	mustContain(t, result.stdout, "added new record")
+	mustContain(t, result.stdout, "record removed")
 
 	var lines []string
-	for _, l := range strings.Split(strings.TrimSpace(r.stdout), "\n") {
+	for _, l := range strings.Split(strings.TrimSpace(result.stdout), "\n") {
 		if l != "" {
 			lines = append(lines, l)
 		}
 	}
 	if len(lines) != 5 {
-		t.Fatalf("expected 5 log lines, got %d:\n%s", len(lines), r.stdout)
+		t.Fatalf("expected 5 log lines, got %d:\n%s", len(lines), result.stdout)
 	}
 
-	lineRE := regexp.MustCompile(`^[0-9a-f]{7,}\s+\d{4}-\d{2}-\d{2} \d{2}:\d{2}\s+\S`)
+	lineRegex := regexp.MustCompile(`^[0-9a-f]{7,}\s+\d{4}-\d{2}-\d{2} \d{2}:\d{2}\s+\S`)
 	for i, l := range lines {
-		if !lineRE.MatchString(l) {
+		if !lineRegex.MatchString(l) {
 			t.Fatalf("line %d doesn't match expected format: %q", i, l)
 		}
 	}
@@ -77,8 +78,8 @@ func TestLog_ShowsCommits(t *testing.T) {
 
 func TestLog_NoGitRepo(t *testing.T) {
 	t.Parallel()
-	v := newVault(t) // PSW_GIT=0, no .git/
-	r := runPsw(t, v, "log")
-	mustExit(t, r, 1)
-	mustContain(t, r.stdout, "Storage is not a git repository")
+	vault := newVault(t) // PSW_GIT=0, no .git/
+	result := runPsw(t, vault, "log")
+	mustExit(t, result, 1)
+	mustContain(t, result.stdout, "Storage is not a git repository")
 }

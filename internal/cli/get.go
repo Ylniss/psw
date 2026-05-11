@@ -1,16 +1,14 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 	"log/slog"
-	"os/exec"
 
 	"github.com/TwiN/go-color"
 	"github.com/atotto/clipboard"
 	"github.com/spf13/cobra"
-	"github.com/ylniss/psw/internal/prmpt"
-	"github.com/ylniss/psw/internal/strg"
+	"github.com/ylniss/psw/internal/clipclean"
+	"github.com/ylniss/psw/internal/storage"
 )
 
 var (
@@ -23,7 +21,6 @@ func init() {
 	getCmd.Flags().BoolVarP(&revealFlag, "reveal", "r", false, "reveal secret inside terminal")
 	getCmd.Flags().BoolVarP(&getExactFlag, "exact", "e", false, "exact name match; skip interactive picker and substring search")
 	getCmd.Flags().BoolVar(&getStdoutFlag, "stdout", false, "print secret to stdout instead of clipboard (no labels, no color)")
-	rootCmd.AddCommand(getCmd)
 }
 
 var getCmd = &cobra.Command{
@@ -34,30 +31,21 @@ Arguments:
 	Short: "Get secrets from record with specified name",
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		storage, err := strg.GetOrCreateIfNotExists()
-		clipDuration := strg.AppConfig.ClipboardTimeout
+		store, err := storage.GetOrCreateForRead()
+		if done, ret := handleCmdErr(err); done {
+			return ret
+		}
+		clipDuration := storage.AppConfig.ClipboardTimeout
 
-		if errors.Is(err, prmpt.ErrPromptCancelled) {
-			return nil
-		}
-		if err != nil {
-			fmt.Println(err.Error())
-			return nil
-		}
-
-		recordName, err := resolveRecordName(storage, args, getExactFlag)
-		if errors.Is(err, errExit) {
-			return errExit
-		}
-		if err != nil {
-			fmt.Println(err.Error())
-			return nil
+		recordName, err := resolveRecordName(store, args, getExactFlag, nil)
+		if done, ret := handleCmdErr(err); done {
+			return ret
 		}
 		if recordName == "" {
 			return nil
 		}
 
-		record, isFound := storage.GetRecord(recordName)
+		record, isFound := store.GetRecord(recordName)
 
 		slog.Debug("cmd/get", "record", fmt.Sprintf("%#v", record))
 
@@ -67,8 +55,9 @@ Arguments:
 		}
 
 		if getStdoutFlag {
+			// Raw stdout for piping (e.g. `psw get foo --stdout | xclip`); no labels, no color, no menu indent.
 			if record.Value == "" {
-				fmt.Println(record.Pass)
+				fmt.Println(record.Password)
 			} else {
 				fmt.Println(record.Value)
 			}
@@ -76,14 +65,14 @@ Arguments:
 		}
 
 		if record.Value == "" {
-			if err := clipboard.WriteAll(record.Pass); err != nil {
+			if err := clipboard.WriteAll(record.Password); err != nil {
 				fmt.Printf("Failed to copy value to clipboard: %s\n", err)
 				return nil
 			}
 			fmt.Println("Username")
-			fmt.Println(color.InYellow(record.User))
+			fmt.Println(color.InYellow(record.Username))
 			fmt.Println()
-			printSecret("Password", record.Pass, revealFlag, clipDuration)
+			printSecret("Password", record.Password, revealFlag, clipDuration)
 		} else {
 			if err := clipboard.WriteAll(record.Value); err != nil {
 				fmt.Printf("Failed to copy value to clipboard: %s\n", err)
@@ -92,9 +81,7 @@ Arguments:
 			printSecret("Value", record.Value, revealFlag, clipDuration)
 		}
 
-		syscmd := exec.Command("clipclean", fmt.Sprint(clipDuration))
-		err = syscmd.Start()
-		if err != nil {
+		if err := clipclean.Spawn(clipDuration); err != nil {
 			fmt.Printf("clipclean error: %s\n", err)
 			return nil
 		}
@@ -102,12 +89,11 @@ Arguments:
 	},
 }
 
-func printSecret(label, secret string, reveal bool, clipDur int) {
-	fmt.Println(label)
+func printSecret(label, secret string, reveal bool, clipDuration int) {
 	if reveal {
 		fmt.Println(color.InYellow(secret))
 		return
 	}
-	msg := fmt.Sprintf("*********** - copied to the clipboard, it will be cleared in %d seconds", clipDur)
+	msg := fmt.Sprintf("%s copied to the clipboard, it will be cleared in %d seconds", label, clipDuration)
 	fmt.Println(color.InYellow(msg))
 }
