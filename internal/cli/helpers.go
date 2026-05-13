@@ -24,6 +24,7 @@ func printForkUndecryptable() {
 //	prompt.ErrPromptCancelled    → (true, nil)         silent exit
 //	errSilentExit                → (true, errSilentExit) already-printed sentinel
 //	storage.ErrForkUndecryptable → (true, errSilentExit) banner printed
+//	storage.ErrPSW1Unsupported   → (true, errSilentExit) red banner printed
 //	anything else                → (true, nil)         err printed
 func handleCmdErr(err error) (stop bool, ret error) {
 	if err == nil {
@@ -37,6 +38,10 @@ func handleCmdErr(err error) (stop bool, ret error) {
 	}
 	if errors.Is(err, storage.ErrForkUndecryptable) {
 		printForkUndecryptable()
+		return true, errSilentExit
+	}
+	if errors.Is(err, storage.ErrPSW1Unsupported) {
+		fmt.Println(color.InRed(err.Error()))
 		return true, errSilentExit
 	}
 	fmt.Println(err.Error())
@@ -156,7 +161,7 @@ func dedupe(names []string) []string {
 // recordKindLabel returns "value" for single-value records, "user/pass" otherwise.
 // For debug logging; carries no secrets.
 func recordKindLabel(r storage.Record) string {
-	if r.Value != "" {
+	if len(r.Value) != 0 {
 		return "value"
 	}
 	return "user/pass"

@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/awnumar/memguard"
 	"github.com/go-git/go-git/v5/plumbing"
 )
 
@@ -28,7 +29,7 @@ const ForkUndecryptableUserMessage = "Storage was re-encrypted under a different
 //	(nil, nil)                  — no-op: no remote, fetch warned, in sync, or ahead.
 //	(nil, ErrForkUndecryptable) — fork/remote can't decrypt under current password.
 //	(nil, wrapped err)          — unexpected git failure.
-func GitPullAndMerge(mainPassword string) (*Storage, error) {
+func GitPullAndMerge(mainPassword *memguard.Enclave) (*Storage, error) {
 	if !shouldUseRemote() {
 		return nil, nil
 	}
@@ -68,7 +69,7 @@ func GitPullAndMerge(mainPassword string) (*Storage, error) {
 	return divergentMerge(remoteSHA, mainPassword)
 }
 
-func fastForward(remoteSHA, mainPassword string) (*Storage, error) {
+func fastForward(remoteSHA string, mainPassword *memguard.Enclave) (*Storage, error) {
 	records, err := decryptBlobToRecords(remoteSHA, mainPassword)
 	if err != nil {
 		return nil, ErrForkUndecryptable
@@ -84,7 +85,7 @@ func fastForward(remoteSHA, mainPassword string) (*Storage, error) {
 	return &Storage{MainPassword: mainPassword, Records: records}, nil
 }
 
-func divergentMerge(remoteSHA, mainPassword string) (*Storage, error) {
+func divergentMerge(remoteSHA string, mainPassword *memguard.Enclave) (*Storage, error) {
 	localSHA, err := revParse("HEAD")
 	if err != nil {
 		return nil, err
@@ -150,12 +151,17 @@ func parseSHA1Hash(sha string) (plumbing.Hash, error) {
 	return plumbing.NewHash(sha), nil
 }
 
-func decryptBlobToRecords(ref, password string) ([]Record, error) {
+func decryptBlobToRecords(ref string, password *memguard.Enclave) ([]Record, error) {
 	blob, err := gitShowBlob(ref, Paths.storageFileName)
 	if err != nil {
 		return nil, fmt.Errorf("git show %s: %w", ref, err)
 	}
-	plain, err := decryptBytes(blob, password)
+	pwBuf, err := password.Open()
+	if err != nil {
+		return nil, fmt.Errorf("open password enclave: %w", err)
+	}
+	defer pwBuf.Destroy()
+	plain, err := decryptBytes(blob, pwBuf.Bytes())
 	if err != nil {
 		return nil, err
 	}

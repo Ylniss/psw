@@ -9,6 +9,7 @@ require (
 	charm.land/bubbletea/v2 v2.0.6
 	charm.land/lipgloss/v2 v2.0.3
 	github.com/atotto/clipboard v0.1.4
+	github.com/awnumar/memguard v0.23.0
 	github.com/go-git/go-git/v5 v5.19.0
 	github.com/google/renameio/v2 v2.0.2
 	github.com/pelletier/go-toml/v2 v2.3.1
@@ -22,6 +23,7 @@ require (
 	dario.cat/mergo v1.0.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/ProtonMail/go-crypto v1.1.6 // indirect
+	github.com/awnumar/memcall v0.4.0 // indirect
 	github.com/charmbracelet/colorprofile v0.4.3 // indirect
 	github.com/charmbracelet/ultraviolet v0.0.0-20260416155717-489999b90468 // indirect
 	github.com/charmbracelet/x/ansi v0.11.7 // indirect

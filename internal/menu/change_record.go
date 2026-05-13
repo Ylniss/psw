@@ -38,7 +38,7 @@ func (a ChangeAction) updateEnterRename(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // advanceAfterRename branches based on record kind into the next confirm step.
 func (a ChangeAction) advanceAfterRename() ChangeAction {
-	if a.record.Value == "" {
+	if len(a.record.Value) == 0 {
 		a.yesNo = prompt.NewYesNoModel("Do you want to change username?")
 		a.phase = changePhaseConfirmUsername
 		return a
@@ -99,7 +99,7 @@ func (a ChangeAction) updateEnterPasswordRepeat(msg tea.Msg) (tea.Model, tea.Cmd
 		a.pendingPassword = ""
 		return a.toInput("New password", true, false, changePhaseEnterPassword)
 	}
-	a.record.Password = a.pendingPassword
+	a.record.Password = []byte(a.pendingPassword)
 	return a.startSave()
 }
 
@@ -119,7 +119,7 @@ func (a ChangeAction) updateEnterValue(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if a.cancelled || !ok {
 		return a, cmd
 	}
-	a.record.Value = val
+	a.record.Value = []byte(val)
 	return a.startSave()
 }
 

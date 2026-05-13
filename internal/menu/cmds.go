@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/awnumar/memguard"
 
 	"github.com/ylniss/psw/internal/storage"
 )
@@ -17,7 +18,7 @@ func formatLoadError(err error) string {
 }
 
 // loadCmd decrypts storage; pull=true also fetches and merges first.
-func loadCmd(password string, pull bool) tea.Cmd {
+func loadCmd(password *memguard.Enclave, pull bool) tea.Cmd {
 	return func() tea.Msg {
 		s, err := storage.LoadOrCreate(password, pull)
 		return storageLoadedMsg{store: s, err: err}
@@ -27,7 +28,7 @@ func loadCmd(password string, pull bool) tea.Cmd {
 // pullCmd runs storage.GitPullAndMerge and captures pull-time warnings
 // (timeout fallback, merge summary). If a merge ran, the returned store
 // is already decrypted so callers skip a second Argon2id derive.
-func pullCmd(password string) tea.Cmd {
+func pullCmd(password *memguard.Enclave) tea.Cmd {
 	return func() tea.Msg {
 		warns.drain() // discard noise from before this run
 		store, err := storage.GitPullAndMerge(password)
@@ -37,14 +38,14 @@ func pullCmd(password string) tea.Cmd {
 
 // decryptCmd loads storage.psw with the cached password. Assumes the vault
 // and git repo already exist.
-func decryptCmd(password string) tea.Cmd {
+func decryptCmd(password *memguard.Enclave) tea.Cmd {
 	return func() tea.Msg {
 		s, err := storage.Decrypt(password)
 		return storageLoadedMsg{store: s, err: err}
 	}
 }
 
-func validatePasswordCmd(password string) tea.Cmd {
+func validatePasswordCmd(password *memguard.Enclave) tea.Cmd {
 	return func() tea.Msg {
 		_, err := storage.LoadOrCreate(password, false)
 		return passwordValidatedMsg{err: err}

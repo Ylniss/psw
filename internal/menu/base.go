@@ -3,6 +3,7 @@ package menu
 import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/TwiN/go-color"
+	"github.com/awnumar/memguard"
 
 	"github.com/ylniss/psw/internal/prompt"
 	"github.com/ylniss/psw/internal/storage"
@@ -76,7 +77,7 @@ func (b *baseAction) initSpinner(label string) tea.Cmd {
 //	store == nil, cmd      — still waiting; caller returns the cmd.
 //
 // password is the cached main password used to chain decryptCmd after pull.
-func (b *baseAction) handleLoadingMsg(msg tea.Msg, password string) (store *storage.Storage, done bool, cmd tea.Cmd) {
+func (b *baseAction) handleLoadingMsg(msg tea.Msg, password *memguard.Enclave) (store *storage.Storage, done bool, cmd tea.Cmd) {
 	switch m := msg.(type) {
 	case pullDoneMsg:
 		if m.err != nil {

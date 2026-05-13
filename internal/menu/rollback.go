@@ -7,6 +7,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/TwiN/go-color"
+	"github.com/awnumar/memguard"
 
 	"github.com/ylniss/psw/internal/storage"
 	"github.com/ylniss/psw/internal/tuiutil"
@@ -25,7 +26,7 @@ type RollbackAction struct {
 	baseAction
 
 	phase    rollbackPhase
-	password string
+	password *memguard.Enclave
 
 	store   *storage.Storage
 	picker  storage.PickerModel
@@ -36,7 +37,7 @@ type RollbackAction struct {
 	width, height int
 }
 
-func NewRollbackAction(password string) RollbackAction {
+func NewRollbackAction(password *memguard.Enclave) RollbackAction {
 	return RollbackAction{
 		baseAction: newBase("Syncing"),
 		phase:      rollbackPhaseLoading,
@@ -176,7 +177,7 @@ func (a RollbackAction) View() tea.View {
 	return tea.NewView("")
 }
 
-func (a RollbackAction) NewPassword() string { return "" }
+func (a RollbackAction) NewPassword() *memguard.Enclave { return nil }
 func (a RollbackAction) FooterHelp() string {
 	if a.phase == rollbackPhasePicking {
 		return a.picker.Help()

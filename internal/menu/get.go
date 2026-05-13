@@ -9,6 +9,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/TwiN/go-color"
 	"github.com/atotto/clipboard"
+	"github.com/awnumar/memguard"
 
 	"github.com/ylniss/psw/internal/clipclean"
 	"github.com/ylniss/psw/internal/storage"
@@ -27,7 +28,7 @@ type GetAction struct {
 	baseAction
 
 	phase    getPhase
-	password string
+	password *memguard.Enclave
 
 	picker storage.PickerModel
 	store  *storage.Storage
@@ -40,7 +41,7 @@ type GetAction struct {
 	width, height int
 }
 
-func NewGetAction(password string) GetAction {
+func NewGetAction(password *memguard.Enclave) GetAction {
 	return GetAction{
 		baseAction: newBase("Decrypting"),
 		phase:      getPhaseLoading,
@@ -136,11 +137,11 @@ func (a *GetAction) copyAndStartCountdown(recordName string) tea.Cmd {
 	}
 	clipboardTimeoutSeconds := storage.AppConfig.ClipboardTimeoutSeconds
 	var clipboardText string
-	if record.Value == "" {
-		clipboardText = record.Password
+	if len(record.Value) == 0 {
+		clipboardText = string(record.Password)
 		a.isSingleValueRecord = false
 	} else {
-		clipboardText = record.Value
+		clipboardText = string(record.Value)
 		a.isSingleValueRecord = true
 	}
 	if err := clipboard.WriteAll(clipboardText); err != nil {
@@ -193,7 +194,7 @@ func (a GetAction) View() tea.View {
 	return tea.NewView("")
 }
 
-func (a GetAction) NewPassword() string { return "" }
+func (a GetAction) NewPassword() *memguard.Enclave { return nil }
 func (a GetAction) FooterHelp() string {
 	switch a.phase {
 	case getPhasePicking:

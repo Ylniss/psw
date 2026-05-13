@@ -1,11 +1,14 @@
 package storage
 
 import (
+	"bytes"
 	"encoding/json"
 	"log/slog"
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/awnumar/memguard"
 )
 
 // Reserved keywords for the main-password rotation flow. They are not record
@@ -15,16 +18,22 @@ const (
 	MainPasswordKeywordLong  = "main-password"
 )
 
+// Record stores either a username/password pair or a single value (never both).
+// Password and Value are []byte to allow manual zeroization on overwrite/remove;
+// encoding/json serializes them as base64 strings inside the encrypted JSON.
+// Discriminator is len(Value) != 0.
 type Record struct {
 	Name     string `json:"name"`
 	Username string `json:"user"`
-	Password string `json:"pass"`
-	Value    string `json:"value"`
+	Password []byte `json:"pass,omitempty"`
+	Value    []byte `json:"value,omitempty"`
 	MTime    int64  `json:"mtime,omitempty"`
 }
 
 type Storage struct {
-	MainPassword string
+	// MainPassword is sealed in a memguard Enclave. Encrypt/decrypt paths Open
+	// it locally, defer Destroy on the LockedBuffer.
+	MainPassword *memguard.Enclave
 	Records      []Record
 }
 
@@ -58,9 +67,14 @@ func (s *Storage) insertSorted(r Record) {
 	s.Records = slices.Insert(s.Records, i, r)
 }
 
+// AddRecord clones the byte fields so callers can zeroize their input without
+// poisoning the stored record.
 func (s *Storage) AddRecord(r *Record) {
 	r.MTime = time.Now().UnixMilli()
-	s.insertSorted(*r)
+	cp := *r
+	cp.Password = bytes.Clone(r.Password)
+	cp.Value = bytes.Clone(r.Value)
+	s.insertSorted(cp)
 }
 
 func (s *Storage) GetRecord(name string) (Record, bool) {
@@ -72,28 +86,47 @@ func (s *Storage) GetRecord(name string) (Record, bool) {
 	return Record{}, false
 }
 
+// UpdateRecord zeroizes the prior record's secret bytes before overwriting,
+// and clones the incoming bytes (same ownership rule as AddRecord).
 func (s *Storage) UpdateRecord(name string, updatedRecord Record) {
 	for i, r := range s.Records {
 		if !strings.EqualFold(r.Name, name) {
 			continue
 		}
 		updatedRecord.MTime = time.Now().UnixMilli()
+		cp := updatedRecord
+		cp.Password = bytes.Clone(updatedRecord.Password)
+		cp.Value = bytes.Clone(updatedRecord.Value)
+		zeroize(r.Password)
+		zeroize(r.Value)
 		// No rename: replace in place.
-		if updatedRecord.Name == r.Name {
-			s.Records[i] = updatedRecord
+		if cp.Name == r.Name {
+			s.Records[i] = cp
 			return
 		}
 		// Rename: delete + re-insert sorted.
 		s.Records = slices.Delete(s.Records, i, i+1)
-		s.insertSorted(updatedRecord)
+		s.insertSorted(cp)
 		return
 	}
 }
 
+// RemoveRecord wipes the secret byte fields before dropping the record.
 func (s *Storage) RemoveRecord(name string) {
 	s.Records = slices.DeleteFunc(s.Records, func(r Record) bool {
-		return strings.EqualFold(r.Name, name)
+		if strings.EqualFold(r.Name, name) {
+			zeroize(r.Password)
+			zeroize(r.Value)
+			return true
+		}
+		return false
 	})
+}
+
+func zeroize(b []byte) {
+	for i := range b {
+		b[i] = 0
+	}
 }
 
 func (s *Storage) Exists(name string) bool {

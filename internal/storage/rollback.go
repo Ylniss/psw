@@ -4,17 +4,24 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"github.com/awnumar/memguard"
 )
 
 // LoadCommitRecords reads <ref>:storage.psw and returns the decoded record
 // slice. Any decrypt failure maps to ErrForkUndecryptable — same posture as
 // fastForward / divergentMerge in pull_merge.go.
-func LoadCommitRecords(ref, password string) ([]Record, error) {
+func LoadCommitRecords(ref string, password *memguard.Enclave) ([]Record, error) {
 	blob, err := gitShowBlob(ref, Paths.storageFileName)
 	if err != nil {
 		return nil, fmt.Errorf("read commit blob: %w", err)
 	}
-	plain, err := decryptBytes(blob, password)
+	pwBuf, err := password.Open()
+	if err != nil {
+		return nil, fmt.Errorf("open password enclave: %w", err)
+	}
+	defer pwBuf.Destroy()
+	plain, err := decryptBytes(blob, pwBuf.Bytes())
 	if err != nil {
 		return nil, ErrForkUndecryptable
 	}

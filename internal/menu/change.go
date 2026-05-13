@@ -5,6 +5,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/TwiN/go-color"
+	"github.com/awnumar/memguard"
 
 	"github.com/ylniss/psw/internal/storage"
 	"github.com/ylniss/psw/internal/tuiutil"
@@ -33,7 +34,7 @@ type ChangeAction struct {
 	baseAction
 
 	phase    changePhase
-	password string
+	password *memguard.Enclave
 
 	picker storage.PickerModel
 	store  *storage.Storage
@@ -49,10 +50,10 @@ type ChangeAction struct {
 
 	inlineBanner string
 
-	rotatedMainPassword string // non-empty after successful change-main
+	rotatedMainPassword *memguard.Enclave // non-nil after successful change-main
 }
 
-func NewChangeAction(password string) ChangeAction {
+func NewChangeAction(password *memguard.Enclave) ChangeAction {
 	return ChangeAction{
 		baseAction: newBase("Syncing"),
 		phase:      changePhaseLoading,
@@ -141,7 +142,7 @@ func (a ChangeAction) updateSaving(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, nil
 		}
 		if a.rotatingMainPassword {
-			a.rotatedMainPassword = a.newMainPassword
+			a.rotatedMainPassword = memguard.NewEnclave([]byte(a.newMainPassword))
 			a.finish(color.InGreen("Main password changed"))
 		} else {
 			a.finish(fmt.Sprintf("Record %s was updated successfully", color.InGreen(a.record.Name)))
@@ -175,7 +176,7 @@ func (a ChangeAction) View() tea.View {
 	return tea.NewView("")
 }
 
-func (a ChangeAction) NewPassword() string { return a.rotatedMainPassword }
+func (a ChangeAction) NewPassword() *memguard.Enclave { return a.rotatedMainPassword }
 
 func (a ChangeAction) FooterHelp() string {
 	if a.phase == changePhasePicking {

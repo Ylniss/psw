@@ -51,11 +51,11 @@ func changeRecord(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if (usernameSet || passwordSet) && record.Value != "" {
+	if (usernameSet || passwordSet) && len(record.Value) != 0 {
 		fmt.Printf("Record %s is value-only; --username/--password not applicable\n", color.InGreen(recordName))
 		return errSilentExit
 	}
-	if valueSet && record.Value == "" {
+	if valueSet && len(record.Value) == 0 {
 		fmt.Printf("Record %s is user/pass; --value not applicable\n", color.InGreen(recordName))
 		return errSilentExit
 	}
@@ -64,7 +64,7 @@ func changeRecord(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if record.Value == "" {
+	if len(record.Value) == 0 {
 		if !applyOrPromptUsername(&record, usernameSet, anyFlagSet) {
 			return nil
 		}
@@ -140,7 +140,7 @@ func applyOrPromptUsername(record *storage.Record, flagSet, anyFlagSet bool) boo
 
 func applyOrPromptPassword(record *storage.Record, flagSet, anyFlagSet bool) bool {
 	if flagSet {
-		record.Password = changePasswordFlag
+		record.Password = []byte(changePasswordFlag)
 		return true
 	}
 	if anyFlagSet {
@@ -153,13 +153,13 @@ func applyOrPromptPassword(record *storage.Record, flagSet, anyFlagSet bool) boo
 	if handlePromptErr(err) {
 		return false
 	}
-	record.Password = newPassword
+	record.Password = []byte(newPassword)
 	return true
 }
 
 func applyOrPromptValue(record *storage.Record, flagSet, anyFlagSet bool) bool {
 	if flagSet {
-		record.Value = changeValueFlag
+		record.Value = []byte(changeValueFlag)
 		return true
 	}
 	if anyFlagSet {
@@ -172,6 +172,6 @@ func applyOrPromptValue(record *storage.Record, flagSet, anyFlagSet bool) bool {
 	if handlePromptErr(err) {
 		return false
 	}
-	record.Value = newValue
+	record.Value = []byte(newValue)
 	return true
 }

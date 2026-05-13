@@ -6,6 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/TwiN/go-color"
+	"github.com/awnumar/memguard"
 
 	"github.com/ylniss/psw/internal/storage"
 	"github.com/ylniss/psw/internal/tuiutil"
@@ -24,7 +25,7 @@ type RemoveAction struct {
 	baseAction
 
 	phase    removePhase
-	password string
+	password *memguard.Enclave
 
 	picker             storage.PickerModel
 	store              *storage.Storage
@@ -34,7 +35,7 @@ type RemoveAction struct {
 	width, height int
 }
 
-func NewRemoveAction(password string) RemoveAction {
+func NewRemoveAction(password *memguard.Enclave) RemoveAction {
 	return RemoveAction{
 		baseAction: newBase("Syncing"),
 		phase:      removePhaseLoading,
@@ -159,7 +160,7 @@ func (a RemoveAction) View() tea.View {
 	return tea.NewView("")
 }
 
-func (a RemoveAction) NewPassword() string { return "" }
+func (a RemoveAction) NewPassword() *memguard.Enclave { return nil }
 func (a RemoveAction) FooterHelp() string {
 	if a.phase == removePhasePicking {
 		return a.picker.Help()

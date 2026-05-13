@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/TwiN/go-color"
+	"github.com/awnumar/memguard"
 
 	"github.com/ylniss/psw/internal/prompt"
 )
@@ -110,14 +111,14 @@ type Action interface {
 	Cancelled() bool
 	// Output is the action's display lines, read after Done.
 	Output() []string
-	// NewPassword is the rotated main password, non-empty after `change main`.
-	NewPassword() string
+	// NewPassword is the rotated main password, non-nil after `change main`.
+	NewPassword() *memguard.Enclave
 	// FooterHelp is the help line to render at the menu's bottom row;
 	// empty when the action's current sub-view doesn't want a footer.
 	FooterHelp() string
 }
 
-func newAction(name, password string) (Action, tea.Cmd) {
+func newAction(name string, password *memguard.Enclave) (Action, tea.Cmd) {
 	switch name {
 	case "get":
 		a := NewGetAction(password)

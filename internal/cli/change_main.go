@@ -21,7 +21,7 @@ func changeMainPassword() error {
 // changeRecord instead of re-prompting via GetOrCreateForMutate.
 func changeMainPasswordOnStore(store *storage.Storage) error {
 	fmt.Println(color.InCyan("You are changing your main password!"))
-	newMainPassword, err := prompt.PromptForMainPasswordChange()
+	newMainPassword, err := prompt.PromptForMainPasswordChangeEnclave()
 	if done, ret := handleCmdErr(err); done {
 		return ret
 	}

@@ -92,7 +92,7 @@ Arguments:
 			if done, ret := handleCmdErr(err); done {
 				return ret
 			}
-			store.AddRecord(&storage.Record{Name: recordName, Value: recordValue})
+			store.AddRecord(&storage.Record{Name: recordName, Value: []byte(recordValue)})
 		} else {
 			recordUsername, err := getOrPromptUsername(usernameSet)
 			if done, ret := handleCmdErr(err); done {
@@ -102,7 +102,7 @@ Arguments:
 			if done, ret := handleCmdErr(err); done {
 				return ret
 			}
-			store.AddRecord(&storage.Record{Name: recordName, Username: recordUsername, Password: recordPassword})
+			store.AddRecord(&storage.Record{Name: recordName, Username: recordUsername, Password: []byte(recordPassword)})
 		}
 
 		if done, ret := handleCmdErr(store.Save()); done {

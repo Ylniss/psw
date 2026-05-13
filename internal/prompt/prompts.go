@@ -10,6 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/TwiN/go-color"
+	"github.com/awnumar/memguard"
 	"golang.org/x/term"
 
 	"github.com/ylniss/psw/internal/tuiutil"
@@ -323,6 +324,27 @@ func PromptForMainPasswordChange() (string, error) {
 
 func PromptForMainPassword(confirm bool) (string, error) {
 	return promptForMainPassword(confirm, false)
+}
+
+// PromptForMainPasswordEnclave wraps PromptForMainPassword and seals the
+// result into a memguard Enclave. The intermediate string from the textinput
+// is unscrubbable (lives until GC) — that's the documented memory-hygiene
+// boundary.
+func PromptForMainPasswordEnclave(confirm bool) (*memguard.Enclave, error) {
+	s, err := PromptForMainPassword(confirm)
+	if err != nil {
+		return nil, err
+	}
+	return memguard.NewEnclave([]byte(s)), nil
+}
+
+// PromptForMainPasswordChangeEnclave is PromptForMainPasswordChange returning an Enclave.
+func PromptForMainPasswordChangeEnclave() (*memguard.Enclave, error) {
+	s, err := PromptForMainPasswordChange()
+	if err != nil {
+		return nil, err
+	}
+	return memguard.NewEnclave([]byte(s)), nil
 }
 
 func promptForMainPassword(confirm bool, mainPasswordChange bool) (string, error) {
