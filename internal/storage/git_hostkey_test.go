@@ -43,7 +43,7 @@ func tcpAddr() net.Addr {
 
 func TestAcceptNew_UnknownHostAppendsAndAccepts(t *testing.T) {
 	path := newKnownHostsFile(t)
-	cb, err := buildAcceptNewCallback(path)
+	cb, err := buildHostKeyCallback(path)
 	if err != nil {
 		t.Fatalf("build callback: %v", err)
 	}
@@ -68,7 +68,7 @@ func TestAcceptNew_KnownHostSameKeyAccepts(t *testing.T) {
 
 	// Build twice: first call pins, second uses a fresh callback that reads
 	// the now-populated file. Same key → silent accept.
-	cb1, err := buildAcceptNewCallback(path)
+	cb1, err := buildHostKeyCallback(path)
 	if err != nil {
 		t.Fatalf("build cb1: %v", err)
 	}
@@ -76,7 +76,7 @@ func TestAcceptNew_KnownHostSameKeyAccepts(t *testing.T) {
 		t.Fatalf("pin: %v", err)
 	}
 
-	cb2, err := buildAcceptNewCallback(path)
+	cb2, err := buildHostKeyCallback(path)
 	if err != nil {
 		t.Fatalf("build cb2: %v", err)
 	}
@@ -90,7 +90,7 @@ func TestAcceptNew_KnownHostDifferentKeyReturnsErrHostKeyChanged(t *testing.T) {
 	key1 := newSSHKey(t)
 	key2 := newSSHKey(t)
 
-	cb1, err := buildAcceptNewCallback(path)
+	cb1, err := buildHostKeyCallback(path)
 	if err != nil {
 		t.Fatalf("build cb1: %v", err)
 	}
@@ -98,7 +98,7 @@ func TestAcceptNew_KnownHostDifferentKeyReturnsErrHostKeyChanged(t *testing.T) {
 		t.Fatalf("pin: %v", err)
 	}
 
-	cb2, err := buildAcceptNewCallback(path)
+	cb2, err := buildHostKeyCallback(path)
 	if err != nil {
 		t.Fatalf("build cb2: %v", err)
 	}

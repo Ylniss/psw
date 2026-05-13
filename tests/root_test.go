@@ -12,9 +12,8 @@ func TestRoot_NonTTYErrors(t *testing.T) {
 	mustContain(t, result.stdout+result.stderr, "requires an interactive terminal")
 }
 
-// L8: the env-password warning is gated on an interactive TTY. The test
-// harness inherits stdin from `go test`, which is not a TTY, so the warning
-// should never fire here even though PSW_MAIN_PASSWORD is set in the env.
+// Env-password warning is TTY-gated. go test stdin is not a TTY, so the
+// warning stays silent even when PSW_MAIN_PASSWORD is set in the env.
 func TestRoot_EnvPasswordWarning_SuppressedNonTTY(t *testing.T) {
 	t.Parallel()
 	vault := newVault(t)

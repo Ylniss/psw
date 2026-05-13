@@ -30,7 +30,7 @@ Arguments:
 	Short: "Change chosen record data",
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if len(args) == 1 && (args[0] == storage.MainPasswordKeywordShort || args[0] == storage.MainPasswordKeywordLong) {
+		if len(args) == 1 && (args[0] == storage.MainPasswordAlias || args[0] == storage.MainPasswordName) {
 			if err := rejectFieldFlagsForMain(cmd); err != nil {
 				return err
 			}

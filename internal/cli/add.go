@@ -77,7 +77,7 @@ Arguments:
 		}
 
 		lower := strings.ToLower(recordName)
-		if lower == storage.MainPasswordKeywordShort || lower == storage.MainPasswordKeywordLong {
+		if lower == storage.MainPasswordAlias || lower == storage.MainPasswordName {
 			fmt.Printf("Name %s is reserved. %s command uses it for changing main password\n", color.InGreen(recordName), color.InCyan("change"))
 			return nil
 		}

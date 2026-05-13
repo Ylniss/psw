@@ -118,9 +118,8 @@ func setupLogger() {
 	slog.SetDefault(slog.New(&simpleSlogHandler{out: os.Stderr, level: level}))
 }
 
-// warnEnvPasswordInTTY prints a yellow stderr note when the main-password env
-// vars are set in an interactive session. Env vars are visible via
-// /proc/<pid>/environ — fine for scripting/tests, not for daily use.
+// warnEnvPasswordInTTY warns when PSW_MAIN_PASSWORD/PSW_NEW_MAIN_PASSWORD is
+// set under a TTY (visible via /proc/<pid>/environ).
 func warnEnvPasswordInTTY() {
 	if !term.IsTerminal(int(os.Stdin.Fd())) {
 		return

@@ -11,17 +11,14 @@ import (
 	"github.com/awnumar/memguard"
 )
 
-// Reserved keywords for the main-password rotation flow. They are not record
-// names — they act as sentinels in the `change` command and in the picker.
+// Sentinel keywords for the main-password rotation flow; not valid record names.
 const (
-	MainPasswordKeywordShort = "main"
-	MainPasswordKeywordLong  = "main-password"
+	MainPasswordAlias = "main"
+	MainPasswordName  = "main-password"
 )
 
-// Record stores either a username/password pair or a single value (never both).
-// Password and Value are []byte so they can be wiped on overwrite/remove;
-// encoding/json serializes them as base64 strings inside the encrypted JSON.
-// Discriminator is len(Value) != 0.
+// Record holds a user+password pair or a single value, never both.
+// Discriminator: len(Value) != 0. Secret fields are []byte to allow wiping.
 type Record struct {
 	Name     string `json:"name"`
 	Username string `json:"user"`
@@ -30,8 +27,7 @@ type Record struct {
 	MTime    int64  `json:"mtime,omitempty"`
 }
 
-// cloneSecrets returns a copy of r with Password/Value byte slices cloned so
-// callers can wipe their input without poisoning the stored record.
+// cloneSecrets returns r with Password/Value deep-copied.
 func cloneSecrets(r Record) Record {
 	r.Password = bytes.Clone(r.Password)
 	r.Value = bytes.Clone(r.Value)
@@ -39,8 +35,7 @@ func cloneSecrets(r Record) Record {
 }
 
 type Storage struct {
-	// MainPassword is sealed in a memguard Enclave. Encrypt/decrypt paths Open
-	// it locally, defer Destroy on the LockedBuffer.
+	// MainPassword is sealed; opened on demand at encrypt/decrypt sites.
 	MainPassword *memguard.Enclave
 	Records      []Record
 }
@@ -75,8 +70,7 @@ func (s *Storage) insertSorted(r Record) {
 	s.Records = slices.Insert(s.Records, i, r)
 }
 
-// AddRecord clones the byte fields so callers can wipe their input without
-// poisoning the stored record.
+// AddRecord deep-copies r.Password/r.Value; callers may wipe their input.
 func (s *Storage) AddRecord(r *Record) {
 	r.MTime = time.Now().UnixMilli()
 	s.insertSorted(cloneSecrets(*r))
@@ -91,8 +85,7 @@ func (s *Storage) GetRecord(name string) (Record, bool) {
 	return Record{}, false
 }
 
-// UpdateRecord wipes the prior record's secret bytes before overwriting, and
-// clones the incoming bytes (same ownership rule as AddRecord).
+// UpdateRecord wipes the prior secret bytes and deep-copies the incoming bytes.
 func (s *Storage) UpdateRecord(name string, updatedRecord Record) {
 	for i, r := range s.Records {
 		if !strings.EqualFold(r.Name, name) {
@@ -140,9 +133,7 @@ func (s *Storage) MarshalRecords() ([]byte, error) {
 	return json.MarshalIndent(s.Records, "", "  ")
 }
 
-// Save serializes records to JSON and writes them encrypted under the
-// storage's current MainPassword. To change the main password, mutate
-// storage.MainPassword before calling Save.
+// Save writes the records encrypted under MainPassword.
 func (s *Storage) Save() error {
 	plain, err := s.MarshalRecords()
 	if err != nil {

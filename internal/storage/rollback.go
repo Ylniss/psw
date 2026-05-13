@@ -21,7 +21,7 @@ func LoadCommitRecords(ref string, password *memguard.Enclave) ([]Record, error)
 		return nil, fmt.Errorf("open password enclave: %w", err)
 	}
 	defer pwBuf.Destroy()
-	plain, err := decryptBytes(blob, pwBuf.Bytes())
+	plain, err := decryptBlob(blob, pwBuf.Bytes())
 	if err != nil {
 		return nil, ErrForkUndecryptable
 	}

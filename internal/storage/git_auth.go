@@ -22,9 +22,7 @@ var ErrShellGitNeeded = errors.New("auth method requires shell git or credential
 var ErrSigningRequired = errors.New("commit signing requires shell git")
 
 // ErrRemoteCredentialsInURL signals a remote URL with embedded userinfo
-// (e.g. https://user:pass@host/...). Hard refusal — not retried via shell git.
-// User must remove credentials and reconfigure via ssh, ssh-agent, or
-// `git config credential.helper`.
+// (https://user:pass@host/). Hard refusal — not retried via shell git.
 var ErrRemoteCredentialsInURL = errors.New("credentials embedded in remote URL are not allowed; use ssh, ssh-agent, or git's credential.helper")
 
 type remoteKind int
@@ -66,11 +64,11 @@ func gitAuth(remoteURL string) (transport.AuthMethod, error) {
 }
 
 func sshAuth() (transport.AuthMethod, error) {
-	hostKeyCB, err := acceptNewHostKeyCallback()
+	hostKeyCB, err := hostKeyCallback()
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrShellGitNeeded, err)
 	}
-	// Use ssh-agent only when it has keys; an empty agent makes go-git's handshake fail before we'd reach keyfile fallback.
+	// ssh-agent only when it has keys; empty agent fails handshake before keyfile fallback.
 	if os.Getenv("SSH_AUTH_SOCK") != "" {
 		if agentAuth, err := ssh.NewSSHAgentAuth("git"); err == nil {
 			if signers, err := agentAuth.Callback(); err == nil && len(signers) > 0 {

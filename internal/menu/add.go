@@ -103,7 +103,7 @@ func (a AddAction) updateEnterName(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, cmd
 	}
 	lower := strings.ToLower(name)
-	if lower == storage.MainPasswordKeywordShort || lower == storage.MainPasswordKeywordLong {
+	if lower == storage.MainPasswordAlias || lower == storage.MainPasswordName {
 		a.finish(fmt.Sprintf("Name %s is reserved. %s command uses it for changing main password",
 			color.InGreen(name), color.InCyan("change")))
 		return a, nil

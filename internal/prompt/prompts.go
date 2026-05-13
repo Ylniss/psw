@@ -294,9 +294,8 @@ func PromptForName(promptText string) (string, error) {
 	return runInput(promptText, false, false)
 }
 
-// PromptForSecretValue is PromptForName with masking. Single entry — no
-// double-confirm: single-value records hold user-typed strings rare enough
-// that a re-confirm prompt would cost more than it saves.
+// PromptForSecretValue prompts with masking. No double-confirm — single-value
+// entries are typed once.
 func PromptForSecretValue(promptText string) (string, error) {
 	return runInput(promptText, true, false)
 }
@@ -318,29 +317,19 @@ func PromptForRecordPassword() (string, error) {
 	}
 }
 
-func PromptForMainPasswordChange() (string, error) {
-	return promptForMainPassword(true, true)
-}
-
-func PromptForMainPassword(confirm bool) (string, error) {
-	return promptForMainPassword(confirm, false)
-}
-
-// PromptForMainPasswordEnclave wraps PromptForMainPassword and seals the
-// result into a memguard Enclave. The intermediate string from the textinput
-// is unscrubbable (lives until GC) — that's the documented memory-hygiene
-// boundary.
-func PromptForMainPasswordEnclave(confirm bool) (*memguard.Enclave, error) {
-	s, err := PromptForMainPassword(confirm)
+// PromptMainPassword prompts for the main password and seals it. Intermediate
+// textinput string lives until GC.
+func PromptMainPassword(confirm bool) (*memguard.Enclave, error) {
+	s, err := promptForMainPassword(confirm, false)
 	if err != nil {
 		return nil, err
 	}
 	return memguard.NewEnclave([]byte(s)), nil
 }
 
-// PromptForMainPasswordChangeEnclave is PromptForMainPasswordChange returning an Enclave.
-func PromptForMainPasswordChangeEnclave() (*memguard.Enclave, error) {
-	s, err := PromptForMainPasswordChange()
+// PromptMainPasswordChange is PromptMainPassword for the rotation flow.
+func PromptMainPasswordChange() (*memguard.Enclave, error) {
+	s, err := promptForMainPassword(true, true)
 	if err != nil {
 		return nil, err
 	}

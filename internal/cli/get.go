@@ -49,7 +49,7 @@ Arguments:
 
 		record, isFound := store.GetRecord(recordName)
 
-		slog.Debug("cmd/get", "name", record.Name, "kind", recordKindLabel(record))
+		slog.Debug("cmd/get", "name", record.Name, "kind", recordType(record))
 
 		if !isFound {
 			fmt.Printf("Record %s was not found\n", color.InGreen(recordName))

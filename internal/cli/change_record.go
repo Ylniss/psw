@@ -25,14 +25,14 @@ func changeRecord(cmd *cobra.Command, args []string) error {
 		return ret
 	}
 
-	recordName, err := resolveRecordName(store, args, changeExactFlag, []string{storage.MainPasswordKeywordLong})
+	recordName, err := resolveRecordName(store, args, changeExactFlag, []string{storage.MainPasswordName})
 	if done, ret := handleCmdErr(err); done {
 		return ret
 	}
 	if recordName == "" {
 		return nil
 	}
-	if recordName == storage.MainPasswordKeywordLong {
+	if recordName == storage.MainPasswordName {
 		if err := rejectFieldFlagsForMain(cmd); err != nil {
 			return err
 		}
@@ -44,7 +44,7 @@ func changeRecord(cmd *cobra.Command, args []string) error {
 	}
 	record, isFound := store.GetRecord(recordName)
 
-	slog.Debug("cmd/change", "name", record.Name, "kind", recordKindLabel(record))
+	slog.Debug("cmd/change", "name", record.Name, "kind", recordType(record))
 
 	if !isFound {
 		fmt.Printf("Record %s was not found\n", color.InGreen(recordName))

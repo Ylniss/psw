@@ -16,9 +16,7 @@ import (
 	"golang.org/x/crypto/argon2"
 )
 
-// TestArgonIterations_Default pins the OWASP "balanced for desktop" t=3
-// setting. PSW_FAST_ARGON=1 lowers it to t=1 for the integration tests; assert
-// whichever branch matches the test environment.
+// TestArgonIterations_Default pins t=3 in normal builds; PSW_FAST_ARGON=1 drops to t=1.
 func TestArgonIterations_Default(t *testing.T) {
 	if os.Getenv("PSW_FAST_ARGON") == "1" {
 		if argonIterations != 1 {
@@ -31,16 +29,15 @@ func TestArgonIterations_Default(t *testing.T) {
 	}
 }
 
-// TestEncryptBytesToFile_RoundTrip exercises the renameio write path: file
-// exists at mode 0600 and decrypts back to the original plaintext.
-func TestEncryptBytesToFile_RoundTrip(t *testing.T) {
+// TestEncryptToFile_RoundTrip: round-trip plus file-mode-0600 check.
+func TestEncryptToFile_RoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "storage.psw")
 	want := []byte("hello world")
 	password := []byte("p")
 
-	if err := encryptBytesToFile(path, bytes.Clone(want), password); err != nil {
-		t.Fatalf("encryptBytesToFile: %v", err)
+	if err := encryptToFile(path, bytes.Clone(want), password); err != nil {
+		t.Fatalf("encryptToFile: %v", err)
 	}
 
 	info, err := os.Stat(path)
@@ -51,22 +48,22 @@ func TestEncryptBytesToFile_RoundTrip(t *testing.T) {
 		t.Fatalf("file mode = %o, want 0600", got)
 	}
 
-	got, err := decryptBytesFromFile(path, password)
+	got, err := decryptFromFile(path, password)
 	if err != nil {
-		t.Fatalf("decryptBytesFromFile: %v", err)
+		t.Fatalf("decryptFromFile: %v", err)
 	}
 	if !bytes.Equal(got, want) {
 		t.Fatalf("round-trip mismatch: got %q, want %q", got, want)
 	}
 }
 
-// TestEncryptBytesToFile_NoLeftoverTemp verifies renameio doesn't leave its
-// tmp file behind on success.
-func TestEncryptBytesToFile_NoLeftoverTemp(t *testing.T) {
+// TestEncryptToFile_NoLeftoverTemp verifies renameio doesn't leave its tmp
+// file behind on success.
+func TestEncryptToFile_NoLeftoverTemp(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "storage.psw")
-	if err := encryptBytesToFile(path, []byte("x"), []byte("p")); err != nil {
-		t.Fatalf("encryptBytesToFile: %v", err)
+	if err := encryptToFile(path, []byte("x"), []byte("p")); err != nil {
+		t.Fatalf("encryptToFile: %v", err)
 	}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -81,14 +78,12 @@ func TestEncryptBytesToFile_NoLeftoverTemp(t *testing.T) {
 	}
 }
 
-// TestEncryptBytesToFile_WipesInput verifies the input slice is wiped after
-// the call (matches memguard.NewEnclave convention so callers don't need to
-// wipe themselves).
-func TestEncryptBytesToFile_WipesInput(t *testing.T) {
+// TestEncryptToFile_WipesInput: input slice is wiped on return.
+func TestEncryptToFile_WipesInput(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "storage.psw")
 	plain := []byte("sensitive")
-	if err := encryptBytesToFile(path, plain, []byte("p")); err != nil {
+	if err := encryptToFile(path, plain, []byte("p")); err != nil {
 		t.Fatalf("encrypt: %v", err)
 	}
 	for i, b := range plain {
@@ -113,10 +108,10 @@ func TestPSW2_RoundTrip_AllSizes(t *testing.T) {
 		want := bytes.Repeat([]byte("a"), n)
 		dir := t.TempDir()
 		path := filepath.Join(dir, "storage.psw")
-		if err := encryptBytesToFile(path, bytes.Clone(want), []byte("p")); err != nil {
+		if err := encryptToFile(path, bytes.Clone(want), []byte("p")); err != nil {
 			t.Fatalf("size=%d encrypt: %v", n, err)
 		}
-		got, err := decryptBytesFromFile(path, []byte("p"))
+		got, err := decryptFromFile(path, []byte("p"))
 		if err != nil {
 			t.Fatalf("size=%d decrypt: %v", n, err)
 		}
@@ -126,14 +121,13 @@ func TestPSW2_RoundTrip_AllSizes(t *testing.T) {
 	}
 }
 
-// TestPSW2_PaddingIsBlockAligned verifies that the sealed payload, minus magic
-// header and salt, has a length that rounds the plaintext to padBlockSize plus
-// the GCM auth tag + nonce overhead.
+// TestPSW2_PaddingIsBlockAligned: sealed length minus GCM overhead is a
+// multiple of padBlockSize.
 func TestPSW2_PaddingIsBlockAligned(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "storage.psw")
 	plain := bytes.Repeat([]byte("a"), 17) // far below one block
-	if err := encryptBytesToFile(path, plain, []byte("p")); err != nil {
+	if err := encryptToFile(path, plain, []byte("p")); err != nil {
 		t.Fatalf("encrypt: %v", err)
 	}
 	encoded, err := os.ReadFile(path)
@@ -153,13 +147,12 @@ func TestPSW2_PaddingIsBlockAligned(t *testing.T) {
 	}
 }
 
-// TestPSW2_SaltTamperingFailsDecrypt flips a byte in the salt. The salt is not
-// AAD-bound, but it feeds the Argon2id KDF, so a different salt yields a
-// different AES key and gcm.Open fails the tag check.
+// TestPSW2_SaltTamperingFailsDecrypt: flipping a salt byte yields a different
+// derived key; gcm.Open fails the tag check.
 func TestPSW2_SaltTamperingFailsDecrypt(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "storage.psw")
-	if err := encryptBytesToFile(path, []byte("hello"), []byte("p")); err != nil {
+	if err := encryptToFile(path, []byte("hello"), []byte("p")); err != nil {
 		t.Fatalf("encrypt: %v", err)
 	}
 	encoded, err := os.ReadFile(path)
@@ -175,19 +168,17 @@ func TestPSW2_SaltTamperingFailsDecrypt(t *testing.T) {
 	if err := os.WriteFile(path, []byte(tampered), 0600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	if _, err := decryptBytesFromFile(path, []byte("p")); err == nil {
+	if _, err := decryptFromFile(path, []byte("p")); err == nil {
 		t.Fatalf("expected decrypt to fail after salt tampering, got nil error")
 	}
 }
 
-// TestPSW2_UnknownMagicRejected swaps the on-disk magic to an unrecognized
-// value. The format check rejects before decryption is attempted. The magic-
-// as-AAD binding would refuse a hypothetical PSW3 reading a PSW2 ciphertext,
-// but here the format check fires first.
+// TestPSW2_UnknownMagicRejected: format check rejects unknown magic before
+// decryption.
 func TestPSW2_UnknownMagicRejected(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "storage.psw")
-	if err := encryptBytesToFile(path, []byte("hello"), []byte("p")); err != nil {
+	if err := encryptToFile(path, []byte("hello"), []byte("p")); err != nil {
 		t.Fatalf("encrypt: %v", err)
 	}
 	encoded, err := os.ReadFile(path)
@@ -203,7 +194,7 @@ func TestPSW2_UnknownMagicRejected(t *testing.T) {
 	if err := os.WriteFile(path, []byte(tampered), 0600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	_, err = decryptBytesFromFile(path, []byte("p"))
+	_, err = decryptFromFile(path, []byte("p"))
 	if err == nil {
 		t.Fatalf("expected decrypt to fail after magic swap")
 	}
@@ -212,23 +203,20 @@ func TestPSW2_UnknownMagicRejected(t *testing.T) {
 	}
 }
 
-// TestDecrypt_PSW1ReturnsErrPSW1Unsupported synthesizes a PSW1 blob (the
-// pre-phase-3 format) and confirms the new decrypt path refuses with the
-// sentinel error.
+// TestDecrypt_PSW1ReturnsErrPSW1Unsupported: synthesized PSW1 blob → ErrPSW1Unsupported.
 func TestDecrypt_PSW1ReturnsErrPSW1Unsupported(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "storage.psw")
 	if err := writePSW1Vault(path, "hello", []byte("p")); err != nil {
 		t.Fatalf("synthesize PSW1: %v", err)
 	}
-	_, err := decryptBytesFromFile(path, []byte("p"))
+	_, err := decryptFromFile(path, []byte("p"))
 	if !errors.Is(err, ErrPSW1Unsupported) {
 		t.Fatalf("expected ErrPSW1Unsupported, got %v", err)
 	}
 }
 
-// writePSW1Vault mirrors the pre-phase-3 encrypt path: PSW1 magic, no AAD, no
-// padding. Used to validate the rejection path.
+// writePSW1Vault writes a PSW1-format vault (no AAD, no padding).
 func writePSW1Vault(filePath, plainText string, password []byte) error {
 	salt := make([]byte, saltLength)
 	if _, err := io.ReadFull(rand.Reader, salt); err != nil {
@@ -254,7 +242,7 @@ func writePSW1Vault(filePath, plainText string, password []byte) error {
 func TestPSW2_FileBeginsWithPSW2(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "storage.psw")
-	if err := encryptBytesToFile(path, []byte("x"), []byte("p")); err != nil {
+	if err := encryptToFile(path, []byte("x"), []byte("p")); err != nil {
 		t.Fatalf("encrypt: %v", err)
 	}
 	encoded, err := os.ReadFile(path)

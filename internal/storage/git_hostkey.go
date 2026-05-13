@@ -12,13 +12,12 @@ import (
 	cryptossh "golang.org/x/crypto/ssh"
 )
 
-// ErrHostKeyChanged signals a known_hosts mismatch. Hard refusal — do NOT
-// match in shouldFallbackToShell, otherwise shell git would silently re-accept
-// (or re-reject) using the same file we just consulted.
+// ErrHostKeyChanged signals a known_hosts mismatch. Hard refusal — not in
+// shouldFallbackToShell, since shell git would re-read the same file.
 var ErrHostKeyChanged = errors.New("ssh host key changed")
 
 // knownHostsPath returns ~/.ssh/known_hosts, creating ~/.ssh (0700) and the
-// file (0600) if missing. knownhosts.New errors on a missing file.
+// file (0600) if absent.
 func knownHostsPath() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -41,20 +40,18 @@ func knownHostsPath() (string, error) {
 	return path, nil
 }
 
-// acceptNewHostKeyCallback returns an ssh.HostKeyCallback that pins unknown
-// hosts to ~/.ssh/known_hosts on first connect (OpenSSH StrictHostKeyChecking=
-// accept-new) and rejects key changes loudly. Called once per git op, so the
-// returned callback always reads a fresh snapshot of known_hosts.
-func acceptNewHostKeyCallback() (cryptossh.HostKeyCallback, error) {
+// hostKeyCallback returns an OpenSSH accept-new callback. Each call reads a
+// fresh known_hosts.
+func hostKeyCallback() (cryptossh.HostKeyCallback, error) {
 	path, err := knownHostsPath()
 	if err != nil {
 		return nil, err
 	}
-	return buildAcceptNewCallback(path)
+	return buildHostKeyCallback(path)
 }
 
-// buildAcceptNewCallback is the testable core. Caller ensures the file exists.
-func buildAcceptNewCallback(path string) (cryptossh.HostKeyCallback, error) {
+// buildHostKeyCallback is the testable core; caller ensures the file exists.
+func buildHostKeyCallback(path string) (cryptossh.HostKeyCallback, error) {
 	cb, err := knownhosts.New(path)
 	if err != nil {
 		return nil, fmt.Errorf("parse known_hosts %s: %w", path, err)

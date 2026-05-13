@@ -18,7 +18,7 @@ func GetOrCreateForRead() (*Storage, error) { return getOrCreate(false) }
 func GetOrCreateForMutate() (*Storage, error) { return getOrCreate(true) }
 
 func getOrCreate(pull bool) (*Storage, error) {
-	mainPassword, created, err := createVaultIfMissing()
+	mainPassword, created, err := promptAndCreateVaultIfMissing()
 	if err != nil {
 		return nil, err
 	}
@@ -27,7 +27,7 @@ func getOrCreate(pull bool) (*Storage, error) {
 	}
 	// Password resolved before pull; merge needs it to decrypt fork/remote blobs.
 	if !created && mainPassword == nil {
-		mainPassword, err = prompt.PromptForMainPasswordEnclave(false)
+		mainPassword, err = prompt.PromptMainPassword(false)
 		if err != nil {
 			return nil, err
 		}
@@ -73,8 +73,7 @@ func LoadOrCreate(password *memguard.Enclave, pull bool) (*Storage, error) {
 	return Decrypt(password)
 }
 
-// createEmptyVaultIfMissing writes an empty encrypted vault under password
-// when storage.psw doesn't exist. No-op when it does.
+// createEmptyVaultIfMissing writes an empty vault if storage.psw is absent.
 func createEmptyVaultIfMissing(password *memguard.Enclave) error {
 	exists, err := pathExists(Paths.storageFilePath)
 	if err != nil || exists {
@@ -83,8 +82,7 @@ func createEmptyVaultIfMissing(password *memguard.Enclave) error {
 	return EncryptToStorage([]byte("[]"), password)
 }
 
-// Decrypt reads storage.psw and returns the *Storage decrypted under
-// mainPassword. Errors on wrong password or corrupt file.
+// Decrypt loads and decrypts storage.psw under mainPassword.
 func Decrypt(mainPassword *memguard.Enclave) (*Storage, error) {
 	plain, err := DecryptFromStorage(mainPassword)
 	if err != nil {
@@ -108,10 +106,10 @@ func decodeRecords(plain []byte) ([]Record, error) {
 	return records, nil
 }
 
-// createVaultIfMissing prompts for a new main password and seeds an empty
-// vault when storage.psw doesn't exist. Returns (enclave, true, nil) on
-// creation, (nil, false, nil) when the vault was already there.
-func createVaultIfMissing() (*memguard.Enclave, bool, error) {
+// promptAndCreateVaultIfMissing prompts for a new main password and writes an
+// empty vault if storage.psw is absent. Returns the created enclave + true;
+// (nil, false) when the vault already exists.
+func promptAndCreateVaultIfMissing() (*memguard.Enclave, bool, error) {
 	exists, err := pathExists(Paths.storageFilePath)
 	if err != nil {
 		return nil, false, err
@@ -122,7 +120,7 @@ func createVaultIfMissing() (*memguard.Enclave, bool, error) {
 
 	fmt.Println("No encrypted storage found. Set your main password that will be used to decrypt your secrets.")
 
-	mainPassword, err := prompt.PromptForMainPasswordEnclave(true)
+	mainPassword, err := prompt.PromptMainPassword(true)
 	if err != nil {
 		return nil, false, err
 	}

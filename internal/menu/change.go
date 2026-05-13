@@ -108,7 +108,7 @@ func (a ChangeAction) updateLoading(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, cmd
 	}
 	a.store = store
-	a.picker = storage.NewPickerModel(store.GetNames(), []string{storage.MainPasswordKeywordLong}).WithoutHelp()
+	a.picker = storage.NewPickerModel(store.GetNames(), []string{storage.MainPasswordName}).WithoutHelp()
 	if a.width > 0 && a.height > 0 {
 		tuiutil.UpdateInPlace(&a.picker, tea.WindowSizeMsg{Width: a.width, Height: a.height})
 	}
@@ -121,7 +121,7 @@ func (a ChangeAction) updatePicking(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if a.cancelled || !ok {
 		return a, cmd
 	}
-	if sel == storage.MainPasswordKeywordLong {
+	if sel == storage.MainPasswordName {
 		a.rotatingMainPassword = true
 		return a.toInput("New main password", true, true, changePhaseEnterNewMain)
 	}
