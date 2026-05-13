@@ -109,7 +109,7 @@ func (a ChangeAction) updateConfirmValue(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, cmd
 	}
 	if answer {
-		return a.toInput("New value", false, false, changePhaseEnterValue)
+		return a.toInput("New value", true, false, changePhaseEnterValue)
 	}
 	return a.startSave()
 }

@@ -122,6 +122,6 @@ func (s *Storage) Save() error {
 	if err != nil {
 		return err
 	}
-	slog.Debug("saved storage content", "json", storageJSON)
+	slog.Debug("saved", "bytes", len(storageJSON), "records", len(s.Records))
 	return EncryptStringToStorage(storageJSON, s.MainPassword)
 }

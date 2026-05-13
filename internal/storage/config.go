@@ -10,6 +10,7 @@ import (
 
 	"log/slog"
 
+	"github.com/google/renameio/v2"
 	"github.com/pelletier/go-toml/v2"
 
 	"github.com/ylniss/psw/internal/passgen"
@@ -185,13 +186,8 @@ func SaveConfig() error {
 	if err != nil {
 		return fmt.Errorf("marshal config: %w", err)
 	}
-	tmp := Paths.configFilePath + ".tmp"
-	if err := os.WriteFile(tmp, data, 0600); err != nil {
+	if err := renameio.WriteFile(Paths.configFilePath, data, 0600); err != nil {
 		return fmt.Errorf("write config: %w", err)
-	}
-	if err := os.Rename(tmp, Paths.configFilePath); err != nil {
-		_ = os.Remove(tmp)
-		return fmt.Errorf("rename config: %w", err)
 	}
 	return nil
 }

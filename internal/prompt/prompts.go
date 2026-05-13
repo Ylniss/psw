@@ -293,6 +293,13 @@ func PromptForName(promptText string) (string, error) {
 	return runInput(promptText, false, false)
 }
 
+// PromptForSecretValue is PromptForName with masking. Single entry — no
+// double-confirm: single-value records hold user-typed strings rare enough
+// that a re-confirm prompt would cost more than it saves.
+func PromptForSecretValue(promptText string) (string, error) {
+	return runInput(promptText, true, false)
+}
+
 func PromptForRecordPassword() (string, error) {
 	for {
 		first, err := runInput("Password", true, false)

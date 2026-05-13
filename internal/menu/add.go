@@ -113,7 +113,7 @@ func (a AddAction) updateEnterName(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	a.recordName = name
 	if a.isSingleValue {
-		return a.toInput("Value", false, false, addPhaseEnterValue)
+		return a.toInput("Value", true, false, addPhaseEnterValue)
 	}
 	return a.toInput("Username", false, false, addPhaseEnterUsername)
 }

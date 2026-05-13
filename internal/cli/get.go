@@ -49,7 +49,7 @@ Arguments:
 
 		record, isFound := store.GetRecord(recordName)
 
-		slog.Debug("cmd/get", "record", fmt.Sprintf("%#v", record))
+		slog.Debug("cmd/get", "name", record.Name, "kind", recordKindLabel(record))
 
 		if !isFound {
 			fmt.Printf("Record %s was not found\n", color.InGreen(recordName))
@@ -97,7 +97,8 @@ Arguments:
 		}
 
 		if err := clipclean.Spawn(clipboardTimeoutSeconds); err != nil {
-			fmt.Printf("clipclean error: %s\n", err)
+			_ = clipboard.WriteAll("")
+			fmt.Printf("clipclean error: %s (clipboard cleared)\n", err)
 			return nil
 		}
 		return nil

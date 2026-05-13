@@ -48,6 +48,7 @@ Run 'psw' with no arguments to open the interactive menu. Use 'psw add' to creat
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		setupLogger()
 		slog.Debug("App started")
+		warnEnvPasswordInTTY()
 		return storage.InitConfig()
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -115,4 +116,18 @@ func setupLogger() {
 		level = slog.LevelDebug
 	}
 	slog.SetDefault(slog.New(&simpleSlogHandler{out: os.Stderr, level: level}))
+}
+
+// warnEnvPasswordInTTY prints a yellow stderr note when the main-password env
+// vars are set in an interactive session. Env vars are visible via
+// /proc/<pid>/environ — fine for scripting/tests, not for daily use.
+func warnEnvPasswordInTTY() {
+	if !term.IsTerminal(int(os.Stdin.Fd())) {
+		return
+	}
+	if os.Getenv("PSW_MAIN_PASSWORD") == "" && os.Getenv("PSW_NEW_MAIN_PASSWORD") == "" {
+		return
+	}
+	fmt.Fprintln(os.Stderr, color.InYellow(
+		"warning: PSW_MAIN_PASSWORD/PSW_NEW_MAIN_PASSWORD is set in an interactive session; it is visible via /proc/<pid>/environ"))
 }

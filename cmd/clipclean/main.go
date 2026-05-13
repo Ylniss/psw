@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 	"time"
@@ -33,6 +34,8 @@ func main() {
 	}
 
 	if currentClip == originalClip {
-		_ = clipboard.WriteAll("") // clear clipboard
+		if err := clipboard.WriteAll(""); err != nil {
+			fmt.Fprintln(os.Stderr, "clipclean: failed to clear clipboard:", err)
+		}
 	}
 }

@@ -152,3 +152,12 @@ func dedupe(names []string) []string {
 	}
 	return out
 }
+
+// recordKindLabel returns "value" for single-value records, "user/pass" otherwise.
+// For debug logging; carries no secrets.
+func recordKindLabel(r storage.Record) string {
+	if r.Value != "" {
+		return "value"
+	}
+	return "user/pass"
+}

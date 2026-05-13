@@ -155,7 +155,8 @@ func (a *GetAction) copyAndStartCountdown(recordName string) tea.Cmd {
 		)
 	}
 	if err := clipclean.Spawn(clipboardTimeoutSeconds); err != nil {
-		a.output = append(a.output, fmt.Sprintf("clipclean error: %s", err))
+		_ = clipboard.WriteAll("")
+		a.output = append(a.output, fmt.Sprintf("clipclean error: %s (clipboard cleared)", err))
 		a.done = true
 		return nil
 	}

@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/google/renameio/v2"
 	"golang.org/x/crypto/argon2"
 )
 
@@ -21,7 +22,7 @@ const (
 
 // Argon2id parameters. Vars so PSW_FAST_ARGON can lower them for tests.
 var (
-	argonIterations  uint32 = 2
+	argonIterations  uint32 = 3
 	argonMemoryKiB   uint32 = 64 * 1024
 	argonParallelism uint8  = 4
 )
@@ -70,11 +71,8 @@ func encryptStringToFile(filePath, plainText, password string) error {
 	payload = append(payload, sealed...)
 
 	encoded := base64.StdEncoding.EncodeToString(payload)
-	if err := os.WriteFile(filePath, []byte(encoded), 0600); err != nil {
+	if err := renameio.WriteFile(filePath, []byte(encoded), 0600); err != nil {
 		return fmt.Errorf("failed to write encrypted file: %w", err)
-	}
-	if err := os.Chmod(filePath, 0600); err != nil {
-		return fmt.Errorf("failed to chmod encrypted file: %w", err)
 	}
 	return nil
 }

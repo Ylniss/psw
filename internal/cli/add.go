@@ -145,7 +145,7 @@ func getOrPromptValue(flagSet bool) (string, error) {
 	if flagSet {
 		return addValueFlag, nil
 	}
-	return prompt.PromptForName("Value")
+	return prompt.PromptForSecretValue("Value")
 }
 
 func getOrGenerateRecordPassword() (string, error) {

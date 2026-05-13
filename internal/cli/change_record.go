@@ -44,7 +44,7 @@ func changeRecord(cmd *cobra.Command, args []string) error {
 	}
 	record, isFound := store.GetRecord(recordName)
 
-	slog.Debug("cmd/change", "record", fmt.Sprintf("%#v", record))
+	slog.Debug("cmd/change", "name", record.Name, "kind", recordKindLabel(record))
 
 	if !isFound {
 		fmt.Printf("Record %s was not found\n", color.InGreen(recordName))
@@ -168,7 +168,7 @@ func applyOrPromptValue(record *storage.Record, flagSet, anyFlagSet bool) bool {
 	if !prompt.YesOrNo("Do you want to change value?") {
 		return true
 	}
-	newValue, err := prompt.PromptForName("New value")
+	newValue, err := prompt.PromptForSecretValue("New value")
 	if handlePromptErr(err) {
 		return false
 	}

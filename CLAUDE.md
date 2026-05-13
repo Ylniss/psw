@@ -74,7 +74,7 @@ Standalone CLI calls (`psw get foo`, `psw add bar`, etc.) are independent — th
 
 - Colors via `github.com/TwiN/go-color`: record names green, hints/commands cyan, warnings yellow, errors red, rollback log lines purple, de-emphasized secondary hints gray.
 - Errors via cobra `RunE`: print user-facing message, `return errExit` (empty-message sentinel in `internal/cli/root.go`) → exit 1 without cobra usage dump. `SilenceErrors`/`SilenceUsage` on `rootCmd` keep prior UX. Flag-validation (e.g. `add`'s mutual-exclusion) and `resolveRecordName` `--exact` paths return `errSilentExit`; callers thread `if errors.Is(err, errExit) { return errExit }`. Only `os.Exit(1)` outside `main`/tests is `cli.Execute`'s cobra-error fallback. Match surrounding style.
-- `slog.Debug` gated by `--verbose`/`-v` is the only place secret-adjacent data may log; never `fmt.Println` raw passwords.
+- `slog.Debug` gated by `--verbose`/`-v` may log non-secret signals (record names, sizes, counts) but never plaintext secrets or full record dumps; never `fmt.Println` raw passwords.
 - Add subcommand: create `internal/cli/<name>.go` with a `*cobra.Command`, then list it in `rootCmd.AddCommand(...)` inside `internal/cli/root.go`'s `init()`.
 
 ## Testing / scripting mode
