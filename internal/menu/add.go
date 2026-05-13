@@ -207,4 +207,4 @@ func (a AddAction) View() tea.View {
 }
 
 func (a AddAction) NewPassword() *memguard.Enclave { return nil }
-func (a AddAction) FooterHelp() string              { return "" }
+func (a AddAction) FooterHelp() string             { return "" }

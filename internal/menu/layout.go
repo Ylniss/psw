@@ -52,6 +52,7 @@ var defaultHeaderColor = lipgloss.Color("6")
 //   - the [N] hotkey (1-based)
 //   - the cell in menuCells (same index)
 //   - the dispatch name in newAction
+//
 // Keep the three in sync when adding entries.
 var menuActions = []string{"get", "add", "change", "remove", "settings", "rollback"}
 
@@ -309,4 +310,3 @@ func minLeadingSpaces(content string) int {
 	}
 	return best
 }
-

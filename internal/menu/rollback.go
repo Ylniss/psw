@@ -28,11 +28,11 @@ type RollbackAction struct {
 	phase    rollbackPhase
 	password *memguard.Enclave
 
-	store   *storage.Storage
-	picker  storage.PickerModel
+	store        *storage.Storage
+	picker       storage.PickerModel
 	entryByLabel map[string]storage.LogEntry
-	target  storage.LogEntry
-	records []storage.Record
+	target       storage.LogEntry
+	records      []storage.Record
 
 	width, height int
 }

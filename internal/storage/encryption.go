@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 
 	"github.com/awnumar/memguard"
@@ -53,32 +54,36 @@ func init() {
 	}
 }
 
-// EncryptStringToStorage seals plainText under the password enclave and writes
-// the resulting PSW2 payload to storage.psw atomically.
-func EncryptStringToStorage(plainText string, password *memguard.Enclave) error {
+// EncryptToStorage seals plain under the password enclave and writes the
+// resulting PSW2 payload to storage.psw atomically. plain is wiped on return
+// (matches memguard.NewEnclave convention).
+func EncryptToStorage(plain []byte, password *memguard.Enclave) error {
 	pwBuf, err := password.Open()
 	if err != nil {
 		return fmt.Errorf("open password enclave: %w", err)
 	}
 	defer pwBuf.Destroy()
-	return encryptStringToFile(Paths.storageFilePath, plainText, pwBuf.Bytes())
+	return encryptBytesToFile(Paths.storageFilePath, plain, pwBuf.Bytes())
 }
 
-// DecryptStringFromStorage opens storage.psw and returns the decrypted plaintext.
-func DecryptStringFromStorage(password *memguard.Enclave) (string, error) {
+// DecryptFromStorage opens storage.psw and returns the decrypted plaintext.
+// Caller must wipe the returned slice when done.
+func DecryptFromStorage(password *memguard.Enclave) ([]byte, error) {
 	pwBuf, err := password.Open()
 	if err != nil {
-		return "", fmt.Errorf("open password enclave: %w", err)
+		return nil, fmt.Errorf("open password enclave: %w", err)
 	}
 	defer pwBuf.Destroy()
-	return decryptStringFromFile(Paths.storageFilePath, pwBuf.Bytes())
+	return decryptBytesFromFile(Paths.storageFilePath, pwBuf.Bytes())
 }
 
 func deriveKey(password, salt []byte) []byte {
 	return argon2.IDKey(password, salt, argonIterations, argonMemoryKiB, argonParallelism, keyLength)
 }
 
-func encryptStringToFile(filePath, plainText string, password []byte) error {
+func encryptBytesToFile(filePath string, plain []byte, password []byte) error {
+	defer memguard.WipeBytes(plain)
+
 	salt := make([]byte, saltLength)
 	if _, err := io.ReadFull(rand.Reader, salt); err != nil {
 		return fmt.Errorf("failed to generate salt: %w", err)
@@ -94,9 +99,9 @@ func encryptStringToFile(filePath, plainText string, password []byte) error {
 		return fmt.Errorf("failed to create GCM: %w", err)
 	}
 
-	padded := padPlaintext([]byte(plainText))
+	padded := padPlaintext(plain)
 	sealed := gcm.Seal(nil, nil, padded, []byte(magicHeaderV2))
-	zeroize(padded)
+	memguard.WipeBytes(padded)
 
 	payload := make([]byte, 0, len(magicHeaderV2)+saltLength+len(sealed))
 	payload = append(payload, magicHeaderV2...)
@@ -110,31 +115,31 @@ func encryptStringToFile(filePath, plainText string, password []byte) error {
 	return nil
 }
 
-func decryptStringFromFile(filePath string, password []byte) (string, error) {
+func decryptBytesFromFile(filePath string, password []byte) ([]byte, error) {
 	encoded, err := os.ReadFile(filePath)
 	if err != nil {
-		return "", fmt.Errorf("failed to read storage file: %w", err)
+		return nil, fmt.Errorf("failed to read storage file: %w", err)
 	}
 	return decryptBytes(encoded, password)
 }
 
 // decryptBytes decrypts an in-memory base64 PSW2 payload. PSW1 payloads are
-// refused with ErrPSW1Unsupported.
-func decryptBytes(encoded []byte, password []byte) (string, error) {
+// refused with ErrPSW1Unsupported. Caller wipes the returned slice.
+func decryptBytes(encoded []byte, password []byte) ([]byte, error) {
 	payload, err := base64.StdEncoding.DecodeString(string(encoded))
 	if err != nil {
-		return "", fmt.Errorf("failed to decode storage: %w", err)
+		return nil, fmt.Errorf("failed to decode storage: %w", err)
 	}
 
 	if len(payload) < len(magicHeaderV2)+saltLength {
-		return "", errors.New("storage file is corrupted or unrecognized")
+		return nil, errors.New("storage file is corrupted or unrecognized")
 	}
 	magic := string(payload[:len(magicHeaderV2)])
 	if magic == magicHeaderV1 {
-		return "", ErrPSW1Unsupported
+		return nil, ErrPSW1Unsupported
 	}
 	if magic != magicHeaderV2 {
-		return "", fmt.Errorf("unrecognized storage format; expected %s, got %q", magicHeaderV2, magic)
+		return nil, fmt.Errorf("unrecognized storage format; expected %s, got %q", magicHeaderV2, magic)
 	}
 
 	salt := payload[len(magicHeaderV2) : len(magicHeaderV2)+saltLength]
@@ -143,26 +148,26 @@ func decryptBytes(encoded []byte, password []byte) (string, error) {
 	key := deriveKey(password, salt)
 	block, err := aes.NewCipher(key)
 	if err != nil {
-		return "", fmt.Errorf("failed to create cipher: %w", err)
+		return nil, fmt.Errorf("failed to create cipher: %w", err)
 	}
 	gcm, err := cipher.NewGCMWithRandomNonce(block)
 	if err != nil {
-		return "", fmt.Errorf("failed to create GCM: %w", err)
+		return nil, fmt.Errorf("failed to create GCM: %w", err)
 	}
 	padded, err := gcm.Open(nil, nil, sealed, []byte(magicHeaderV2))
 	if err != nil {
-		return "", errors.New("Wrong password.")
+		return nil, errors.New("Wrong password.")
 	}
 	plain, err := unpadPlaintext(padded)
 	if err != nil {
-		zeroize(padded)
-		return "", err
+		memguard.WipeBytes(padded)
+		return nil, err
 	}
 	// Defensive copy so callers don't pin the padded buffer's tail.
 	out := make([]byte, len(plain))
 	copy(out, plain)
-	zeroize(padded)
-	return string(out), nil
+	memguard.WipeBytes(padded)
+	return out, nil
 }
 
 // padPlaintext prepends a 4-byte big-endian length prefix and zero-pads to the
@@ -184,6 +189,10 @@ func unpadPlaintext(padded []byte) ([]byte, error) {
 		return nil, errors.New("malformed plaintext: missing length prefix")
 	}
 	n := binary.BigEndian.Uint32(padded[:lengthPrefixSize])
+	// Guard against 32-bit int wrap before the bound check below.
+	if uint64(n) > math.MaxInt {
+		return nil, errors.New("malformed plaintext: length prefix exceeds platform int")
+	}
 	if int(n) > len(padded)-lengthPrefixSize {
 		return nil, errors.New("malformed plaintext: length prefix exceeds buffer")
 	}

@@ -103,22 +103,23 @@ func divergentMerge(remoteSHA string, mainPassword *memguard.Enclave) (*Storage,
 	if err != nil {
 		return nil, ErrForkUndecryptable
 	}
-	localPlain, err := DecryptStringFromStorage(mainPassword)
+	localPlain, err := DecryptFromStorage(mainPassword)
 	if err != nil {
 		return nil, fmt.Errorf("decrypt local: %w", err)
 	}
+	defer memguard.WipeBytes(localPlain)
 	var localRecords []Record
-	if err := json.Unmarshal([]byte(localPlain), &localRecords); err != nil {
+	if err := json.Unmarshal(localPlain, &localRecords); err != nil {
 		return nil, fmt.Errorf("parse local records: %w", err)
 	}
 
 	merged, summary := mergeRecords(forkRecords, localRecords, remoteRecords)
 
-	mergedJSON, err := (&Storage{Records: merged}).ToJSON()
+	mergedJSON, err := (&Storage{Records: merged}).MarshalRecords()
 	if err != nil {
 		return nil, fmt.Errorf("marshal merged: %w", err)
 	}
-	if err := EncryptStringToStorage(mergedJSON, mainPassword); err != nil {
+	if err := EncryptToStorage(mergedJSON, mainPassword); err != nil {
 		return nil, fmt.Errorf("encrypt merged: %w", err)
 	}
 
@@ -165,8 +166,9 @@ func decryptBlobToRecords(ref string, password *memguard.Enclave) ([]Record, err
 	if err != nil {
 		return nil, err
 	}
+	defer memguard.WipeBytes(plain)
 	var records []Record
-	if err := json.Unmarshal([]byte(plain), &records); err != nil {
+	if err := json.Unmarshal(plain, &records); err != nil {
 		return nil, fmt.Errorf("parse records: %w", err)
 	}
 	return records, nil

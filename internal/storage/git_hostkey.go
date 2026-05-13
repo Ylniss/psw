@@ -7,7 +7,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"sync"
 
 	"github.com/skeema/knownhosts"
 	cryptossh "golang.org/x/crypto/ssh"
@@ -42,25 +41,16 @@ func knownHostsPath() (string, error) {
 	return path, nil
 }
 
-var (
-	hostKeyCallbackOnce sync.Once
-	hostKeyCallback     cryptossh.HostKeyCallback
-	hostKeyCallbackErr  error
-)
-
 // acceptNewHostKeyCallback returns an ssh.HostKeyCallback that pins unknown
 // hosts to ~/.ssh/known_hosts on first connect (OpenSSH StrictHostKeyChecking=
-// accept-new) and rejects key changes loudly. Cached for the process lifetime.
+// accept-new) and rejects key changes loudly. Called once per git op, so the
+// returned callback always reads a fresh snapshot of known_hosts.
 func acceptNewHostKeyCallback() (cryptossh.HostKeyCallback, error) {
-	hostKeyCallbackOnce.Do(func() {
-		path, err := knownHostsPath()
-		if err != nil {
-			hostKeyCallbackErr = err
-			return
-		}
-		hostKeyCallback, hostKeyCallbackErr = buildAcceptNewCallback(path)
-	})
-	return hostKeyCallback, hostKeyCallbackErr
+	path, err := knownHostsPath()
+	if err != nil {
+		return nil, err
+	}
+	return buildAcceptNewCallback(path)
 }
 
 // buildAcceptNewCallback is the testable core. Caller ensures the file exists.

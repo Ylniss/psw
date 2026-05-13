@@ -25,8 +25,9 @@ func LoadCommitRecords(ref string, password *memguard.Enclave) ([]Record, error)
 	if err != nil {
 		return nil, ErrForkUndecryptable
 	}
+	defer memguard.WipeBytes(plain)
 	var records []Record
-	if err := json.Unmarshal([]byte(plain), &records); err != nil {
+	if err := json.Unmarshal(plain, &records); err != nil {
 		return nil, fmt.Errorf("parse commit records: %w", err)
 	}
 	return records, nil

@@ -12,10 +12,10 @@ import (
 )
 
 var (
-	revealFlag    bool
-	getExactFlag  bool
-	getStdoutFlag bool
-	getUsernameFlag   bool
+	revealFlag      bool
+	getExactFlag    bool
+	getStdoutFlag   bool
+	getUsernameFlag bool
 )
 
 func init() {

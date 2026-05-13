@@ -31,16 +31,16 @@ func TestArgonIterations_Default(t *testing.T) {
 	}
 }
 
-// TestEncryptStringToFile_RoundTrip exercises the renameio write path: file
+// TestEncryptBytesToFile_RoundTrip exercises the renameio write path: file
 // exists at mode 0600 and decrypts back to the original plaintext.
-func TestEncryptStringToFile_RoundTrip(t *testing.T) {
+func TestEncryptBytesToFile_RoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "storage.psw")
-	plain := "hello world"
+	want := []byte("hello world")
 	password := []byte("p")
 
-	if err := encryptStringToFile(path, plain, password); err != nil {
-		t.Fatalf("encryptStringToFile: %v", err)
+	if err := encryptBytesToFile(path, bytes.Clone(want), password); err != nil {
+		t.Fatalf("encryptBytesToFile: %v", err)
 	}
 
 	info, err := os.Stat(path)
@@ -51,22 +51,22 @@ func TestEncryptStringToFile_RoundTrip(t *testing.T) {
 		t.Fatalf("file mode = %o, want 0600", got)
 	}
 
-	got, err := decryptStringFromFile(path, password)
+	got, err := decryptBytesFromFile(path, password)
 	if err != nil {
-		t.Fatalf("decryptStringFromFile: %v", err)
+		t.Fatalf("decryptBytesFromFile: %v", err)
 	}
-	if got != plain {
-		t.Fatalf("round-trip mismatch: got %q, want %q", got, plain)
+	if !bytes.Equal(got, want) {
+		t.Fatalf("round-trip mismatch: got %q, want %q", got, want)
 	}
 }
 
-// TestEncryptStringToFile_NoLeftoverTemp verifies renameio doesn't leave its
+// TestEncryptBytesToFile_NoLeftoverTemp verifies renameio doesn't leave its
 // tmp file behind on success.
-func TestEncryptStringToFile_NoLeftoverTemp(t *testing.T) {
+func TestEncryptBytesToFile_NoLeftoverTemp(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "storage.psw")
-	if err := encryptStringToFile(path, "x", []byte("p")); err != nil {
-		t.Fatalf("encryptStringToFile: %v", err)
+	if err := encryptBytesToFile(path, []byte("x"), []byte("p")); err != nil {
+		t.Fatalf("encryptBytesToFile: %v", err)
 	}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -78,6 +78,23 @@ func TestEncryptStringToFile_NoLeftoverTemp(t *testing.T) {
 			names[i] = e.Name()
 		}
 		t.Fatalf("expected only storage.psw, got %v", names)
+	}
+}
+
+// TestEncryptBytesToFile_WipesInput verifies the input slice is wiped after
+// the call (matches memguard.NewEnclave convention so callers don't need to
+// wipe themselves).
+func TestEncryptBytesToFile_WipesInput(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "storage.psw")
+	plain := []byte("sensitive")
+	if err := encryptBytesToFile(path, plain, []byte("p")); err != nil {
+		t.Fatalf("encrypt: %v", err)
+	}
+	for i, b := range plain {
+		if b != 0 {
+			t.Fatalf("plain[%d] = %d, want 0 (input not wiped)", i, b)
+		}
 	}
 }
 
@@ -93,17 +110,17 @@ func TestPSW2_RoundTrip_AllSizes(t *testing.T) {
 		3*padBlockSize + 17,
 	}
 	for _, n := range cases {
-		plain := strings.Repeat("a", n)
+		want := bytes.Repeat([]byte("a"), n)
 		dir := t.TempDir()
 		path := filepath.Join(dir, "storage.psw")
-		if err := encryptStringToFile(path, plain, []byte("p")); err != nil {
+		if err := encryptBytesToFile(path, bytes.Clone(want), []byte("p")); err != nil {
 			t.Fatalf("size=%d encrypt: %v", n, err)
 		}
-		got, err := decryptStringFromFile(path, []byte("p"))
+		got, err := decryptBytesFromFile(path, []byte("p"))
 		if err != nil {
 			t.Fatalf("size=%d decrypt: %v", n, err)
 		}
-		if got != plain {
+		if !bytes.Equal(got, want) {
 			t.Fatalf("size=%d round-trip mismatch", n)
 		}
 	}
@@ -115,8 +132,8 @@ func TestPSW2_RoundTrip_AllSizes(t *testing.T) {
 func TestPSW2_PaddingIsBlockAligned(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "storage.psw")
-	plain := strings.Repeat("a", 17) // far below one block
-	if err := encryptStringToFile(path, plain, []byte("p")); err != nil {
+	plain := bytes.Repeat([]byte("a"), 17) // far below one block
+	if err := encryptBytesToFile(path, plain, []byte("p")); err != nil {
 		t.Fatalf("encrypt: %v", err)
 	}
 	encoded, err := os.ReadFile(path)
@@ -136,13 +153,13 @@ func TestPSW2_PaddingIsBlockAligned(t *testing.T) {
 	}
 }
 
-// TestPSW2_HeaderTamperingFailsAEAD swaps a byte after the magic header (still
-// inside the AEAD-bound region — specifically the salt) and expects decryption
-// to fail.
-func TestPSW2_HeaderTamperingFailsAEAD(t *testing.T) {
+// TestPSW2_SaltTamperingFailsDecrypt flips a byte in the salt. The salt is not
+// AAD-bound, but it feeds the Argon2id KDF, so a different salt yields a
+// different AES key and gcm.Open fails the tag check.
+func TestPSW2_SaltTamperingFailsDecrypt(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "storage.psw")
-	if err := encryptStringToFile(path, "hello", []byte("p")); err != nil {
+	if err := encryptBytesToFile(path, []byte("hello"), []byte("p")); err != nil {
 		t.Fatalf("encrypt: %v", err)
 	}
 	encoded, err := os.ReadFile(path)
@@ -153,26 +170,24 @@ func TestPSW2_HeaderTamperingFailsAEAD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("base64: %v", err)
 	}
-	// Flip a bit in the salt (which is unauth'd but contributes to the derived
-	// key, so the AES key won't match and gcm.Open will fail the tag check).
 	payload[len(magicHeaderV2)] ^= 0xFF
 	tampered := base64.StdEncoding.EncodeToString(payload)
 	if err := os.WriteFile(path, []byte(tampered), 0600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	if _, err := decryptStringFromFile(path, []byte("p")); err == nil {
-		t.Fatalf("expected decrypt to fail after tampering, got nil error")
+	if _, err := decryptBytesFromFile(path, []byte("p")); err == nil {
+		t.Fatalf("expected decrypt to fail after salt tampering, got nil error")
 	}
 }
 
-// TestPSW2_MagicSwapRefusedAsAAD changes the on-disk magic from PSW2 to a
-// different value. Since the magic header is bound as AAD, gcm.Open should
-// reject any plaintext sealed under a different magic. The check happens
-// before decryption: an unknown magic returns "unrecognized storage format".
-func TestPSW2_MagicSwapRefusedAsAAD(t *testing.T) {
+// TestPSW2_UnknownMagicRejected swaps the on-disk magic to an unrecognized
+// value. The format check rejects before decryption is attempted. The magic-
+// as-AAD binding would refuse a hypothetical PSW3 reading a PSW2 ciphertext,
+// but here the format check fires first.
+func TestPSW2_UnknownMagicRejected(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "storage.psw")
-	if err := encryptStringToFile(path, "hello", []byte("p")); err != nil {
+	if err := encryptBytesToFile(path, []byte("hello"), []byte("p")); err != nil {
 		t.Fatalf("encrypt: %v", err)
 	}
 	encoded, err := os.ReadFile(path)
@@ -183,13 +198,12 @@ func TestPSW2_MagicSwapRefusedAsAAD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("base64: %v", err)
 	}
-	// Flip the magic to "PSW3" (unrecognized) — the magic check rejects first.
-	payload[3] = '3'
+	payload[3] = '3' // PSW2 → PSW3 (unrecognized)
 	tampered := base64.StdEncoding.EncodeToString(payload)
 	if err := os.WriteFile(path, []byte(tampered), 0600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	_, err = decryptStringFromFile(path, []byte("p"))
+	_, err = decryptBytesFromFile(path, []byte("p"))
 	if err == nil {
 		t.Fatalf("expected decrypt to fail after magic swap")
 	}
@@ -207,7 +221,7 @@ func TestDecrypt_PSW1ReturnsErrPSW1Unsupported(t *testing.T) {
 	if err := writePSW1Vault(path, "hello", []byte("p")); err != nil {
 		t.Fatalf("synthesize PSW1: %v", err)
 	}
-	_, err := decryptStringFromFile(path, []byte("p"))
+	_, err := decryptBytesFromFile(path, []byte("p"))
 	if !errors.Is(err, ErrPSW1Unsupported) {
 		t.Fatalf("expected ErrPSW1Unsupported, got %v", err)
 	}
@@ -240,7 +254,7 @@ func writePSW1Vault(filePath, plainText string, password []byte) error {
 func TestPSW2_FileBeginsWithPSW2(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "storage.psw")
-	if err := encryptStringToFile(path, "x", []byte("p")); err != nil {
+	if err := encryptBytesToFile(path, []byte("x"), []byte("p")); err != nil {
 		t.Fatalf("encrypt: %v", err)
 	}
 	encoded, err := os.ReadFile(path)

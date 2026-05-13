@@ -19,7 +19,7 @@ const (
 )
 
 // Record stores either a username/password pair or a single value (never both).
-// Password and Value are []byte to allow manual zeroization on overwrite/remove;
+// Password and Value are []byte so they can be wiped on overwrite/remove;
 // encoding/json serializes them as base64 strings inside the encrypted JSON.
 // Discriminator is len(Value) != 0.
 type Record struct {
@@ -28,6 +28,14 @@ type Record struct {
 	Password []byte `json:"pass,omitempty"`
 	Value    []byte `json:"value,omitempty"`
 	MTime    int64  `json:"mtime,omitempty"`
+}
+
+// cloneSecrets returns a copy of r with Password/Value byte slices cloned so
+// callers can wipe their input without poisoning the stored record.
+func cloneSecrets(r Record) Record {
+	r.Password = bytes.Clone(r.Password)
+	r.Value = bytes.Clone(r.Value)
+	return r
 }
 
 type Storage struct {
@@ -67,14 +75,11 @@ func (s *Storage) insertSorted(r Record) {
 	s.Records = slices.Insert(s.Records, i, r)
 }
 
-// AddRecord clones the byte fields so callers can zeroize their input without
+// AddRecord clones the byte fields so callers can wipe their input without
 // poisoning the stored record.
 func (s *Storage) AddRecord(r *Record) {
 	r.MTime = time.Now().UnixMilli()
-	cp := *r
-	cp.Password = bytes.Clone(r.Password)
-	cp.Value = bytes.Clone(r.Value)
-	s.insertSorted(cp)
+	s.insertSorted(cloneSecrets(*r))
 }
 
 func (s *Storage) GetRecord(name string) (Record, bool) {
@@ -86,19 +91,17 @@ func (s *Storage) GetRecord(name string) (Record, bool) {
 	return Record{}, false
 }
 
-// UpdateRecord zeroizes the prior record's secret bytes before overwriting,
-// and clones the incoming bytes (same ownership rule as AddRecord).
+// UpdateRecord wipes the prior record's secret bytes before overwriting, and
+// clones the incoming bytes (same ownership rule as AddRecord).
 func (s *Storage) UpdateRecord(name string, updatedRecord Record) {
 	for i, r := range s.Records {
 		if !strings.EqualFold(r.Name, name) {
 			continue
 		}
 		updatedRecord.MTime = time.Now().UnixMilli()
-		cp := updatedRecord
-		cp.Password = bytes.Clone(updatedRecord.Password)
-		cp.Value = bytes.Clone(updatedRecord.Value)
-		zeroize(r.Password)
-		zeroize(r.Value)
+		cp := cloneSecrets(updatedRecord)
+		memguard.WipeBytes(r.Password)
+		memguard.WipeBytes(r.Value)
 		// No rename: replace in place.
 		if cp.Name == r.Name {
 			s.Records[i] = cp
@@ -115,18 +118,12 @@ func (s *Storage) UpdateRecord(name string, updatedRecord Record) {
 func (s *Storage) RemoveRecord(name string) {
 	s.Records = slices.DeleteFunc(s.Records, func(r Record) bool {
 		if strings.EqualFold(r.Name, name) {
-			zeroize(r.Password)
-			zeroize(r.Value)
+			memguard.WipeBytes(r.Password)
+			memguard.WipeBytes(r.Value)
 			return true
 		}
 		return false
 	})
-}
-
-func zeroize(b []byte) {
-	for i := range b {
-		b[i] = 0
-	}
 }
 
 func (s *Storage) Exists(name string) bool {
@@ -138,23 +135,19 @@ func (s *Storage) Exists(name string) bool {
 	return false
 }
 
-func (s *Storage) ToJSON() (string, error) {
-	jsonData, err := json.MarshalIndent(s.Records, "", "  ")
-	if err != nil {
-		return "", err
-	}
-
-	return string(jsonData), nil
+// MarshalRecords serializes records to indented JSON bytes. Caller wipes.
+func (s *Storage) MarshalRecords() ([]byte, error) {
+	return json.MarshalIndent(s.Records, "", "  ")
 }
 
 // Save serializes records to JSON and writes them encrypted under the
 // storage's current MainPassword. To change the main password, mutate
 // storage.MainPassword before calling Save.
 func (s *Storage) Save() error {
-	storageJSON, err := s.ToJSON()
+	plain, err := s.MarshalRecords()
 	if err != nil {
 		return err
 	}
-	slog.Debug("saved", "bytes", len(storageJSON), "records", len(s.Records))
-	return EncryptStringToStorage(storageJSON, s.MainPassword)
+	slog.Debug("saved", "bytes", len(plain), "records", len(s.Records))
+	return EncryptToStorage(plain, s.MainPassword)
 }

@@ -80,18 +80,19 @@ func createEmptyVaultIfMissing(password *memguard.Enclave) error {
 	if err != nil || exists {
 		return err
 	}
-	return EncryptStringToStorage("[]", password)
+	return EncryptToStorage([]byte("[]"), password)
 }
 
 // Decrypt reads storage.psw and returns the *Storage decrypted under
 // mainPassword. Errors on wrong password or corrupt file.
 func Decrypt(mainPassword *memguard.Enclave) (*Storage, error) {
-	storageJSON, err := DecryptStringFromStorage(mainPassword)
+	plain, err := DecryptFromStorage(mainPassword)
 	if err != nil {
 		return nil, err
 	}
+	defer memguard.WipeBytes(plain)
 
-	records, err := getRecords(storageJSON)
+	records, err := decodeRecords(plain)
 	if err != nil {
 		return nil, err
 	}
@@ -99,10 +100,9 @@ func Decrypt(mainPassword *memguard.Enclave) (*Storage, error) {
 	return &Storage{Records: records, MainPassword: mainPassword}, nil
 }
 
-func getRecords(storageJSON string) ([]Record, error) {
+func decodeRecords(plain []byte) ([]Record, error) {
 	var records []Record
-	err := json.Unmarshal([]byte(storageJSON), &records)
-	if err != nil {
+	if err := json.Unmarshal(plain, &records); err != nil {
 		return nil, fmt.Errorf("error decoding JSON: %w", err)
 	}
 	return records, nil
@@ -127,7 +127,7 @@ func createVaultIfMissing() (*memguard.Enclave, bool, error) {
 		return nil, false, err
 	}
 
-	if err := EncryptStringToStorage("[]", mainPassword); err != nil {
+	if err := EncryptToStorage([]byte("[]"), mainPassword); err != nil {
 		return nil, false, err
 	}
 
