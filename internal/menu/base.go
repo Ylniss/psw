@@ -85,6 +85,10 @@ func (b *baseAction) handleLoadingMsg(msg tea.Msg, password string) (store *stor
 			return nil, true, nil
 		}
 		b.transcript = append(b.transcript, m.warnings...)
+		// Merge already decrypted; skip decryptCmd.
+		if m.store != nil {
+			return m.store, false, nil
+		}
 		b.spinner = ui.NewSpinnerModel("Decrypting")
 		return nil, false, tea.Batch(decryptCmd(password), b.spinner.Init())
 	case storageLoadedMsg:

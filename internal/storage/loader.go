@@ -32,8 +32,13 @@ func getOrCreate(pull bool) (*Storage, error) {
 		}
 	}
 	if pull {
-		if err := GitPullAndMerge(mainPassword); err != nil {
+		mergedStore, err := GitPullAndMerge(mainPassword)
+		if err != nil {
 			return nil, err
+		}
+		if mergedStore != nil {
+			// Merge already decrypted; skip Decrypt.
+			return mergedStore, nil
 		}
 	}
 	var s *Storage
@@ -56,8 +61,12 @@ func LoadOrCreate(password string, pull bool) (*Storage, error) {
 		return nil, err
 	}
 	if pull {
-		if err := GitPullAndMerge(password); err != nil {
+		mergedStore, err := GitPullAndMerge(password)
+		if err != nil {
 			return nil, err
+		}
+		if mergedStore != nil {
+			return mergedStore, nil
 		}
 	}
 	return Decrypt(password)

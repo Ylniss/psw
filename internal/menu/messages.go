@@ -15,9 +15,10 @@ type passwordValidatedMsg struct {
 	err error
 }
 
-// pullDoneMsg carries warnings captured via storage.WarnSink during the pull
-// so the action can append them to its transcript.
+// pullDoneMsg returns warnings captured via storage.WarnSink for the
+// transcript. Non-nil store means the merge decrypted; callers skip decryptCmd.
 type pullDoneMsg struct {
+	store    *storage.Storage
 	err      error
 	warnings []string
 }

@@ -60,16 +60,20 @@ func (s *Storage) GetNamesWithPart(namePart string) []string {
 	return matched
 }
 
-func (s *Storage) sortRecords() {
-	slices.SortFunc(s.Records, func(a, b Record) int {
-		return strings.Compare(a.Name, b.Name)
-	})
+func recordNameCmp(a, b Record) int {
+	return strings.Compare(a.Name, b.Name)
+}
+
+// insertSorted inserts r at its sorted-by-Name position. Slice is assumed
+// already sorted under recordNameCmp.
+func (s *Storage) insertSorted(r Record) {
+	i, _ := slices.BinarySearchFunc(s.Records, r, recordNameCmp)
+	s.Records = slices.Insert(s.Records, i, r)
 }
 
 func (s *Storage) AddRecord(r *Record) {
 	r.MTime = time.Now().UnixMilli()
-	s.Records = append(s.Records, *r)
-	s.sortRecords()
+	s.insertSorted(*r)
 }
 
 func (s *Storage) GetRecord(name string) (Record, bool) {
@@ -83,12 +87,19 @@ func (s *Storage) GetRecord(name string) (Record, bool) {
 
 func (s *Storage) UpdateRecord(name string, updatedRecord Record) {
 	for i, r := range s.Records {
-		if strings.EqualFold(r.Name, name) {
-			updatedRecord.MTime = time.Now().UnixMilli()
+		if !strings.EqualFold(r.Name, name) {
+			continue
+		}
+		updatedRecord.MTime = time.Now().UnixMilli()
+		// No rename: replace in place.
+		if updatedRecord.Name == r.Name {
 			s.Records[i] = updatedRecord
-			s.sortRecords()
 			return
 		}
+		// Rename: delete + re-insert sorted.
+		s.Records = slices.Delete(s.Records, i, i+1)
+		s.insertSorted(updatedRecord)
+		return
 	}
 }
 

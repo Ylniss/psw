@@ -24,40 +24,41 @@ const ForkUndecryptableUserMessage = "Storage was re-encrypted under a different
 //
 // Returns:
 //
-//	nil                  — success, no-op, or warning printed
-//	ErrForkUndecryptable — fork or remote can't decrypt with current password
-//	wrapped error        — unexpected git failure
-func GitPullAndMerge(mainPassword string) error {
+//	(s, nil)                    — merge ran; s is decrypted, callers skip Decrypt.
+//	(nil, nil)                  — no-op: no remote, fetch warned, in sync, or ahead.
+//	(nil, ErrForkUndecryptable) — fork/remote can't decrypt under current password.
+//	(nil, wrapped err)          — unexpected git failure.
+func GitPullAndMerge(mainPassword string) (*Storage, error) {
 	if !shouldUseRemote() {
-		return nil
+		return nil, nil
 	}
 
 	if err := GitFetch(); err != nil {
 		Warn("%v (continuing with local state)", err)
-		return nil
+		return nil, nil
 	}
 
 	branch, err := detectBranch()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	remoteRef := "refs/remotes/origin/" + branch
 
 	// First-push case: remote tracking ref doesn't exist yet.
 	remoteSHA, err := revParse(remoteRef)
 	if err != nil {
-		return nil
+		return nil, nil
 	}
 	localSHA, err := revParse("HEAD")
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if localSHA == remoteSHA {
-		return nil
+		return nil, nil
 	}
 	// Already ahead.
 	if isAncestor(remoteSHA, localSHA) {
-		return nil
+		return nil, nil
 	}
 	// Fast-forward.
 	if isAncestor(localSHA, remoteSHA) {
@@ -67,73 +68,74 @@ func GitPullAndMerge(mainPassword string) error {
 	return divergentMerge(remoteSHA, mainPassword)
 }
 
-func fastForward(remoteSHA, mainPassword string) error {
-	if _, err := decryptBlobToRecords(remoteSHA, mainPassword); err != nil {
-		return ErrForkUndecryptable
+func fastForward(remoteSHA, mainPassword string) (*Storage, error) {
+	records, err := decryptBlobToRecords(remoteSHA, mainPassword)
+	if err != nil {
+		return nil, ErrForkUndecryptable
 	}
 	hash, err := parseSHA1Hash(remoteSHA)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if err := gitFastForward(hash); err != nil {
-		return err
+		return nil, err
 	}
 	slog.Debug("git fast-forwarded", "to", remoteSHA)
-	return nil
+	return &Storage{MainPassword: mainPassword, Records: records}, nil
 }
 
-func divergentMerge(remoteSHA, mainPassword string) error {
+func divergentMerge(remoteSHA, mainPassword string) (*Storage, error) {
 	localSHA, err := revParse("HEAD")
 	if err != nil {
-		return err
+		return nil, err
 	}
 	forkSHA, err := gitMergeBase(localSHA, remoteSHA)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	forkRecords, err := decryptBlobToRecords(forkSHA, mainPassword)
 	if err != nil {
-		return ErrForkUndecryptable
+		return nil, ErrForkUndecryptable
 	}
 	remoteRecords, err := decryptBlobToRecords(remoteSHA, mainPassword)
 	if err != nil {
-		return ErrForkUndecryptable
+		return nil, ErrForkUndecryptable
 	}
 	localPlain, err := DecryptStringFromStorage(mainPassword)
 	if err != nil {
-		return fmt.Errorf("decrypt local: %w", err)
+		return nil, fmt.Errorf("decrypt local: %w", err)
 	}
 	var localRecords []Record
 	if err := json.Unmarshal([]byte(localPlain), &localRecords); err != nil {
-		return fmt.Errorf("parse local records: %w", err)
+		return nil, fmt.Errorf("parse local records: %w", err)
 	}
 
 	merged, summary := mergeRecords(forkRecords, localRecords, remoteRecords)
 
 	mergedJSON, err := (&Storage{Records: merged}).ToJSON()
 	if err != nil {
-		return fmt.Errorf("marshal merged: %w", err)
+		return nil, fmt.Errorf("marshal merged: %w", err)
 	}
 	if err := EncryptStringToStorage(mergedJSON, mainPassword); err != nil {
-		return fmt.Errorf("encrypt merged: %w", err)
+		return nil, fmt.Errorf("encrypt merged: %w", err)
 	}
 
 	localHash, err := parseSHA1Hash(localSHA)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	remoteHash, err := parseSHA1Hash(remoteSHA)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	msg := buildMergeMessage(summary)
 	if err := gitStorageMergeCommit(localHash, remoteHash, msg); err != nil {
-		return err
+		return nil, err
 	}
 
 	summary.printSummary()
-	return nil
+	return &Storage{MainPassword: mainPassword, Records: merged}, nil
 }
 
 // parseSHA1Hash validates a 40-hex SHA-1 string. plumbing.NewHash silently

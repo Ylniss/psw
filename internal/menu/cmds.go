@@ -24,13 +24,14 @@ func loadCmd(password string, pull bool) tea.Cmd {
 	}
 }
 
-// pullCmd runs storage.GitPullAndMerge and captures any warnings emitted
-// during the pull (timeout fallback, merge summary lines).
+// pullCmd runs storage.GitPullAndMerge and captures pull-time warnings
+// (timeout fallback, merge summary). If a merge ran, the returned store
+// is already decrypted so callers skip a second Argon2id derive.
 func pullCmd(password string) tea.Cmd {
 	return func() tea.Msg {
 		warns.drain() // discard noise from before this run
-		err := storage.GitPullAndMerge(password)
-		return pullDoneMsg{err: err, warnings: warns.drain()}
+		store, err := storage.GitPullAndMerge(password)
+		return pullDoneMsg{store: store, err: err, warnings: warns.drain()}
 	}
 }
 

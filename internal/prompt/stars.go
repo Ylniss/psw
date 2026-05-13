@@ -21,6 +21,16 @@ var starPalette = []color.Color{
 	lipgloss.Color("7"),
 }
 
+// styledStarByColor maps each palette entry to its pre-rendered "*" so
+// View() doesn't re-allocate a lipgloss.Style per star per frame.
+var styledStarByColor = func() map[color.Color]string {
+	m := make(map[color.Color]string, len(starPalette))
+	for _, c := range starPalette {
+		m[c] = lipgloss.NewStyle().Foreground(c).Render("*")
+	}
+	return m
+}()
+
 // headerRestingColor is the menu's default header color; the flash palette
 // excludes it so a flash always shifts to a different color.
 var headerRestingColor color.Color = lipgloss.Color("6")
@@ -132,10 +142,14 @@ func (s *StarState) View() string {
 	var b strings.Builder
 	for _, st := range s.stars {
 		if now.Before(st.blinkUntil) {
+			if styled, ok := styledStarByColor[st.flashColor]; ok {
+				b.WriteString(styled)
+				continue
+			}
 			b.WriteString(lipgloss.NewStyle().Foreground(st.flashColor).Render("*"))
 			continue
 		}
-		b.WriteString("*")
+		b.WriteByte('*')
 	}
 	return b.String()
 }
