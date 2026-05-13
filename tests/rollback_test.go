@@ -111,11 +111,8 @@ func TestRollback_RestoresSnapshot(t *testing.T) {
 	mustExit(t, result, 0)
 	mustContain(t, result.stdout, "Rolled back to "+targetSHA)
 
-	list := runPswEnv(t, vault, env)
-	mustExit(t, list, 0)
-	mustContain(t, list.stdout, "alpha")
-	mustNotContain(t, list.stdout, "beta")
-	mustNotContain(t, list.stdout, "gamma")
+	assertVaultHasRecords(t, vault, env, "alpha")
+	assertVaultLacksRecords(t, vault, env, "beta", "gamma")
 
 	logRes := runPswEnv(t, vault, env, "log")
 	mustExit(t, logRes, 0)
@@ -146,9 +143,7 @@ func TestRollback_ChangeMainRefused(t *testing.T) {
 
 	// Vault should be untouched by the failed rollback.
 	envNewList := withEnv(env, "PSW_MAIN_PASSWORD", "rotated")
-	list := runPswEnv(t, vault, envNewList)
-	mustExit(t, list, 0)
-	mustContain(t, list.stdout, "alpha")
+	assertVaultHasRecords(t, vault, envNewList, "alpha")
 }
 
 func TestRollback_StampsMTimesForLWW(t *testing.T) {
@@ -158,9 +153,7 @@ func TestRollback_StampsMTimesForLWW(t *testing.T) {
 
 	// B clones, confirms it has alpha synced.
 	vaultB, envB := addPeer(t, bare)
-	listB1 := runPswEnv(t, vaultB, envB)
-	mustExit(t, listB1, 0)
-	mustContain(t, listB1.stdout, "alpha")
+	assertVaultHasRecords(t, vaultB, envB, "alpha")
 
 	// Capture the alpha-only SHA on A before adding beta.
 	shasA := pswLogSHAs(t, vaultA, envA)
@@ -177,13 +170,8 @@ func TestRollback_StampsMTimesForLWW(t *testing.T) {
 	time.Sleep(mtimeSeparation)
 	mustExit(t, runPswEnv(t, vaultB, envB, "add", "gamma", "-u", "u", "--password=p"), 0)
 
-	listB2 := runPswEnv(t, vaultB, envB)
-	mustExit(t, listB2, 0)
-	mustContain(t, listB2.stdout, "alpha")
-	mustContain(t, listB2.stdout, "gamma")
-	if strings.Contains(listB2.stdout, "beta") {
-		t.Fatalf("expected beta to be dropped on B after A's rollback; got:\n%s", listB2.stdout)
-	}
+	assertVaultHasRecords(t, vaultB, envB, "alpha", "gamma")
+	assertVaultLacksRecords(t, vaultB, envB, "beta")
 }
 
 func TestRollback_LogColoring(t *testing.T) {
@@ -225,6 +213,7 @@ func flatEnvForVault(vault string, extraEnv map[string]string) []string {
 		"PSW_HOME":          vault,
 		"PSW_MAIN_PASSWORD": defaultMainPassword,
 		"PSW_GIT":           "0",
+		"PSW_FAST_ARGON":    "1",
 		"PATH":              os.Getenv("PATH"),
 		"HOME":              os.Getenv("HOME"),
 	}

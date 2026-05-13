@@ -15,12 +15,14 @@ var (
 	revealFlag    bool
 	getExactFlag  bool
 	getStdoutFlag bool
+	getUsernameFlag   bool
 )
 
 func init() {
 	getCmd.Flags().BoolVarP(&revealFlag, "reveal", "r", false, "reveal secret inside terminal")
 	getCmd.Flags().BoolVarP(&getExactFlag, "exact", "e", false, "exact name match; skip interactive picker and substring search")
 	getCmd.Flags().BoolVar(&getStdoutFlag, "stdout", false, "print secret to stdout instead of clipboard (no labels, no color)")
+	getCmd.Flags().BoolVar(&getUsernameFlag, "username", false, "with --stdout, print username instead of password (user/pass records only)")
 }
 
 var getCmd = &cobra.Command{
@@ -54,8 +56,21 @@ Arguments:
 			return nil
 		}
 
+		if getUsernameFlag && !getStdoutFlag {
+			fmt.Println("--username requires --stdout")
+			return errSilentExit
+		}
+
 		if getStdoutFlag {
 			// Raw stdout for piping (e.g. `psw get foo --stdout | xclip`); no labels, no color, no menu indent.
+			if getUsernameFlag {
+				if record.Value != "" {
+					fmt.Printf("Record %s is value-only; --username not applicable\n", color.InGreen(recordName))
+					return errSilentExit
+				}
+				fmt.Println(record.Username)
+				return nil
+			}
 			if record.Value == "" {
 				fmt.Println(record.Password)
 			} else {

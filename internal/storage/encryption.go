@@ -14,13 +14,25 @@ import (
 )
 
 const (
-	magicHeaderV1    = "PSW1"
-	saltLength       = 16
-	keyLength        = 32
-	argonIterations  = 2
-	argonMemoryKiB   = 64 * 1024
-	argonParallelism = 4
+	magicHeaderV1 = "PSW1"
+	saltLength    = 16
+	keyLength     = 32
 )
+
+// Argon2id parameters. Vars so PSW_FAST_ARGON can lower them for tests.
+var (
+	argonIterations  uint32 = 2
+	argonMemoryKiB   uint32 = 64 * 1024
+	argonParallelism uint8  = 4
+)
+
+func init() {
+	if os.Getenv("PSW_FAST_ARGON") == "1" {
+		argonIterations = 1
+		argonMemoryKiB = 64
+		argonParallelism = 1
+	}
+}
 
 func EncryptStringToStorage(plainText, password string) error {
 	return encryptStringToFile(Paths.storageFilePath, plainText, password)

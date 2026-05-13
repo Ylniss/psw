@@ -12,9 +12,9 @@ func TestRemove_Success(t *testing.T) {
 	// Assert
 	mustExit(t, result, 0)
 	mustContain(t, result.stdout, "Record foo successfully removed")
-	result2 := runPsw(t, vault)
-	mustExit(t, result2, 0)
-	mustContain(t, result2.stdout, "No secrets found")
+	result2 := runPsw(t, vault, "get", "foo", "--exact", "--stdout")
+	mustExit(t, result2, 1)
+	mustContain(t, result2.stdout, "Record foo was not found")
 }
 
 func TestRemove_MissingRecord(t *testing.T) {
@@ -40,11 +40,15 @@ func TestRemove_MultiExact(t *testing.T) {
 	mustContain(t, result.stdout, "Record alice successfully removed")
 	mustContain(t, result.stdout, "Record carol successfully removed")
 
-	list := runPsw(t, vault)
-	mustExit(t, list, 0)
-	mustContain(t, list.stdout, "bob")
-	mustNotContain(t, list.stdout, "alice")
-	mustNotContain(t, list.stdout, "carol")
+	gotBob := runPsw(t, vault, "get", "bob", "--exact", "--stdout")
+	mustExit(t, gotBob, 0)
+	mustEqual(t, trimmed(gotBob), "p")
+	gotAlice := runPsw(t, vault, "get", "alice", "--exact", "--stdout")
+	mustExit(t, gotAlice, 1)
+	mustContain(t, gotAlice.stdout, "Record alice was not found")
+	gotCarol := runPsw(t, vault, "get", "carol", "--exact", "--stdout")
+	mustExit(t, gotCarol, 1)
+	mustContain(t, gotCarol.stdout, "Record carol was not found")
 }
 
 func TestRemove_MultiExactOneMissing(t *testing.T) {
@@ -56,9 +60,9 @@ func TestRemove_MultiExactOneMissing(t *testing.T) {
 	mustExit(t, result, 1)
 	mustContain(t, result.stdout, "Records not found: missing")
 
-	list := runPsw(t, vault)
-	mustExit(t, list, 0)
-	mustContain(t, list.stdout, "alice")
+	got := runPsw(t, vault, "get", "alice", "--exact", "--stdout")
+	mustExit(t, got, 0)
+	mustEqual(t, trimmed(got), "p")
 }
 
 func TestRemove_MultiExactSeveralMissing(t *testing.T) {
@@ -70,9 +74,9 @@ func TestRemove_MultiExactSeveralMissing(t *testing.T) {
 	mustExit(t, result, 1)
 	mustContain(t, result.stdout, "Records not found: ghost, phantom")
 
-	list := runPsw(t, vault)
-	mustExit(t, list, 0)
-	mustContain(t, list.stdout, "alice")
+	got := runPsw(t, vault, "get", "alice", "--exact", "--stdout")
+	mustExit(t, got, 0)
+	mustEqual(t, trimmed(got), "p")
 }
 
 func TestRemove_MultiArgsRequireExact(t *testing.T) {
@@ -85,8 +89,10 @@ func TestRemove_MultiArgsRequireExact(t *testing.T) {
 	mustExit(t, result, 1)
 	mustContain(t, result.stdout, "multiple names require --exact")
 
-	list := runPsw(t, vault)
-	mustExit(t, list, 0)
-	mustContain(t, list.stdout, "alice")
-	mustContain(t, list.stdout, "bob")
+	gotA := runPsw(t, vault, "get", "alice", "--exact", "--stdout")
+	mustExit(t, gotA, 0)
+	mustEqual(t, trimmed(gotA), "p")
+	gotB := runPsw(t, vault, "get", "bob", "--exact", "--stdout")
+	mustExit(t, gotB, 0)
+	mustEqual(t, trimmed(gotB), "p")
 }

@@ -36,19 +36,6 @@ func (s *Storage) GetNames() []string {
 	return names
 }
 
-type NameAndUser struct {
-	Name     string
-	Username string
-}
-
-func (s *Storage) GetNamesAndUsers() []NameAndUser {
-	nameAndUsers := make([]NameAndUser, len(s.Records))
-	for i, r := range s.Records {
-		nameAndUsers[i] = NameAndUser{Name: r.Name, Username: r.Username}
-	}
-	return nameAndUsers
-}
-
 func (s *Storage) GetNamesWithPart(namePart string) []string {
 	lowercaseNamePart := strings.ToLower(namePart)
 	var matched []string

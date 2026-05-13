@@ -7,13 +7,14 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"slices"
 	"strings"
 	"sync"
 
 	"github.com/TwiN/go-color"
 	"github.com/spf13/cobra"
+	"github.com/ylniss/psw/internal/menu"
 	"github.com/ylniss/psw/internal/storage"
+	"golang.org/x/term"
 )
 
 // errSilentExit: caller already printed; signals exit 1. cobra silenced in Execute.
@@ -24,7 +25,7 @@ var verboseFlag bool
 func init() {
 	cobra.EnableCommandSorting = false
 	rootCmd.PersistentFlags().BoolVarP(&verboseFlag, "verbose", "v", false, "verbose output, sensitive data will be logged")
-	rootCmd.AddCommand(getCmd, addCmd, changeCmd, removeCmd, menuCmd, logCmd, rollbackCmd, configCmd, versionCmd)
+	rootCmd.AddCommand(getCmd, addCmd, changeCmd, removeCmd, logCmd, rollbackCmd, configCmd, versionCmd)
 	// completion before help in --help; cobra defaults to help-first.
 	rootCmd.InitDefaultCompletionCmd()
 	rootCmd.InitDefaultHelpCmd()
@@ -40,7 +41,8 @@ storage.psw: an encrypted file where your passwords are saved.
 pswcfg.toml: a configuration file for customizing app behavior.
 
 On first use, you'll set a main password to protect your stored passwords.
-Run 'psw' with no arguments to list all stored record names.`,
+Run 'psw' with no arguments to open the interactive menu. Use 'psw add' to create your first record.`,
+	Args:          cobra.NoArgs,
 	SilenceErrors: true,
 	SilenceUsage:  true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
@@ -49,36 +51,16 @@ Run 'psw' with no arguments to list all stored record names.`,
 		return storage.InitConfig()
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		store, err := storage.GetOrCreateForRead()
-		if done, ret := handleCmdErr(err); done {
-			return ret
+		if !term.IsTerminal(int(os.Stdin.Fd())) {
+			fmt.Println(color.InRed("psw requires an interactive terminal"))
+			return errSilentExit
 		}
-
-		namesAndUsers := store.GetNamesAndUsers()
-		if len(namesAndUsers) == 0 {
-			fmt.Printf("No secrets found. Use %s command first.\n", color.InCyan("add"))
-			return nil
-		}
-
-		recordWithLongestName := slices.MaxFunc(namesAndUsers, func(a, b storage.NameAndUser) int {
-			return len(a.Name) - len(b.Name)
-		})
-		longestNameLen := len(recordWithLongestName.Name)
-
-		for _, nameAndUser := range namesAndUsers {
-			fmt.Println(formatRecordLine(nameAndUser, longestNameLen))
+		if err := menu.Run(); err != nil {
+			fmt.Println(color.InRed(err.Error()))
+			return errSilentExit
 		}
 		return nil
 	},
-}
-
-func formatRecordLine(nameAndUser storage.NameAndUser, longestNameLen int) string {
-	dots := strings.Repeat(".", longestNameLen+5-len(nameAndUser.Name))
-	suffix := color.InCyan("<value only>")
-	if len(nameAndUser.Username) > 0 {
-		suffix = color.InYellow("(" + nameAndUser.Username + ")")
-	}
-	return color.InGreen(nameAndUser.Name) + dots + suffix
 }
 
 func Execute() {

@@ -40,10 +40,7 @@ func TestSync_AutoPullBeforeMutate(t *testing.T) {
 	vaultB, envB := addPeer(t, bare)
 	mustExit(t, runPswEnv(t, vaultB, envB, "add", "beta", "-u", "u", "--password=p"), 0)
 
-	listB := runPswEnv(t, vaultB, envB)
-	mustExit(t, listB, 0)
-	mustContain(t, listB.stdout, "alpha")
-	mustContain(t, listB.stdout, "beta")
+	assertVaultHasRecords(t, vaultB, envB, "alpha", "beta")
 }
 
 // TestSync_SmartMerge_DisjointAdds: both peers add disjoint records while offline,
@@ -64,19 +61,11 @@ func TestSync_SmartMerge_DisjointAdds(t *testing.T) {
 	// B re-enables remote, pre-pull merges A's alpha+gamma with B's beta.
 	mustExit(t, runPswEnv(t, vaultB, envB, "add", "delta", "-u", "u", "--password=p"), 0)
 
-	listB := runPswEnv(t, vaultB, envB)
-	mustExit(t, listB, 0)
-	for _, name := range []string{"alpha", "beta", "gamma", "delta"} {
-		mustContain(t, listB.stdout, name)
-	}
+	assertVaultHasRecords(t, vaultB, envB, "alpha", "beta", "gamma", "delta")
 
 	// One more mutation on A pulls B's beta+delta.
 	mustExit(t, runPswEnv(t, vaultA, envA, "add", "epsilon", "-u", "u", "--password=p"), 0)
-	listA := runPswEnv(t, vaultA, envA)
-	mustExit(t, listA, 0)
-	for _, name := range []string{"alpha", "beta", "gamma", "delta", "epsilon"} {
-		mustContain(t, listA.stdout, name)
-	}
+	assertVaultHasRecords(t, vaultA, envA, "alpha", "beta", "gamma", "delta", "epsilon")
 }
 
 // TestSync_SmartMerge_SameRecordNewestWins: both peers add same name offline; later mtime wins.
@@ -116,20 +105,14 @@ func TestSync_SmartMerge_RemovedOnOneSide(t *testing.T) {
 	mustExit(t, runPswEnv(t, vaultA, envA, "add", "alpha", "-u", "u", "--password=p"), 0)
 
 	vaultB, envB := addPeer(t, bare)
-	listB1 := runPswEnv(t, vaultB, envB)
-	mustExit(t, listB1, 0)
-	mustContain(t, listB1.stdout, "alpha")
+	assertVaultHasRecords(t, vaultB, envB, "alpha")
 
 	mustExit(t, runPswEnv(t, vaultA, envA, "remove", "alpha", "-e"), 0)
 	// B's next mutation pulls and merges → alpha drops.
 	mustExit(t, runPswEnv(t, vaultB, envB, "add", "beta", "-u", "u", "--password=p"), 0)
 
-	listB2 := runPswEnv(t, vaultB, envB)
-	mustExit(t, listB2, 0)
-	if strings.Contains(listB2.stdout, "alpha") {
-		t.Fatalf("expected alpha to be removed on B after merge:\n%s", listB2.stdout)
-	}
-	mustContain(t, listB2.stdout, "beta")
+	assertVaultLacksRecords(t, vaultB, envB, "alpha")
+	assertVaultHasRecords(t, vaultB, envB, "beta")
 }
 
 // TestSync_SmartMerge_RemovedVsModified: modification beats removal when L.mtime > F.mtime.
@@ -140,9 +123,7 @@ func TestSync_SmartMerge_RemovedVsModified(t *testing.T) {
 
 	vaultB, envB := addPeer(t, bare)
 	// Confirm B has alpha.
-	listB1 := runPswEnv(t, vaultB, envB)
-	mustExit(t, listB1, 0)
-	mustContain(t, listB1.stdout, "alpha")
+	assertVaultHasRecords(t, vaultB, envB, "alpha")
 
 	// Both go offline so neither pushes immediately.
 	offlineEnvA := withEnv(envA, "PSW_GIT_REMOTE", "0")
@@ -202,7 +183,6 @@ func TestSync_NoRemoteConfigured(t *testing.T) {
 		t.Fatal(err)
 	}
 	env := gitTestEnv()
-	runPswEnv(t, dir, env)
 	res := runPswEnv(t, dir, env, "add", "foo", "-u", "u", "--password=p")
 	mustExit(t, res, 0)
 	if strings.Contains(res.stderr, "git push") || strings.Contains(res.stderr, "git fetch") {
@@ -242,13 +222,11 @@ func TestSync_SmartMerge_CaseInsensitiveDedup(t *testing.T) {
 	mustExit(t, runPswEnv(t, vaultA, envA, "add", "anchorA", "-u", "u", "--password=p"), 0)
 	mustExit(t, runPswEnv(t, vaultB, envB, "add", "anchorB", "-u", "u", "--password=p"), 0)
 
-	listB := runPswEnv(t, vaultB, envB)
-	mustExit(t, listB, 0)
-	// Either casing wins; assert exactly one survives.
-	aliceCount := strings.Count(strings.ToLower(listB.stdout), "alice")
-	if aliceCount != 1 {
-		t.Fatalf("expected exactly one alice/ALICE record after merge, got %d:\n%s", aliceCount, listB.stdout)
-	}
+	// Dedup is unit-tested in internal/storage/merge_test.go; here we only
+	// confirm the merged record resolves.
+	resB := runPswEnv(t, vaultB, envB, "get", "alice", "--exact", "--stdout")
+	mustExit(t, resB, 0)
+	mustEqual(t, trimmed(resB), "p")
 }
 
 // TestSync_SmartMerge_WarningFormat: a remote-added record shows up in B's
@@ -283,9 +261,7 @@ func TestSync_SmartMerge_ByteEqualSilent(t *testing.T) {
 	mustExit(t, runPswEnv(t, vaultA, envA, "add", "shared", "-u", "u", "--password=p"), 0)
 
 	vaultB, envB := addPeer(t, bare)
-	listB := runPswEnv(t, vaultB, envB)
-	mustExit(t, listB, 0)
-	mustContain(t, listB.stdout, "shared")
+	assertVaultHasRecords(t, vaultB, envB, "shared")
 
 	// B mutates something else; "shared" is already byte-equal on both sides.
 	res := runPswEnv(t, vaultB, envB, "add", "other", "-u", "u", "--password=p")

@@ -41,7 +41,7 @@ func TestSync_GitNotOnPath_LocalOnly(t *testing.T) {
 	env := gitTestEnv()
 	env["PATH"] = pathWithoutGit(t)
 
-	mustExit(t, runPswEnv(t, dir, env), 0)
+	// First mutating command triggers init via go-git; git binary not needed.
 	mustExit(t, runPswEnv(t, dir, env, "add", "foo", "-u", "u", "--password=p"), 0)
 
 	if _, err := os.Stat(filepath.Join(dir, ".git", "HEAD")); err != nil {
@@ -68,9 +68,7 @@ func TestSync_GPGSignFallback_GitNotOnPath(t *testing.T) {
 	mustContain(t, res.stderr, "commit signing requires git on PATH")
 
 	// Record is still saved (data path independent of commit path).
-	listRes := runPswEnv(t, vault, noGitEnv)
-	mustExit(t, listRes, 0)
-	mustContain(t, listRes.stdout, "foo")
+	assertVaultHasRecords(t, vault, noGitEnv, "foo")
 }
 
 // TestSync_GPGSignFallback_GitOnPath: commit.gpgsign=true with git on PATH

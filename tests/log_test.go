@@ -28,7 +28,8 @@ func newGitVault(t *testing.T) (string, map[string]string) {
 	if err := os.WriteFile(filepath.Join(dir, "pswcfg.toml"), data, 0644); err != nil {
 		t.Fatalf("write vault pswcfg.toml: %v", err)
 	}
-	runPswEnv(t, dir, env)
+	// Trigger first-time init via a known-missing record (exit 1 ignored).
+	runPswEnv(t, dir, env, "get", "__init__", "--exact")
 	return dir, env
 }
 
