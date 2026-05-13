@@ -1,4 +1,4 @@
-// Package menu is the persistent `psw menu` TUI.
+// Package menu drives the TUI launched by bare `psw`.
 package menu
 
 import (

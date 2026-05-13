@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/awnumar/memguard"
 )
 
 type fakeFinishMsg struct{}
@@ -12,7 +13,7 @@ type fakeFinishMsg struct{}
 // transitions. Receiving fakeFinishMsg sets done=true.
 type fakeAction struct {
 	output      []string
-	newPassword string
+	newPassword *memguard.Enclave
 	done        bool
 	cancelled   bool
 }
@@ -26,12 +27,25 @@ func (a fakeAction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return a, nil
 }
 
-func (a fakeAction) View() tea.View      { return tea.NewView("") }
-func (a fakeAction) Done() bool          { return a.done }
-func (a fakeAction) Cancelled() bool     { return a.cancelled }
-func (a fakeAction) Output() []string    { return a.output }
-func (a fakeAction) NewPassword() string { return a.newPassword }
-func (a fakeAction) FooterHelp() string  { return "" }
+func (a fakeAction) View() tea.View                 { return tea.NewView("") }
+func (a fakeAction) Done() bool                     { return a.done }
+func (a fakeAction) Cancelled() bool                { return a.cancelled }
+func (a fakeAction) Output() []string               { return a.output }
+func (a fakeAction) NewPassword() *memguard.Enclave { return a.newPassword }
+func (a fakeAction) FooterHelp() string             { return "" }
+
+// enclaveBytes opens the enclave and returns a copy of its bytes for comparison.
+func enclaveBytes(t *testing.T, e *memguard.Enclave) []byte {
+	t.Helper()
+	buf, err := e.Open()
+	if err != nil {
+		t.Fatalf("open enclave: %v", err)
+	}
+	defer buf.Destroy()
+	cp := make([]byte, buf.Size())
+	copy(cp, buf.Bytes())
+	return cp
+}
 
 func updateMenu(m MenuModel, msg tea.Msg) MenuModel {
 	raw, _ := m.Update(msg)
@@ -109,12 +123,13 @@ func TestMenuModel_RunningActionCompletionReturnsToSelect(t *testing.T) {
 
 func TestMenuModel_RunningActionNewPasswordPropagates(t *testing.T) {
 	m := NewMenuModel()
-	m.password = "old"
+	m.password = memguard.NewEnclave([]byte("old"))
+	newEnc := memguard.NewEnclave([]byte("new"))
 	m.phase = menuPhaseRunningAction
-	m.activeAction = fakeAction{newPassword: "new"}
+	m.activeAction = fakeAction{newPassword: newEnc}
 	m = updateMenu(m, fakeFinishMsg{})
-	if m.password != "new" {
-		t.Fatalf("password = %q, want %q", m.password, "new")
+	if got := string(enclaveBytes(t, m.password)); got != "new" {
+		t.Fatalf("password = %q, want %q", got, "new")
 	}
 }
 

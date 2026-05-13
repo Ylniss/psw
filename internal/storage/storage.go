@@ -1,30 +1,42 @@
 package storage
 
 import (
+	"bytes"
 	"encoding/json"
 	"log/slog"
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/awnumar/memguard"
 )
 
-// Reserved keywords for the main-password rotation flow. They are not record
-// names — they act as sentinels in the `change` command and in the picker.
+// Sentinel keywords for the main-password rotation flow; not valid record names.
 const (
-	MainPasswordKeywordShort = "main"
-	MainPasswordKeywordLong  = "main-password"
+	MainPasswordAlias = "main"
+	MainPasswordName  = "main-password"
 )
 
+// Record holds a user+password pair or a single value, never both.
+// Discriminator: len(Value) != 0. Secret fields are []byte to allow wiping.
 type Record struct {
 	Name     string `json:"name"`
 	Username string `json:"user"`
-	Password string `json:"pass"`
-	Value    string `json:"value"`
+	Password []byte `json:"pass,omitempty"`
+	Value    []byte `json:"value,omitempty"`
 	MTime    int64  `json:"mtime,omitempty"`
 }
 
+// cloneSecrets returns r with Password/Value deep-copied.
+func cloneSecrets(r Record) Record {
+	r.Password = bytes.Clone(r.Password)
+	r.Value = bytes.Clone(r.Value)
+	return r
+}
+
 type Storage struct {
-	MainPassword string
+	// MainPassword is sealed; opened on demand at encrypt/decrypt sites.
+	MainPassword *memguard.Enclave
 	Records      []Record
 }
 
@@ -34,19 +46,6 @@ func (s *Storage) GetNames() []string {
 		names[i] = r.Name
 	}
 	return names
-}
-
-type NameAndUser struct {
-	Name     string
-	Username string
-}
-
-func (s *Storage) GetNamesAndUsers() []NameAndUser {
-	nameAndUsers := make([]NameAndUser, len(s.Records))
-	for i, r := range s.Records {
-		nameAndUsers[i] = NameAndUser{Name: r.Name, Username: r.Username}
-	}
-	return nameAndUsers
 }
 
 func (s *Storage) GetNamesWithPart(namePart string) []string {
@@ -60,16 +59,21 @@ func (s *Storage) GetNamesWithPart(namePart string) []string {
 	return matched
 }
 
-func (s *Storage) sortRecords() {
-	slices.SortFunc(s.Records, func(a, b Record) int {
-		return strings.Compare(a.Name, b.Name)
-	})
+func recordNameCmp(a, b Record) int {
+	return strings.Compare(a.Name, b.Name)
 }
 
+// insertSorted inserts r at its sorted-by-Name position. Slice is assumed
+// already sorted under recordNameCmp.
+func (s *Storage) insertSorted(r Record) {
+	i, _ := slices.BinarySearchFunc(s.Records, r, recordNameCmp)
+	s.Records = slices.Insert(s.Records, i, r)
+}
+
+// AddRecord deep-copies r.Password/r.Value; callers may wipe their input.
 func (s *Storage) AddRecord(r *Record) {
 	r.MTime = time.Now().UnixMilli()
-	s.Records = append(s.Records, *r)
-	s.sortRecords()
+	s.insertSorted(cloneSecrets(*r))
 }
 
 func (s *Storage) GetRecord(name string) (Record, bool) {
@@ -81,20 +85,37 @@ func (s *Storage) GetRecord(name string) (Record, bool) {
 	return Record{}, false
 }
 
+// UpdateRecord wipes the prior secret bytes and deep-copies the incoming bytes.
 func (s *Storage) UpdateRecord(name string, updatedRecord Record) {
 	for i, r := range s.Records {
-		if strings.EqualFold(r.Name, name) {
-			updatedRecord.MTime = time.Now().UnixMilli()
-			s.Records[i] = updatedRecord
-			s.sortRecords()
+		if !strings.EqualFold(r.Name, name) {
+			continue
+		}
+		updatedRecord.MTime = time.Now().UnixMilli()
+		cp := cloneSecrets(updatedRecord)
+		memguard.WipeBytes(r.Password)
+		memguard.WipeBytes(r.Value)
+		// No rename: replace in place.
+		if cp.Name == r.Name {
+			s.Records[i] = cp
 			return
 		}
+		// Rename: delete + re-insert sorted.
+		s.Records = slices.Delete(s.Records, i, i+1)
+		s.insertSorted(cp)
+		return
 	}
 }
 
+// RemoveRecord wipes the secret byte fields before dropping the record.
 func (s *Storage) RemoveRecord(name string) {
 	s.Records = slices.DeleteFunc(s.Records, func(r Record) bool {
-		return strings.EqualFold(r.Name, name)
+		if strings.EqualFold(r.Name, name) {
+			memguard.WipeBytes(r.Password)
+			memguard.WipeBytes(r.Value)
+			return true
+		}
+		return false
 	})
 }
 
@@ -107,23 +128,17 @@ func (s *Storage) Exists(name string) bool {
 	return false
 }
 
-func (s *Storage) ToJSON() (string, error) {
-	jsonData, err := json.MarshalIndent(s.Records, "", "  ")
-	if err != nil {
-		return "", err
-	}
-
-	return string(jsonData), nil
+// MarshalRecords serializes records to indented JSON bytes. Caller wipes.
+func (s *Storage) MarshalRecords() ([]byte, error) {
+	return json.MarshalIndent(s.Records, "", "  ")
 }
 
-// Save serializes records to JSON and writes them encrypted under the
-// storage's current MainPassword. To change the main password, mutate
-// storage.MainPassword before calling Save.
+// Save writes the records encrypted under MainPassword.
 func (s *Storage) Save() error {
-	storageJSON, err := s.ToJSON()
+	plain, err := s.MarshalRecords()
 	if err != nil {
 		return err
 	}
-	slog.Debug("saved storage content", "json", storageJSON)
-	return EncryptStringToStorage(storageJSON, s.MainPassword)
+	slog.Debug("saved", "bytes", len(plain), "records", len(s.Records))
+	return EncryptToStorage(plain, s.MainPassword)
 }

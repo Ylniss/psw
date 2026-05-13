@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"bytes"
 	"slices"
 	"strings"
 )
@@ -136,7 +137,8 @@ func pickByMTime(local, remote Record) (Record, mergeAction) {
 }
 
 func recordsEqual(a, b Record) bool {
-	return a.Name == b.Name && a.Username == b.Username && a.Password == b.Password && a.Value == b.Value
+	return a.Name == b.Name && a.Username == b.Username &&
+		bytes.Equal(a.Password, b.Password) && bytes.Equal(a.Value, b.Value)
 }
 
 // mergeBuckets is mergeSummary.changes split by action category.

@@ -3,6 +3,7 @@ package storage
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -10,6 +11,7 @@ import (
 
 	"log/slog"
 
+	"github.com/google/renameio/v2"
 	"github.com/pelletier/go-toml/v2"
 
 	"github.com/ylniss/psw/internal/passgen"
@@ -170,7 +172,15 @@ func readConfigFile() error {
 		return fmt.Errorf("error parsing config file: %w", err)
 	}
 
-	slog.Debug("config loaded", "config", fmt.Sprintf("%#v", AppConfig))
+	if err := validateRemoteURL(AppConfig.Remote); err != nil {
+		Warn("ignoring remote in %s: %v", Paths.configFilePath, err)
+		AppConfig.Remote = ""
+	}
+
+	slog.Debug("config loaded",
+		"remote", redactURL(AppConfig.Remote),
+		"clipboard_timeout", AppConfig.ClipboardTimeoutSeconds,
+	)
 
 	return nil
 }
@@ -185,13 +195,8 @@ func SaveConfig() error {
 	if err != nil {
 		return fmt.Errorf("marshal config: %w", err)
 	}
-	tmp := Paths.configFilePath + ".tmp"
-	if err := os.WriteFile(tmp, data, 0600); err != nil {
+	if err := renameio.WriteFile(Paths.configFilePath, data, 0600); err != nil {
 		return fmt.Errorf("write config: %w", err)
-	}
-	if err := os.Rename(tmp, Paths.configFilePath); err != nil {
-		_ = os.Remove(tmp)
-		return fmt.Errorf("rename config: %w", err)
 	}
 	return nil
 }
@@ -267,8 +272,14 @@ func buildConfigKeys() []ConfigKey {
 		{
 			Name: "remote", Kind: "string",
 			Description: "Git remote URL for cross-device sync. Empty disables sync.",
-			Apply:       func(c *Config, s string) error { c.Remote = s; return nil },
-			Current:     func(c *Config) string { return c.Remote },
+			Apply: func(c *Config, s string) error {
+				if err := validateRemoteURL(s); err != nil {
+					return err
+				}
+				c.Remote = s
+				return nil
+			},
+			Current: func(c *Config) string { return c.Remote },
 		},
 		passgenIntKey("length", "Total length of auto-generated passwords.",
 			func(p *PasswordGen) **int { return &p.Length }, defaults.Length),
@@ -378,6 +389,26 @@ func ConfigKeysHelp() string {
 		fmt.Fprintf(&b, "  %-*s  %s\n", maxHeader, headers[i], k.Description)
 	}
 	return strings.TrimRight(b.String(), "\n")
+}
+
+// validateRemoteURL rejects http(s) URLs that embed userinfo. Empty strings
+// are allowed (disables sync). Non-http schemes (ssh://, git@, file://) carry
+// no credentials and aren't inspected.
+func validateRemoteURL(s string) error {
+	if s == "" {
+		return nil
+	}
+	if !strings.HasPrefix(s, "https://") && !strings.HasPrefix(s, "http://") {
+		return nil
+	}
+	u, err := url.Parse(s)
+	if err != nil {
+		return fmt.Errorf("invalid url: %v", err)
+	}
+	if u.User != nil {
+		return fmt.Errorf("credentials in URL are not allowed; remove the user:password@ prefix and use ssh, ssh-agent, or git's credential.helper")
+	}
+	return nil
 }
 
 func parseInt(s, name string) (int, error) {

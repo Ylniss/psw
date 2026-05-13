@@ -24,7 +24,7 @@ func stripANSI(s string) string {
 	return ansiRegex.ReplaceAllString(s, "")
 }
 
-// Fresh PSW_HOME with seeded pswcfg.toml; pre-runs psw to swallow the first-run banner.
+// Fresh PSW_HOME with seeded pswcfg.toml.
 func newVault(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -36,8 +36,29 @@ func newVault(t *testing.T) string {
 	if err := os.WriteFile(filepath.Join(dir, "pswcfg.toml"), data, 0644); err != nil {
 		t.Fatalf("write vault pswcfg.toml: %v", err)
 	}
-	runPsw(t, dir)
 	return dir
+}
+
+// assertVaultHasRecords fails if any name does not resolve via `psw get --exact`.
+func assertVaultHasRecords(t *testing.T, vault string, env map[string]string, names ...string) {
+	t.Helper()
+	for _, name := range names {
+		r := runPswEnv(t, vault, env, "get", name, "--exact", "--stdout")
+		if r.code != 0 {
+			t.Fatalf("expected record %q present; exit=%d\nstdout: %s\nstderr: %s", name, r.code, r.stdout, r.stderr)
+		}
+	}
+}
+
+// assertVaultLacksRecords fails if any name resolves via `psw get --exact`.
+func assertVaultLacksRecords(t *testing.T, vault string, env map[string]string, names ...string) {
+	t.Helper()
+	for _, name := range names {
+		r := runPswEnv(t, vault, env, "get", name, "--exact", "--stdout")
+		if r.code != 1 {
+			t.Fatalf("expected record %q absent; exit=%d\nstdout: %s\nstderr: %s", name, r.code, r.stdout, r.stderr)
+		}
+	}
 }
 
 func runPsw(t *testing.T, vault string, args ...string) pswResult {
@@ -52,6 +73,7 @@ func runPswEnv(t *testing.T, vault string, extraEnv map[string]string, args ...s
 		"PSW_HOME":          vault,
 		"PSW_MAIN_PASSWORD": defaultMainPassword,
 		"PSW_GIT":           "0",
+		"PSW_FAST_ARGON":    "1",
 		"PATH":              os.Getenv("PATH"),
 		"HOME":              os.Getenv("HOME"),
 	}

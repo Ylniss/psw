@@ -46,7 +46,8 @@ func newGitVaultWithRemote(t *testing.T) (vault, bare string, env map[string]str
 		t.Fatalf("write pswcfg: %v", err)
 	}
 	env = gitTestEnv()
-	runPswEnv(t, vault, env)
+	// Trigger first-time init via a known-missing record (exit 1 ignored).
+	runPswEnv(t, vault, env, "get", "__init__", "--exact")
 	return vault, bare, env
 }
 

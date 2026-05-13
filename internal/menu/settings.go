@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/TwiN/go-color"
+	"github.com/awnumar/memguard"
 
 	"github.com/ylniss/psw/internal/storage"
 	"github.com/ylniss/psw/internal/tuiutil"
@@ -226,7 +227,7 @@ func (a SettingsAction) descWidth() int {
 	return contentColumnWidth(a.width)
 }
 
-func (a SettingsAction) NewPassword() string { return "" }
+func (a SettingsAction) NewPassword() *memguard.Enclave { return nil }
 
 func (a SettingsAction) FooterHelp() string {
 	switch a.phase {

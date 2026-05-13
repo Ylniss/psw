@@ -27,9 +27,9 @@ func TestChange_Username(t *testing.T) {
 	// Assert
 	mustExit(t, result, 0)
 	mustContain(t, result.stdout, "was updated successfully")
-	result2 := runPsw(t, vault)
+	result2 := runPsw(t, vault, "get", "foo", "--exact", "--stdout", "--username")
 	mustExit(t, result2, 0)
-	mustContain(t, result2.stdout, "(newuser)")
+	mustEqual(t, trimmed(result2), "newuser")
 }
 
 func TestChange_Rename(t *testing.T) {

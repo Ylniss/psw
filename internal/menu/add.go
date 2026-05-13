@@ -6,6 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/TwiN/go-color"
+	"github.com/awnumar/memguard"
 
 	"github.com/ylniss/psw/internal/storage"
 	"github.com/ylniss/psw/internal/tuiutil"
@@ -29,7 +30,7 @@ type AddAction struct {
 	baseAction
 
 	phase    addPhase
-	password string
+	password *memguard.Enclave
 
 	store *storage.Storage
 
@@ -41,7 +42,7 @@ type AddAction struct {
 	inlineBanner string
 }
 
-func NewAddAction(password string) AddAction {
+func NewAddAction(password *memguard.Enclave) AddAction {
 	return AddAction{
 		baseAction: newBase("Syncing"),
 		phase:      addPhaseLoading,
@@ -102,7 +103,7 @@ func (a AddAction) updateEnterName(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, cmd
 	}
 	lower := strings.ToLower(name)
-	if lower == storage.MainPasswordKeywordShort || lower == storage.MainPasswordKeywordLong {
+	if lower == storage.MainPasswordAlias || lower == storage.MainPasswordName {
 		a.finish(fmt.Sprintf("Name %s is reserved. %s command uses it for changing main password",
 			color.InGreen(name), color.InCyan("change")))
 		return a, nil
@@ -113,7 +114,7 @@ func (a AddAction) updateEnterName(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	a.recordName = name
 	if a.isSingleValue {
-		return a.toInput("Value", false, false, addPhaseEnterValue)
+		return a.toInput("Value", true, false, addPhaseEnterValue)
 	}
 	return a.toInput("Username", false, false, addPhaseEnterUsername)
 }
@@ -140,7 +141,7 @@ func (a AddAction) updateAskGenerate(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.finishErr(err)
 		return a, nil
 	}
-	a.store.AddRecord(&storage.Record{Name: a.recordName, Username: a.username, Password: generated})
+	a.store.AddRecord(&storage.Record{Name: a.recordName, Username: a.username, Password: []byte(generated)})
 	return a.toSpinner("Saving", addPhaseSaving, saveCmd(a.store, "added new record"))
 }
 
@@ -163,7 +164,7 @@ func (a AddAction) updateEnterPasswordRepeat(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.pendingPassword = ""
 		return a.toInput("Password", true, false, addPhaseEnterPassword)
 	}
-	a.store.AddRecord(&storage.Record{Name: a.recordName, Username: a.username, Password: a.pendingPassword})
+	a.store.AddRecord(&storage.Record{Name: a.recordName, Username: a.username, Password: []byte(a.pendingPassword)})
 	return a.toSpinner("Saving", addPhaseSaving, saveCmd(a.store, "added new record"))
 }
 
@@ -172,7 +173,7 @@ func (a AddAction) updateEnterValue(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if a.cancelled || !ok {
 		return a, cmd
 	}
-	a.store.AddRecord(&storage.Record{Name: a.recordName, Value: val})
+	a.store.AddRecord(&storage.Record{Name: a.recordName, Value: []byte(val)})
 	return a.toSpinner("Saving", addPhaseSaving, saveCmd(a.store, "added new record"))
 }
 
@@ -205,5 +206,5 @@ func (a AddAction) View() tea.View {
 	return tea.NewView("")
 }
 
-func (a AddAction) NewPassword() string { return "" }
-func (a AddAction) FooterHelp() string  { return "" }
+func (a AddAction) NewPassword() *memguard.Enclave { return nil }
+func (a AddAction) FooterHelp() string             { return "" }

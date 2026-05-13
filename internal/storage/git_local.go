@@ -19,10 +19,19 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/object"
 )
 
-// gitOnPath reports whether the git binary is on PATH.
+var (
+	gitOnPathOnce   sync.Once
+	gitOnPathResult bool
+)
+
+// gitOnPath reports whether the git binary is on PATH. Cached on first call;
+// mid-process $PATH changes are ignored.
 func gitOnPath() bool {
-	_, err := exec.LookPath("git")
-	return err == nil
+	gitOnPathOnce.Do(func() {
+		_, err := exec.LookPath("git")
+		gitOnPathResult = err == nil
+	})
+	return gitOnPathResult
 }
 
 // Repo handle, lazy-initialized on first successful PlainOpen.

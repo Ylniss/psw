@@ -9,6 +9,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/awnumar/memguard"
 
 	"github.com/ylniss/psw/internal/prompt"
 	"github.com/ylniss/psw/internal/tuiutil"
@@ -50,7 +51,7 @@ type MenuModel struct {
 	lastOutput string
 
 	// Main password.
-	password string
+	password *memguard.Enclave
 }
 
 func NewMenuModel() MenuModel {
@@ -92,7 +93,7 @@ func (m MenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != nil {
 			m.passwordError = msg.err.Error()
 			m.passwordInput.Reset()
-			m.password = ""
+			m.password = nil
 			m.phase = menuPhaseEnterPassword
 			return m, m.passwordInput.Init()
 		}
@@ -158,7 +159,7 @@ func (m MenuModel) updateEnterPassword(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	}
 	if m.passwordInput.Done() {
-		m.password = m.passwordInput.Value()
+		m.password = memguard.NewEnclave([]byte(m.passwordInput.Value()))
 		m.passwordError = ""
 		m.passwordSpinner = ui.NewSpinnerModel("Decrypting")
 		m.phase = menuPhaseValidatingPassword
@@ -232,7 +233,7 @@ func (m MenuModel) routeToAction(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	if m.activeAction.Done() {
 		m.lastOutput = strings.Join(m.activeAction.Output(), "\n")
-		if pw := m.activeAction.NewPassword(); pw != "" {
+		if pw := m.activeAction.NewPassword(); pw != nil {
 			m.password = pw
 		}
 	}

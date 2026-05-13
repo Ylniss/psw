@@ -77,7 +77,7 @@ Arguments:
 		}
 
 		lower := strings.ToLower(recordName)
-		if lower == storage.MainPasswordKeywordShort || lower == storage.MainPasswordKeywordLong {
+		if lower == storage.MainPasswordAlias || lower == storage.MainPasswordName {
 			fmt.Printf("Name %s is reserved. %s command uses it for changing main password\n", color.InGreen(recordName), color.InCyan("change"))
 			return nil
 		}
@@ -92,7 +92,7 @@ Arguments:
 			if done, ret := handleCmdErr(err); done {
 				return ret
 			}
-			store.AddRecord(&storage.Record{Name: recordName, Value: recordValue})
+			store.AddRecord(&storage.Record{Name: recordName, Value: []byte(recordValue)})
 		} else {
 			recordUsername, err := getOrPromptUsername(usernameSet)
 			if done, ret := handleCmdErr(err); done {
@@ -102,7 +102,7 @@ Arguments:
 			if done, ret := handleCmdErr(err); done {
 				return ret
 			}
-			store.AddRecord(&storage.Record{Name: recordName, Username: recordUsername, Password: recordPassword})
+			store.AddRecord(&storage.Record{Name: recordName, Username: recordUsername, Password: []byte(recordPassword)})
 		}
 
 		if done, ret := handleCmdErr(store.Save()); done {
@@ -145,7 +145,7 @@ func getOrPromptValue(flagSet bool) (string, error) {
 	if flagSet {
 		return addValueFlag, nil
 	}
-	return prompt.PromptForName("Value")
+	return prompt.PromptForSecretValue("Value")
 }
 
 func getOrGenerateRecordPassword() (string, error) {

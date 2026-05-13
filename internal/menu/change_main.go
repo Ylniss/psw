@@ -2,6 +2,7 @@ package menu
 
 import (
 	tea "charm.land/bubbletea/v2"
+	"github.com/awnumar/memguard"
 )
 
 func (a ChangeAction) updateEnterNewMain(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -24,6 +25,6 @@ func (a ChangeAction) updateEnterNewMainRepeat(msg tea.Msg) (tea.Model, tea.Cmd)
 		a.newMainPassword = ""
 		return a.toInput("New main password", true, true, changePhaseEnterNewMain)
 	}
-	a.store.MainPassword = a.newMainPassword
+	a.store.MainPassword = memguard.NewEnclave([]byte(a.newMainPassword))
 	return a.toSpinner("Saving", changePhaseSaving, saveCmd(a.store, "main password changed"))
 }

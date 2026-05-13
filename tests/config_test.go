@@ -68,6 +68,21 @@ func TestConfig_SetClipboardTimeout(t *testing.T) {
 	assertConfigContains(t, vault, "clipboard_timeout = 45")
 }
 
+func TestConfig_SetRemoteRejectsUserinfo(t *testing.T) {
+	t.Parallel()
+	vault := newVault(t)
+	r := runPsw(t, vault, "config", "set", "remote", "https://user:pass@example.com/repo.git")
+	mustExit(t, r, 1)
+	mustContain(t, r.stdout, "credentials in URL")
+}
+
+func TestConfig_SetRemoteAcceptsCleanHTTPS(t *testing.T) {
+	t.Parallel()
+	vault := newVault(t)
+	mustExit(t, runPsw(t, vault, "config", "set", "remote", "https://example.com/user/repo.git"), 0)
+	assertConfigContains(t, vault, `remote = 'https://example.com/user/repo.git'`)
+}
+
 func TestConfig_SetUnknownKeyExitsOne(t *testing.T) {
 	t.Parallel()
 	vault := newVault(t)

@@ -10,6 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/TwiN/go-color"
+	"github.com/awnumar/memguard"
 	"golang.org/x/term"
 
 	"github.com/ylniss/psw/internal/tuiutil"
@@ -293,6 +294,12 @@ func PromptForName(promptText string) (string, error) {
 	return runInput(promptText, false, false)
 }
 
+// PromptForSecretValue prompts with masking. No double-confirm — single-value
+// entries are typed once.
+func PromptForSecretValue(promptText string) (string, error) {
+	return runInput(promptText, true, false)
+}
+
 func PromptForRecordPassword() (string, error) {
 	for {
 		first, err := runInput("Password", true, false)
@@ -310,12 +317,23 @@ func PromptForRecordPassword() (string, error) {
 	}
 }
 
-func PromptForMainPasswordChange() (string, error) {
-	return promptForMainPassword(true, true)
+// PromptMainPassword prompts for the main password and seals it. Intermediate
+// textinput string lives until GC.
+func PromptMainPassword(confirm bool) (*memguard.Enclave, error) {
+	s, err := promptForMainPassword(confirm, false)
+	if err != nil {
+		return nil, err
+	}
+	return memguard.NewEnclave([]byte(s)), nil
 }
 
-func PromptForMainPassword(confirm bool) (string, error) {
-	return promptForMainPassword(confirm, false)
+// PromptMainPasswordChange is PromptMainPassword for the rotation flow.
+func PromptMainPasswordChange() (*memguard.Enclave, error) {
+	s, err := promptForMainPassword(true, true)
+	if err != nil {
+		return nil, err
+	}
+	return memguard.NewEnclave([]byte(s)), nil
 }
 
 func promptForMainPassword(confirm bool, mainPasswordChange bool) (string, error) {
