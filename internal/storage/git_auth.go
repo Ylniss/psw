@@ -10,9 +10,7 @@ import (
 	"strings"
 
 	"github.com/go-git/go-git/v5/plumbing/transport"
-	httpauth "github.com/go-git/go-git/v5/plumbing/transport/http"
 	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
-	cryptossh "golang.org/x/crypto/ssh"
 )
 
 // ErrShellGitNeeded signals the caller to fall back to shell git: credential
@@ -22,6 +20,12 @@ var ErrShellGitNeeded = errors.New("auth method requires shell git or credential
 // ErrSigningRequired signals that commit signing can't be done by go-git.
 // Caller falls back to shell git if available.
 var ErrSigningRequired = errors.New("commit signing requires shell git")
+
+// ErrRemoteCredentialsInURL signals a remote URL with embedded userinfo
+// (e.g. https://user:pass@host/...). Hard refusal — not retried via shell git.
+// User must remove credentials and reconfigure via ssh, ssh-agent, or
+// `git config credential.helper`.
+var ErrRemoteCredentialsInURL = errors.New("credentials embedded in remote URL are not allowed; use ssh, ssh-agent, or git's credential.helper")
 
 type remoteKind int
 
@@ -62,11 +66,15 @@ func gitAuth(remoteURL string) (transport.AuthMethod, error) {
 }
 
 func sshAuth() (transport.AuthMethod, error) {
+	hostKeyCB, err := acceptNewHostKeyCallback()
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrShellGitNeeded, err)
+	}
 	// Use ssh-agent only when it has keys; an empty agent makes go-git's handshake fail before we'd reach keyfile fallback.
 	if os.Getenv("SSH_AUTH_SOCK") != "" {
 		if agentAuth, err := ssh.NewSSHAgentAuth("git"); err == nil {
 			if signers, err := agentAuth.Callback(); err == nil && len(signers) > 0 {
-				agentAuth.HostKeyCallback = cryptossh.InsecureIgnoreHostKey()
+				agentAuth.HostKeyCallback = hostKeyCB
 				return agentAuth, nil
 			}
 		}
@@ -84,7 +92,7 @@ func sshAuth() (transport.AuthMethod, error) {
 		if err != nil {
 			continue
 		}
-		keyAuth.HostKeyCallback = cryptossh.InsecureIgnoreHostKey()
+		keyAuth.HostKeyCallback = hostKeyCB
 		return keyAuth, nil
 	}
 	return nil, fmt.Errorf("%w: no usable SSH key for go-git", ErrShellGitNeeded)
@@ -96,8 +104,7 @@ func httpsAuth(remoteURL string) (transport.AuthMethod, error) {
 		return nil, fmt.Errorf("%w: parse url: %v", ErrShellGitNeeded, err)
 	}
 	if u.User != nil {
-		password, _ := u.User.Password()
-		return &httpauth.BasicAuth{Username: u.User.Username(), Password: password}, nil
+		return nil, fmt.Errorf("%w: %s", ErrRemoteCredentialsInURL, redactURL(remoteURL))
 	}
 	if hasCredentialHelper() {
 		return nil, fmt.Errorf("%w: credential.helper configured", ErrShellGitNeeded)
