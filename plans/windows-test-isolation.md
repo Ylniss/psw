@@ -1,6 +1,6 @@
 # Windows test isolation — quarantine integration tests from developer git config
 
-_Last updated: 2026-05-14 — phase 2 landed (pending commit on branch `develop`)_
+_Last updated: 2026-05-14 — phase 3 landed (pending commit on branch `develop`); all phases done_
 
 ## Goal
 
@@ -77,15 +77,14 @@ _Last updated: 2026-05-14 — phase 2 landed (pending commit on branch `develop`
 - **Risk:** low–medium (wire protocol must match git's expectations exactly; INI escape rules must match go-git's parser, not git's).
 - **Depends on:** none (independent of Phase 1, but Phase 1 should ship first since it's smaller and unblocks the GitNotOnPath test).
 
-### [ ] Phase 3: `TestRollback_LogColoring` ANSI on Windows
-- **Goal:** Make the test pass on Windows. Likely a 1-line test fix once root cause is known.
-- **Scope:** Start with investigation, not implementation. Hypotheses to falsify:
-  - `TwiN/go-color` v1.4.1's `enabled` is `true` by default and no code calls `Toggle(false)`, so `InPurple` should emit `\x1b[35m`. Verify by running `psw log` directly on Windows and inspecting raw bytes (e.g., `go run ./cmd/psw log | xxd | head`).
-  - If bytes ARE in stdout but `strings.Contains(raw, "\x1b[35m")` fails: encoding/decoding issue at the test's `cmd.Output()` boundary on Windows.
-  - If bytes are NOT in stdout: something at the `fmt.Printf` boundary in `internal/cli/log.go` is filtering. Could be a Go-on-Windows console handle quirk when stdout is a pipe (vs terminal).
-  - If a Cobra or stdlib hook disables colors when stdout isn't a TTY, that would explain it — but neither does so by default. Worth confirming.
+### [x] Phase 3: `TestRollback_LogColoring` ANSI on Windows
+- **Goal:** Make the test pass on Windows.
+- **Root cause:** `TwiN/go-color@v1.4.1/color_windows.go` `init()` calls `SetConsoleMode` on `os.Stdout.Fd()`; on failure (which happens whenever stdout is not a console handle — pipes, redirects, `cmd.Output()` in tests) it **zeros every ANSI escape string in the package** (`color.Purple = ""`, etc.). `color.InPurple(s)` then returns just `s`. `enabled` is irrelevant — the strings themselves go empty. Confirmed by direct empirical check: a tiny program importing the library and run with piped stdout printed `Purple="" Reset=""` and `InPurple("hello") = "hello"`.
+- **Scope:** New `internal/cli/colors_init.go` with `package cli` and an `init()` that restores the 11 named color strings + `Reset` to their non-empty defaults. Runs after `TwiN/go-color`'s init via Go's import-order rule. No test changes.
 - **Done when:** root cause identified, fix applied (in test or production), `TestRollback_LogColoring` passes on Windows.
-- **Risk:** unknown until investigated. Could be 1 line or could surface a real production code change (e.g., color emission needs an explicit unconditional flag).
+- **Outcome (2026-05-14):** done. Full `go test ./...` green on Windows. No Linux regression (the file overwrites the library's package vars with the same defaults Linux already has).
+- **Trade-off:** Windows behavior now matches Linux — `psw log > out.txt` and `psw log | something` leave ANSI bytes in the stream. Previously the library accidentally stripped them. If anyone ever wants the old behavior back, the future move is `NO_COLOR`/`--color=auto` support, not reverting this fix.
+- **Risk:** low.
 - **Depends on:** none.
 
 ## Decisions log
@@ -97,6 +96,7 @@ _Last updated: 2026-05-14 — phase 2 landed (pending commit on branch `develop`
 - 2026-05-14 — surfaced INI-escape bug in `addToGitConfig` writing the `gpg.program` Windows path → folded into Phase 2 scope since it's the same test (`TestSync_GPGSignFallback_GitOnPath`) and same file (`tests/sync_gogit_test.go`).
 - 2026-05-14 — phase 2 chose `filepath.ToSlash` over quoted-double-escape for `gpg.program` — gcfg's scanner only escapes `\\ \" \n n t b`; forward-slash paths need no escaping and `CreateProcess` on Windows accepts them. Quoted `"C:\\\\Users\\\\..."` would also work but needs four backslashes per separator in Go source.
 - 2026-05-14 — phase 2 deleted `writeFakeGpg` rather than renaming it — single caller, no longer "writes" anything; inlining the package-level `fakeGpgBinary` + `filepath.ToSlash` at the call site is one line.
+- 2026-05-14 — phase 3 chose Option A (restore color strings in psw's init) over Option B (`--color=always|auto|never` flag) and Option C (replace TwiN/go-color). Option A is one new 14-line file with zero modifications elsewhere; B is a real feature (~80-150 LOC across 24 call-site files or a centralizing wrapper); C is a library swap. The "Constraints / no internal/ or cmd/ changes" rule from the plan header was broken — anticipated by Phase 3's own Risk note ("could surface a real production code change").
 
 ## Open questions
 
