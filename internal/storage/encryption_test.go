@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -44,8 +45,10 @@ func TestEncryptToFile_RoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stat: %v", err)
 	}
-	if got := info.Mode().Perm(); got != 0600 {
-		t.Fatalf("file mode = %o, want 0600", got)
+	if runtime.GOOS != "windows" {
+		if got := info.Mode().Perm(); got != 0600 {
+			t.Fatalf("file mode = %o, want 0600", got)
+		}
 	}
 
 	got, err := decryptFromFile(path, password)
@@ -57,8 +60,7 @@ func TestEncryptToFile_RoundTrip(t *testing.T) {
 	}
 }
 
-// TestEncryptToFile_NoLeftoverTemp verifies renameio doesn't leave its tmp
-// file behind on success.
+// TestEncryptToFile_NoLeftoverTemp: no temp file remains after a successful write.
 func TestEncryptToFile_NoLeftoverTemp(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "storage.psw")

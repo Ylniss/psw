@@ -11,7 +11,6 @@ require (
 	github.com/atotto/clipboard v0.1.4
 	github.com/awnumar/memguard v0.23.0
 	github.com/go-git/go-git/v5 v5.19.0
-	github.com/google/renameio/v2 v2.0.2
 	github.com/pelletier/go-toml/v2 v2.3.1
 	github.com/skeema/knownhosts v1.3.1
 	github.com/spf13/cobra v1.10.2

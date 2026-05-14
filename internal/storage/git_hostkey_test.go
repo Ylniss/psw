@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -120,6 +121,7 @@ func TestAcceptNew_KnownHostDifferentKeyReturnsErrHostKeyChanged(t *testing.T) {
 func TestKnownHostsPath_CreatesFileAndDirIfMissing(t *testing.T) {
 	tmpHome := t.TempDir()
 	t.Setenv("HOME", tmpHome)
+	t.Setenv("USERPROFILE", tmpHome)
 
 	path, err := knownHostsPath()
 	if err != nil {
@@ -134,15 +136,19 @@ func TestKnownHostsPath_CreatesFileAndDirIfMissing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stat ~/.ssh: %v", err)
 	}
-	if got := sshInfo.Mode().Perm(); got != 0700 {
-		t.Fatalf(".ssh perm = %o, want 0700", got)
+	if runtime.GOOS != "windows" {
+		if got := sshInfo.Mode().Perm(); got != 0700 {
+			t.Fatalf(".ssh perm = %o, want 0700", got)
+		}
 	}
 
 	khInfo, err := os.Stat(path)
 	if err != nil {
 		t.Fatalf("stat known_hosts: %v", err)
 	}
-	if got := khInfo.Mode().Perm(); got != 0600 {
-		t.Fatalf("known_hosts perm = %o, want 0600", got)
+	if runtime.GOOS != "windows" {
+		if got := khInfo.Mode().Perm(); got != 0600 {
+			t.Fatalf("known_hosts perm = %o, want 0600", got)
+		}
 	}
 }

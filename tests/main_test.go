@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -31,7 +32,11 @@ func buildAndRun(m *testing.M) (int, error) {
 	}
 	defer os.RemoveAll(dir)
 
-	pswBinary = filepath.Join(dir, "psw")
+	binName := "psw"
+	if runtime.GOOS == "windows" {
+		binName = "psw.exe"
+	}
+	pswBinary = filepath.Join(dir, binName)
 	cmd := exec.Command("go", "build", "-o", pswBinary, "./cmd/psw")
 	cmd.Dir = root
 	cmd.Stdout = os.Stdout

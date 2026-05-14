@@ -76,6 +76,7 @@ func runPswEnv(t *testing.T, vault string, extraEnv map[string]string, args ...s
 		"PSW_FAST_ARGON":    "1",
 		"PATH":              os.Getenv("PATH"),
 		"HOME":              os.Getenv("HOME"),
+		"USERPROFILE":       os.Getenv("USERPROFILE"),
 	}
 	for k, v := range extraEnv {
 		env[k] = v
