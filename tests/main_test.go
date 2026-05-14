@@ -9,7 +9,10 @@ import (
 	"testing"
 )
 
-var pswBinary string
+var (
+	pswBinary     string
+	fakeGpgBinary string
+)
 
 func TestMain(m *testing.M) {
 	code, err := buildAndRun(m)
@@ -43,6 +46,19 @@ func buildAndRun(m *testing.M) (int, error) {
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
 		return 0, fmt.Errorf("build psw: %w", err)
+	}
+
+	fakeName := "fakegpg"
+	if runtime.GOOS == "windows" {
+		fakeName = "fakegpg.exe"
+	}
+	fakeGpgBinary = filepath.Join(dir, fakeName)
+	fgCmd := exec.Command("go", "build", "-o", fakeGpgBinary, "./tests/cmd/fakegpg")
+	fgCmd.Dir = root
+	fgCmd.Stdout = os.Stdout
+	fgCmd.Stderr = os.Stderr
+	if err := fgCmd.Run(); err != nil {
+		return 0, fmt.Errorf("build fakegpg: %w", err)
 	}
 
 	// Mirror `make build`: copy pswcfg-template.toml → <bin dir>/pswcfg.toml

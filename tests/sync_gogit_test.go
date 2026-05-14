@@ -85,8 +85,7 @@ func TestSync_GPGSignFallback_GitOnPath(t *testing.T) {
 	}
 	vault, bare, env := newGitVaultWithRemote(t)
 
-	fakeGpg := writeFakeGpg(t)
-	addToGitConfig(t, vault, "[commit]\n\tgpgsign = true\n[gpg]\n\tprogram = "+fakeGpg+"\n[user]\n\tsigningkey = test\n")
+	addToGitConfig(t, vault, "[commit]\n\tgpgsign = true\n[gpg]\n\tprogram = "+filepath.ToSlash(fakeGpgBinary)+"\n[user]\n\tsigningkey = test\n")
 
 	beforeCount := bareCommitCount(t, bare)
 	res := runPswEnv(t, vault, env, "add", "foo", "-u", "u", "--password=p")
@@ -95,28 +94,6 @@ func TestSync_GPGSignFallback_GitOnPath(t *testing.T) {
 		t.Fatalf("expected commit count to advance via shell-out fallback; before=%d after=%d\nstderr: %s",
 			beforeCount, got, res.stderr)
 	}
-}
-
-// writeFakeGpg drops a shell script in t.TempDir() that mimics gpg enough for
-// `git commit -S`: drains stdin, prints SIG_CREATED to stderr, prints a
-// dummy PGP signature to stdout, exits 0.
-func writeFakeGpg(t *testing.T) string {
-	t.Helper()
-	path := filepath.Join(t.TempDir(), "fakegpg")
-	script := `#!/bin/sh
-cat /dev/stdin >/dev/null
-echo '[GNUPG:] SIG_CREATED B 1 10 00 1234567890 0000000000000000' >&2
-cat <<'SIG'
------BEGIN PGP SIGNATURE-----
-
-fakesig
------END PGP SIGNATURE-----
-SIG
-`
-	if err := os.WriteFile(path, []byte(script), 0755); err != nil {
-		t.Fatalf("write fake gpg: %v", err)
-	}
-	return path
 }
 
 // addToGitConfig appends raw INI text to the vault's .git/config.

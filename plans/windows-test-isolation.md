@@ -1,6 +1,6 @@
 # Windows test isolation — quarantine integration tests from developer git config
 
-_Last updated: 2026-05-14 — phase 1 landed (pending commit on branch `develop`)_
+_Last updated: 2026-05-14 — phase 2 landed (pending commit on branch `develop`)_
 
 ## Goal
 
@@ -69,10 +69,11 @@ _Last updated: 2026-05-14 — phase 1 landed (pending commit on branch `develop`
 - **Risk:** low.
 - **Depends on:** none.
 
-### [ ] Phase 2: Cross-platform fake-gpg helper
+### [x] Phase 2: Cross-platform fake-gpg helper
 - **Goal:** Replace `#!/bin/sh` fake-gpg with a Go-built helper executable so `TestSync_GPGSignFallback_GitOnPath` works on Windows.
-- **Scope:** New `tests/cmd/fakegpg/main.go` (or similar). Build it in `TestMain` next to `psw`, store path in a package-level var. Update `writeFakeGpg` to return that path. The helper must replicate the wire protocol: drain stdin, emit `[GNUPG:] SIG_CREATED ...` to stderr, emit dummy `-----BEGIN PGP SIGNATURE-----`/`-----END PGP SIGNATURE-----` block to stdout, exit 0. Use `.exe` suffix on Windows like `psw`. **Also:** fix how `addToGitConfig` writes the `gpg.program` value — Windows paths like `C:\Users\…\fakegpg.exe` are interpreted as escape sequences by go-git's INI parser (`9:15: unknown escape sequence`). Either quote the value (`"C:\\Users\\…"` with doubled backslashes) or rewrite to forward slashes; verify go-git's INI parser accepts whichever shape on both OSes.
+- **Scope:** New `tests/cmd/fakegpg/main.go`. Build it in `TestMain` next to `psw`, store path in package-level `fakeGpgBinary`. Drop `writeFakeGpg` (inline at the single caller). Wire protocol: drain stdin, emit `[GNUPG:] SIG_CREATED ...` to stderr, emit dummy `-----BEGIN PGP SIGNATURE-----`/`-----END PGP SIGNATURE-----` block to stdout, exit 0. `.exe` suffix on Windows like `psw`. Fix the gcfg INI escape bug by writing the `gpg.program` value through `filepath.ToSlash` (forward slashes — no escapes needed; gcfg's value scanner only accepts `\\ \" \n n t b` after a backslash).
 - **Done when:** `TestSync_GPGSignFallback_GitOnPath` passes on Windows and Linux. Old shebang script removed.
+- **Outcome (2026-05-14):** done. Both Windows gpgsign tests green; full suite has only `TestRollback_LogColoring` (Phase 3) still red. `tests/cmd/fakegpg` shows `[no test files]` under `go test ./tests/...` — expected, no failure.
 - **Risk:** low–medium (wire protocol must match git's expectations exactly; INI escape rules must match go-git's parser, not git's).
 - **Depends on:** none (independent of Phase 1, but Phase 1 should ship first since it's smaller and unblocks the GitNotOnPath test).
 
@@ -94,6 +95,8 @@ _Last updated: 2026-05-14 — phase 1 landed (pending commit on branch `develop`
 - 2026-05-14 — extended phase-1 scope to include 1-line `pathWithoutGit` fix in `tests/sync_gogit_test.go` — without it the test's "git not on PATH" branch is unreachable on Windows since git ships as `git.exe` only. Confirmed empirically: 4 PATH entries contain `git.exe`, 0 contain `git`. The original phase-1 scope (`helpers_test.go`/`rollback_test.go` only) was insufficient to meet the "done when" criterion for `TestSync_GPGSignFallback_GitNotOnPath`.
 - 2026-05-14 — `flattenEnv` takes `*testing.T` (was `(vault, extra)` in the original plan) — needed to call `t.TempDir()` for the isolation dir. Caller (`TestRollback_LogColoring`) already has `t` in scope; minor signature change, no churn elsewhere.
 - 2026-05-14 — surfaced INI-escape bug in `addToGitConfig` writing the `gpg.program` Windows path → folded into Phase 2 scope since it's the same test (`TestSync_GPGSignFallback_GitOnPath`) and same file (`tests/sync_gogit_test.go`).
+- 2026-05-14 — phase 2 chose `filepath.ToSlash` over quoted-double-escape for `gpg.program` — gcfg's scanner only escapes `\\ \" \n n t b`; forward-slash paths need no escaping and `CreateProcess` on Windows accepts them. Quoted `"C:\\\\Users\\\\..."` would also work but needs four backslashes per separator in Go source.
+- 2026-05-14 — phase 2 deleted `writeFakeGpg` rather than renaming it — single caller, no longer "writes" anything; inlining the package-level `fakeGpgBinary` + `filepath.ToSlash` at the call site is one line.
 
 ## Open questions
 

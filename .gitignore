@@ -29,6 +29,3 @@ go.work
 
 # Nix build artifacts
 /nix/result
-
-# Local-only plans / notes.
-plans/
