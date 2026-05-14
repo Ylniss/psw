@@ -189,7 +189,7 @@ func TestRollback_LogColoring(t *testing.T) {
 	mustExit(t, runPswEnv(t, vault, rbEnv, "rollback"), 0)
 
 	// Don't strip ANSI for this check — we want to see the color escape.
-	cmd := exec.Command(pswBinary, "log")
+	cmd := exec.Command(pswBinaryPath, "log")
 	cmd.Env = flattenEnv(t, vault, env)
 	out, err := cmd.Output()
 	if err != nil {

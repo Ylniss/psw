@@ -160,7 +160,7 @@ func (a AddAction) updateEnterPasswordRepeat(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, cmd
 	}
 	if val != a.pendingPassword {
-		a.inlineBanner = passwordMismatchBanner
+		a.inlineBanner = passwordMismatchBanner()
 		a.pendingPassword = ""
 		return a.toInput("Password", true, false, addPhaseEnterPassword)
 	}

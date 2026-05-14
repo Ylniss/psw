@@ -10,8 +10,8 @@ import (
 )
 
 var (
-	pswBinary     string
-	fakeGpgBinary string
+	pswBinaryPath     string
+	fakeGpgBinaryPath string
 )
 
 func TestMain(m *testing.M) {
@@ -35,29 +35,29 @@ func buildAndRun(m *testing.M) (int, error) {
 	}
 	defer os.RemoveAll(dir)
 
-	binName := "psw"
+	pswBinaryFilename := "psw"
 	if runtime.GOOS == "windows" {
-		binName = "psw.exe"
+		pswBinaryFilename = "psw.exe"
 	}
-	pswBinary = filepath.Join(dir, binName)
-	cmd := exec.Command("go", "build", "-o", pswBinary, "./cmd/psw")
-	cmd.Dir = root
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
+	pswBinaryPath = filepath.Join(dir, pswBinaryFilename)
+	pswBuildCmd := exec.Command("go", "build", "-o", pswBinaryPath, "./cmd/psw")
+	pswBuildCmd.Dir = root
+	pswBuildCmd.Stdout = os.Stdout
+	pswBuildCmd.Stderr = os.Stderr
+	if err := pswBuildCmd.Run(); err != nil {
 		return 0, fmt.Errorf("build psw: %w", err)
 	}
 
-	fakeName := "fakegpg"
+	fakeGpgFilename := "fakegpg"
 	if runtime.GOOS == "windows" {
-		fakeName = "fakegpg.exe"
+		fakeGpgFilename = "fakegpg.exe"
 	}
-	fakeGpgBinary = filepath.Join(dir, fakeName)
-	fgCmd := exec.Command("go", "build", "-o", fakeGpgBinary, "./tests/cmd/fakegpg")
-	fgCmd.Dir = root
-	fgCmd.Stdout = os.Stdout
-	fgCmd.Stderr = os.Stderr
-	if err := fgCmd.Run(); err != nil {
+	fakeGpgBinaryPath = filepath.Join(dir, fakeGpgFilename)
+	fakeGpgBuildCmd := exec.Command("go", "build", "-o", fakeGpgBinaryPath, "./tests/cmd/fakegpg")
+	fakeGpgBuildCmd.Dir = root
+	fakeGpgBuildCmd.Stdout = os.Stdout
+	fakeGpgBuildCmd.Stderr = os.Stderr
+	if err := fakeGpgBuildCmd.Run(); err != nil {
 		return 0, fmt.Errorf("build fakegpg: %w", err)
 	}
 

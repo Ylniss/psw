@@ -21,7 +21,7 @@ func (a ChangeAction) updateEnterNewMainRepeat(msg tea.Msg) (tea.Model, tea.Cmd)
 		return a, cmd
 	}
 	if val != a.newMainPassword {
-		a.inlineBanner = passwordMismatchBanner
+		a.inlineBanner = passwordMismatchBanner()
 		a.newMainPassword = ""
 		return a.toInput("New main password", true, true, changePhaseEnterNewMain)
 	}

@@ -1,6 +1,4 @@
-// fakegpg replaces a real gpg for `git commit -S` in tests: drains stdin,
-// writes git's required SIG_CREATED status to stderr, writes a dummy PGP
-// signature to stdout, exits 0. Args ignored.
+// fakegpg pretends to be gpg for `git commit -S` in tests.
 package main
 
 import (

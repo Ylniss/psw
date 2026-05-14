@@ -8,8 +8,8 @@ import (
 	"testing"
 )
 
-// pathWithoutGit returns a PATH value with all directories that contain
-// `git` (or `git.exe` on Windows) removed. Used to simulate "git not installed".
+// pathWithoutGit returns PATH with directories containing `git`/`git.exe` removed.
+// Simulates "git not installed".
 func pathWithoutGit(t *testing.T) string {
 	t.Helper()
 	sep := string(os.PathListSeparator)
@@ -85,7 +85,7 @@ func TestSync_GPGSignFallback_GitOnPath(t *testing.T) {
 	}
 	vault, bare, env := newGitVaultWithRemote(t)
 
-	addToGitConfig(t, vault, "[commit]\n\tgpgsign = true\n[gpg]\n\tprogram = "+filepath.ToSlash(fakeGpgBinary)+"\n[user]\n\tsigningkey = test\n")
+	addToGitConfig(t, vault, "[commit]\n\tgpgsign = true\n[gpg]\n\tprogram = "+filepath.ToSlash(fakeGpgBinaryPath)+"\n[user]\n\tsigningkey = test\n")
 
 	beforeCount := bareCommitCount(t, bare)
 	res := runPswEnv(t, vault, env, "add", "foo", "-u", "u", "--password=p")

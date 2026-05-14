@@ -2,6 +2,7 @@ package tests
 
 import (
 	"errors"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -65,11 +66,9 @@ func runPsw(t *testing.T, vault string, args ...string) pswResult {
 	return runPswEnv(t, vault, nil, args...)
 }
 
-// extraEnv keys override the helper defaults.
-// Allow-list (not os.Environ()) prevents stray PSW_* leaking into subprocesses.
 func runPswEnv(t *testing.T, vault string, extraEnv map[string]string, args ...string) pswResult {
 	t.Helper()
-	cmd := exec.Command(pswBinary, args...)
+	cmd := exec.Command(pswBinaryPath, args...)
 	cmd.Env = flattenEnv(t, vault, extraEnv)
 	var stdout, stderr strings.Builder
 	cmd.Stdout = &stdout
@@ -91,34 +90,32 @@ func runPswEnv(t *testing.T, vault string, extraEnv map[string]string, args ...s
 	}
 }
 
-// flattenEnv builds the env slice for a spawned psw subprocess.
-// HOME/USERPROFILE/XDG_CONFIG_HOME point at an empty t.TempDir() so go-git's
-// global-config lookup (which honors none of GIT_CONFIG_GLOBAL/SYSTEM/NOSYSTEM)
-// and shell-git's global config both come up empty; GIT_CONFIG_NOSYSTEM=1
-// disables shell-git's system config (go-git's system scope is hard-coded to
-// /etc/gitconfig). extra keys override defaults.
-func flattenEnv(t *testing.T, vault string, extra map[string]string) []string {
+// flattenEnv builds env for a spawned psw subprocess. Allow-list (not
+// os.Environ()) prevents stray PSW_* leaking from the parent.
+// HOME/USERPROFILE/XDG_CONFIG_HOME → empty tempdir hides the developer's
+// .gitconfig from go-git (ignores GIT_CONFIG_GLOBAL) and shell-git;
+// GIT_CONFIG_NOSYSTEM=1 hides the system gitconfig from shell-git.
+// extraEnv overrides defaults.
+func flattenEnv(t *testing.T, vault string, extraEnv map[string]string) []string {
 	t.Helper()
-	iso := t.TempDir()
+	emptyHomeDir := t.TempDir()
 	env := map[string]string{
 		"PSW_HOME":            vault,
 		"PSW_MAIN_PASSWORD":   defaultMainPassword,
 		"PSW_GIT":             "0",
 		"PSW_FAST_ARGON":      "1",
 		"PATH":                os.Getenv("PATH"),
-		"HOME":                iso,
-		"USERPROFILE":         iso,
-		"XDG_CONFIG_HOME":     iso,
+		"HOME":                emptyHomeDir,
+		"USERPROFILE":         emptyHomeDir,
+		"XDG_CONFIG_HOME":     emptyHomeDir,
 		"GIT_CONFIG_NOSYSTEM": "1",
 	}
-	for k, v := range extra {
-		env[k] = v
-	}
-	flat := make([]string, 0, len(env))
+	maps.Copy(env, extraEnv)
+	flatEnv := make([]string, 0, len(env))
 	for k, v := range env {
-		flat = append(flat, k+"="+v)
+		flatEnv = append(flatEnv, k+"="+v)
 	}
-	return flat
+	return flatEnv
 }
 
 func mustExit(t *testing.T, r pswResult, code int) {
