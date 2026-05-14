@@ -9,7 +9,7 @@ import (
 )
 
 // pathWithoutGit returns a PATH value with all directories that contain
-// `git` removed. Used to simulate "git not installed".
+// `git` (or `git.exe` on Windows) removed. Used to simulate "git not installed".
 func pathWithoutGit(t *testing.T) string {
 	t.Helper()
 	sep := string(os.PathListSeparator)
@@ -19,6 +19,9 @@ func pathWithoutGit(t *testing.T) string {
 			continue
 		}
 		if _, err := os.Stat(filepath.Join(dir, "git")); err == nil {
+			continue
+		}
+		if _, err := os.Stat(filepath.Join(dir, "git.exe")); err == nil {
 			continue
 		}
 		kept = append(kept, dir)

@@ -69,25 +69,8 @@ func runPsw(t *testing.T, vault string, args ...string) pswResult {
 // Allow-list (not os.Environ()) prevents stray PSW_* leaking into subprocesses.
 func runPswEnv(t *testing.T, vault string, extraEnv map[string]string, args ...string) pswResult {
 	t.Helper()
-	env := map[string]string{
-		"PSW_HOME":          vault,
-		"PSW_MAIN_PASSWORD": defaultMainPassword,
-		"PSW_GIT":           "0",
-		"PSW_FAST_ARGON":    "1",
-		"PATH":              os.Getenv("PATH"),
-		"HOME":              os.Getenv("HOME"),
-		"USERPROFILE":       os.Getenv("USERPROFILE"),
-	}
-	for k, v := range extraEnv {
-		env[k] = v
-	}
-	flatEnv := make([]string, 0, len(env))
-	for k, v := range env {
-		flatEnv = append(flatEnv, k+"="+v)
-	}
-
 	cmd := exec.Command(pswBinary, args...)
-	cmd.Env = flatEnv
+	cmd.Env = flattenEnv(t, vault, extraEnv)
 	var stdout, stderr strings.Builder
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -106,6 +89,36 @@ func runPswEnv(t *testing.T, vault string, extraEnv map[string]string, args ...s
 		stderr: stripANSI(stderr.String()),
 		code:   code,
 	}
+}
+
+// flattenEnv builds the env slice for a spawned psw subprocess.
+// HOME/USERPROFILE/XDG_CONFIG_HOME point at an empty t.TempDir() so go-git's
+// global-config lookup (which honors none of GIT_CONFIG_GLOBAL/SYSTEM/NOSYSTEM)
+// and shell-git's global config both come up empty; GIT_CONFIG_NOSYSTEM=1
+// disables shell-git's system config (go-git's system scope is hard-coded to
+// /etc/gitconfig). extra keys override defaults.
+func flattenEnv(t *testing.T, vault string, extra map[string]string) []string {
+	t.Helper()
+	iso := t.TempDir()
+	env := map[string]string{
+		"PSW_HOME":            vault,
+		"PSW_MAIN_PASSWORD":   defaultMainPassword,
+		"PSW_GIT":             "0",
+		"PSW_FAST_ARGON":      "1",
+		"PATH":                os.Getenv("PATH"),
+		"HOME":                iso,
+		"USERPROFILE":         iso,
+		"XDG_CONFIG_HOME":     iso,
+		"GIT_CONFIG_NOSYSTEM": "1",
+	}
+	for k, v := range extra {
+		env[k] = v
+	}
+	flat := make([]string, 0, len(env))
+	for k, v := range env {
+		flat = append(flat, k+"="+v)
+	}
+	return flat
 }
 
 func mustExit(t *testing.T, r pswResult, code int) {
