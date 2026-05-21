@@ -96,6 +96,59 @@ func TestMenuModel_SelectActionJKeyMovesDown(t *testing.T) {
 	}
 }
 
+func TestMenuModel_SelectActionJKeyMovesToNextColumn(t *testing.T) {
+	// 'j' from add (1,0) moves to change (0,1).
+	m := NewMenuModel()
+	m.phase = menuPhaseSelectAction
+	m.actionCursor = 1
+	m = updateMenu(m, tea.KeyPressMsg{Code: 'j', Text: "j"})
+	if m.actionCursor != 2 {
+		t.Fatalf("expected cursor 2 (change) after 'j' from add, got %d", m.actionCursor)
+	}
+}
+
+func TestMenuModel_SelectActionJKeyWrapsToFirst(t *testing.T) {
+	// 'j' from rollback (1,2) wraps to get (0,0).
+	m := NewMenuModel()
+	m.phase = menuPhaseSelectAction
+	m.actionCursor = 5
+	m = updateMenu(m, tea.KeyPressMsg{Code: 'j', Text: "j"})
+	if m.actionCursor != 0 {
+		t.Fatalf("expected cursor 0 (get) after 'j' from rollback, got %d", m.actionCursor)
+	}
+}
+
+func TestMenuModel_SelectActionKKeyWrapsToLast(t *testing.T) {
+	// 'k' from get (0,0) wraps to rollback (1,2).
+	m := NewMenuModel()
+	m.phase = menuPhaseSelectAction
+	m = updateMenu(m, tea.KeyPressMsg{Code: 'k', Text: "k"})
+	if m.actionCursor != 5 {
+		t.Fatalf("expected cursor 5 (rollback) after 'k' from get, got %d", m.actionCursor)
+	}
+}
+
+func TestMenuModel_SelectActionKKeyMovesToPrevColumn(t *testing.T) {
+	// 'k' from change (0,1) moves to add (1,0).
+	m := NewMenuModel()
+	m.phase = menuPhaseSelectAction
+	m.actionCursor = 2
+	m = updateMenu(m, tea.KeyPressMsg{Code: 'k', Text: "k"})
+	if m.actionCursor != 1 {
+		t.Fatalf("expected cursor 1 (add) after 'k' from change, got %d", m.actionCursor)
+	}
+}
+
+func TestMenuModel_SelectActionSpaceConfirms(t *testing.T) {
+	// Space confirms the focused action, like enter.
+	m := NewMenuModel()
+	m.phase = menuPhaseSelectAction
+	m = updateMenu(m, tea.KeyPressMsg{Code: ' ', Text: " "})
+	if m.phase != menuPhaseRunningAction {
+		t.Fatalf("expected menuPhaseRunningAction after space, got %v", m.phase)
+	}
+}
+
 func TestMenuModel_SelectActionQQuits(t *testing.T) {
 	m := NewMenuModel()
 	m.phase = menuPhaseSelectAction

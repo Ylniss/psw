@@ -102,7 +102,7 @@ func (a SettingsAction) updateGrid(msg tea.Msg) (tea.Model, tea.Cmd) {
 			adj(&storage.AppConfig, +1)
 			a.dirty = true
 		}
-	case "enter":
+	case "enter", "space":
 		a.editingKey = storage.ConfigKeys[a.cursor]
 		cmd := a.initInput("New value for "+a.editingKey.Name, false, false)
 		a.input = a.input.WithInitialValue(a.editingKey.Current(&storage.AppConfig))
@@ -232,7 +232,7 @@ func (a SettingsAction) NewPassword() *memguard.Enclave { return nil }
 func (a SettingsAction) FooterHelp() string {
 	switch a.phase {
 	case settingsPhaseGrid:
-		return "↑/↓ or k/j or tab/shift+tab navigate · ←/→ or h/l ±1\nenter edit · esc save & exit"
+		return "↑/↓ or k/j or tab/shift+tab navigate · ←/→ or h/l ±1\nenter/space edit · esc save & exit"
 	case settingsPhaseEditing:
 		return "enter accept · esc back to grid"
 	}

@@ -181,28 +181,24 @@ func (m MenuModel) updateSelectAction(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case "ctrl+c", "esc", "q":
 		return m, tea.Quit
 	case "left", "h":
-		if c, ok := actionNeighbor(m.actionCursor, dirLeft); ok {
-			m.actionCursor = c
+		if m.actionCursor-menuGridRows >= 0 {
+			m.actionCursor -= menuGridRows
 		}
 	case "right", "l":
-		if c, ok := actionNeighbor(m.actionCursor, dirRight); ok {
-			m.actionCursor = c
+		if m.actionCursor+menuGridRows < len(menuActions) {
+			m.actionCursor += menuGridRows
 		}
 	case "up", "k", "shift+tab":
-		if c, ok := actionNeighbor(m.actionCursor, dirUp); ok {
-			m.actionCursor = c
-		}
+		m.actionCursor = (m.actionCursor - 1 + len(menuActions)) % len(menuActions)
 	case "down", "j", "tab":
-		if c, ok := actionNeighbor(m.actionCursor, dirDown); ok {
-			m.actionCursor = c
-		}
+		m.actionCursor = (m.actionCursor + 1) % len(menuActions)
 	case "1", "2", "3", "4", "5", "6":
 		idx := int(k.String()[0] - '1')
 		if idx < len(menuActions) {
 			m.actionCursor = idx
 			return m.startAction(menuActions[idx])
 		}
-	case "enter":
+	case "enter", "space":
 		return m.startAction(menuActions[m.actionCursor])
 	}
 	return m, nil

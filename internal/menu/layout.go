@@ -87,64 +87,6 @@ var menuCellLookup = func() [menuGridRows][menuGridCols]int {
 	return m
 }()
 
-type navDir int
-
-const (
-	dirLeft navDir = iota
-	dirRight
-	dirUp
-	dirDown
-)
-
-// actionNeighbor returns the next menuActions index in dir from idx, or
-// (idx, false) if none. Horizontal stays in row, vertical in column.
-func actionNeighbor(idx int, dir navDir) (int, bool) {
-	r, c := menuCells[idx].row, menuCells[idx].col
-	switch dir {
-	case dirLeft:
-		best := -1
-		for i, cell := range menuCells {
-			if cell.row == r && cell.col < c && (best < 0 || cell.col > menuCells[best].col) {
-				best = i
-			}
-		}
-		if best >= 0 {
-			return best, true
-		}
-	case dirRight:
-		best := -1
-		for i, cell := range menuCells {
-			if cell.row == r && cell.col > c && (best < 0 || cell.col < menuCells[best].col) {
-				best = i
-			}
-		}
-		if best >= 0 {
-			return best, true
-		}
-	case dirUp:
-		best := -1
-		for i, cell := range menuCells {
-			if cell.col == c && cell.row < r && (best < 0 || cell.row > menuCells[best].row) {
-				best = i
-			}
-		}
-		if best >= 0 {
-			return best, true
-		}
-	case dirDown:
-		best := -1
-		for i, cell := range menuCells {
-			if cell.col == c && cell.row > r && (best < 0 || cell.row < menuCells[best].row) {
-				best = i
-			}
-		}
-		if best >= 0 {
-			return best, true
-		}
-	}
-	return idx, false
-}
-
 // No PaddingRight on button styles: trailing pad on the rightmost button
 // would push the visible right edge 2 cells short of the content column.
 // Gaps in renderButtons separate buttons instead.
@@ -164,7 +106,7 @@ const (
 	buttonPrefixWidth    = 2
 )
 
-const footerHelp = "←→/hjkl/tab nav · 1-6 jump · enter run · esc/q quit"
+const footerHelp = "←→/hjkl/tab nav · 1-6 jump · enter/space run · esc/q quit"
 
 // actionFrameHeight = row count of header + spacers + button rows.
 // Computed from renderActionFrame so it tracks layout changes.
