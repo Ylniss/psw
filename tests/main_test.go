@@ -5,10 +5,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
-var pswBinary string
+var (
+	pswBinaryPath     string
+	fakeGpgBinaryPath string
+)
 
 func TestMain(m *testing.M) {
 	code, err := buildAndRun(m)
@@ -31,13 +35,30 @@ func buildAndRun(m *testing.M) (int, error) {
 	}
 	defer os.RemoveAll(dir)
 
-	pswBinary = filepath.Join(dir, "psw")
-	cmd := exec.Command("go", "build", "-o", pswBinary, "./cmd/psw")
-	cmd.Dir = root
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
+	pswBinaryFilename := "psw"
+	if runtime.GOOS == "windows" {
+		pswBinaryFilename = "psw.exe"
+	}
+	pswBinaryPath = filepath.Join(dir, pswBinaryFilename)
+	pswBuildCmd := exec.Command("go", "build", "-o", pswBinaryPath, "./cmd/psw")
+	pswBuildCmd.Dir = root
+	pswBuildCmd.Stdout = os.Stdout
+	pswBuildCmd.Stderr = os.Stderr
+	if err := pswBuildCmd.Run(); err != nil {
 		return 0, fmt.Errorf("build psw: %w", err)
+	}
+
+	fakeGpgFilename := "fakegpg"
+	if runtime.GOOS == "windows" {
+		fakeGpgFilename = "fakegpg.exe"
+	}
+	fakeGpgBinaryPath = filepath.Join(dir, fakeGpgFilename)
+	fakeGpgBuildCmd := exec.Command("go", "build", "-o", fakeGpgBinaryPath, "./tests/cmd/fakegpg")
+	fakeGpgBuildCmd.Dir = root
+	fakeGpgBuildCmd.Stdout = os.Stdout
+	fakeGpgBuildCmd.Stderr = os.Stderr
+	if err := fakeGpgBuildCmd.Run(); err != nil {
+		return 0, fmt.Errorf("build fakegpg: %w", err)
 	}
 
 	// Mirror `make build`: copy pswcfg-template.toml → <bin dir>/pswcfg.toml

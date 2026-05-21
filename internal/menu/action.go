@@ -3,6 +3,7 @@ package menu
 import (
 	"fmt"
 	"strings"
+	"sync"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -13,7 +14,10 @@ import (
 )
 
 // passwordMismatchBanner is shown above the input on a repeat-password mismatch.
-var passwordMismatchBanner = color.InYellow(prompt.PasswordMismatchMsg)
+// Lazy so it captures color.Yellow after cli's init() restores it on Windows.
+var passwordMismatchBanner = sync.OnceValue(func() string {
+	return color.InYellow(prompt.PasswordMismatchMsg)
+})
 
 // Phase-transition helpers. Caller pattern: `return a.toX(...)`. Wrappers
 // are duplicated per action because Go has no method-level generics over

@@ -1,7 +1,6 @@
 package tests
 
 import (
-	"os"
 	"os/exec"
 	"strings"
 	"testing"
@@ -190,8 +189,8 @@ func TestRollback_LogColoring(t *testing.T) {
 	mustExit(t, runPswEnv(t, vault, rbEnv, "rollback"), 0)
 
 	// Don't strip ANSI for this check — we want to see the color escape.
-	cmd := exec.Command(pswBinary, "log")
-	cmd.Env = flatEnvForVault(vault, env)
+	cmd := exec.Command(pswBinaryPath, "log")
+	cmd.Env = flattenEnv(t, vault, env)
 	out, err := cmd.Output()
 	if err != nil {
 		t.Fatalf("psw log: %v", err)
@@ -205,24 +204,3 @@ func TestRollback_LogColoring(t *testing.T) {
 	}
 }
 
-// flatEnvForVault mirrors runPswEnv's env construction but returns the slice
-// so callers running their own exec.Command can reuse it. Defaults match
-// runPswEnv (PSW_GIT=0); extraEnv overrides.
-func flatEnvForVault(vault string, extraEnv map[string]string) []string {
-	env := map[string]string{
-		"PSW_HOME":          vault,
-		"PSW_MAIN_PASSWORD": defaultMainPassword,
-		"PSW_GIT":           "0",
-		"PSW_FAST_ARGON":    "1",
-		"PATH":              os.Getenv("PATH"),
-		"HOME":              os.Getenv("HOME"),
-	}
-	for k, v := range extraEnv {
-		env[k] = v
-	}
-	flat := make([]string, 0, len(env))
-	for k, v := range env {
-		flat = append(flat, k+"="+v)
-	}
-	return flat
-}

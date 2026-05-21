@@ -13,7 +13,6 @@ import (
 	"os"
 
 	"github.com/awnumar/memguard"
-	"github.com/google/renameio/v2"
 	"golang.org/x/crypto/argon2"
 )
 
@@ -101,7 +100,7 @@ func encryptToFile(filePath string, plain []byte, password []byte) error {
 	payload = append(payload, sealed...)
 
 	encoded := base64.StdEncoding.EncodeToString(payload)
-	if err := renameio.WriteFile(filePath, []byte(encoded), 0600); err != nil {
+	if err := writeFileAtomic(filePath, []byte(encoded)); err != nil {
 		return fmt.Errorf("failed to write encrypted file: %w", err)
 	}
 	return nil
