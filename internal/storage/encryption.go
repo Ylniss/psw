@@ -30,7 +30,7 @@ const (
 )
 
 // ErrPSW1Unsupported is returned for PSW1 vaults; see error text for the upgrade path.
-var ErrPSW1Unsupported = errors.New("vault is in legacy PSW1 format; run the one-off upgrade tool documented in plans/security-hardening-storage-psw-phase3.md before launching psw again")
+var ErrPSW1Unsupported = errors.New("vault is in legacy PSW1 format; run the documented upgrade tool before launching psw again")
 
 // Argon2id parameters; tests override via PSW_FAST_ARGON.
 var (
@@ -146,7 +146,7 @@ func decryptBlob(encoded []byte, password []byte) ([]byte, error) {
 	}
 	padded, err := gcm.Open(nil, nil, sealed, []byte(magicHeaderV2))
 	if err != nil {
-		return nil, errors.New("Wrong password.")
+		return nil, errors.New("Wrong password")
 	}
 	plain, err := unpadPlaintext(padded)
 	if err != nil {

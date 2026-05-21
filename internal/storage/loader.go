@@ -118,7 +118,7 @@ func promptAndCreateVaultIfMissing() (*memguard.Enclave, bool, error) {
 		return nil, false, nil
 	}
 
-	fmt.Println("No encrypted storage found. Set your main password that will be used to decrypt your secrets.")
+	fmt.Println("No vault found. Choose a main password to protect your secrets.")
 
 	mainPassword, err := prompt.PromptMainPassword(true)
 	if err != nil {
@@ -129,10 +129,9 @@ func promptAndCreateVaultIfMissing() (*memguard.Enclave, bool, error) {
 		return nil, false, err
 	}
 
-	fmt.Println(
-		color.InGreen("Main password set successfully, you can change it with"),
-		color.InCyan("change main"),
-		color.InGreen("command"))
+	fmt.Println(color.InGreen("Main password set. You can change it anytime with ") +
+		color.InCyan("change main") +
+		color.InGreen("."))
 
 	return mainPassword, true, nil
 }

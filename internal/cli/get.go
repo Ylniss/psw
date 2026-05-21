@@ -65,7 +65,7 @@ Arguments:
 			// Raw stdout for piping (e.g. `psw get foo --stdout | xclip`); no labels, no color, no menu indent.
 			if getUsernameFlag {
 				if len(record.Value) != 0 {
-					fmt.Printf("Record %s is value-only; --username not applicable\n", color.InGreen(recordName))
+					fmt.Printf("Record %s has no username (it stores a value)\n", color.InGreen(recordName))
 					return errSilentExit
 				}
 				fmt.Println(record.Username)
@@ -98,7 +98,7 @@ Arguments:
 
 		if err := clipclean.Spawn(clipboardTimeoutSeconds); err != nil {
 			_ = clipboard.WriteAll("")
-			fmt.Printf("clipclean error: %s (clipboard cleared)\n", err)
+			fmt.Printf("Couldn't start clipboard cleanup: %s (clipboard cleared)\n", err)
 			return nil
 		}
 		return nil
@@ -113,5 +113,5 @@ func printSecret(label, recordName, secret string, reveal bool, clipboardTimeout
 	// Yellow each segment — InCyan's trailing reset would kill an outer yellow wrap.
 	fmt.Println(color.InYellow(label+" for ") +
 		color.InCyan(recordName) +
-		color.InYellow(fmt.Sprintf(" copied to the clipboard, it will be cleared in %d seconds", clipboardTimeoutSeconds)))
+		color.InYellow(fmt.Sprintf(" copied — clears in %ds", clipboardTimeoutSeconds)))
 }

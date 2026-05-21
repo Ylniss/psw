@@ -17,7 +17,7 @@ import (
 var ErrForkUndecryptable = errors.New("storage was re-encrypted under a different main password since the last sync")
 
 // ForkUndecryptableUserMessage is the banner shown for ErrForkUndecryptable.
-const ForkUndecryptableUserMessage = "Storage was re-encrypted under a different main password since the last sync. Push from the device that ran 'change main' first, then retry on this device."
+const ForkUndecryptableUserMessage = "Your main password was changed on another device. Push from that device first, then retry here."
 
 // GitPullAndMerge fetches origin/<branch> and reconciles. Worktree.Pull
 // only handles fast-forward; the divergent case here decrypts both sides

@@ -68,7 +68,7 @@ func handlePromptErr(err error) (abort bool) {
 func resolveRecordName(store *storage.Storage, args []string, exact bool, extras []string) (string, error) {
 	if exact {
 		if len(args) == 0 {
-			fmt.Println("--exact requires a record name argument")
+			fmt.Println("--exact needs a record name")
 			return "", errSilentExit
 		}
 		name := args[0]
@@ -109,7 +109,7 @@ func filterExtrasByPart(extras []string, part string) []string {
 func resolveRecordNames(store *storage.Storage, args []string, exact bool) ([]string, error) {
 	if exact {
 		if len(args) == 0 {
-			fmt.Println("--exact requires at least one record name argument")
+			fmt.Println("--exact needs at least one record name")
 			return nil, errSilentExit
 		}
 		var missing []string
@@ -130,7 +130,7 @@ func resolveRecordNames(store *storage.Storage, args []string, exact bool) ([]st
 	}
 
 	if len(args) >= 2 {
-		fmt.Println("multiple names require --exact")
+		fmt.Println("passing multiple names requires --exact")
 		return nil, errSilentExit
 	}
 

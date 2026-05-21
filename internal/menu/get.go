@@ -76,7 +76,7 @@ func (a GetAction) updateLoading(msg tea.Msg) (tea.Model, tea.Cmd) {
 	a.store = store
 	names := store.GetNames()
 	if len(names) == 0 {
-		a.finish(fmt.Sprintf("No secrets found. Use %s command first.", color.InCyan("add")))
+		a.finish(fmt.Sprintf("No records yet. Use %s to create one.", color.InCyan("add")))
 		return a, nil
 	}
 	a.picker = storage.NewPickerModel(names, nil).WithoutHelp()
@@ -157,7 +157,7 @@ func (a *GetAction) copyAndStartCountdown(recordName string) tea.Cmd {
 	}
 	if err := clipclean.Spawn(clipboardTimeoutSeconds); err != nil {
 		_ = clipboard.WriteAll("")
-		a.output = append(a.output, fmt.Sprintf("clipclean error: %s (clipboard cleared)", err))
+		a.output = append(a.output, fmt.Sprintf("Couldn't start clipboard cleanup: %s (clipboard cleared)", err))
 		a.done = true
 		return nil
 	}
@@ -182,7 +182,7 @@ func (a GetAction) View() tea.View {
 		// Yellow each segment — InCyan's trailing reset would kill an outer yellow wrap.
 		countdownLine := color.InYellow(secretLabel+" for ") +
 			color.InCyan(a.recordName) +
-			color.InYellow(fmt.Sprintf(" copied to the clipboard, it will be cleared in %d seconds", a.remainingSeconds))
+			color.InYellow(fmt.Sprintf(" copied — clears in %ds", a.remainingSeconds))
 		lines := append([]string(nil), a.output...)
 		lines = append(lines, countdownLine)
 		content := strings.Join(lines, "\n")

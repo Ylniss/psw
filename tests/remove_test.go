@@ -11,7 +11,7 @@ func TestRemove_Success(t *testing.T) {
 	result := runPsw(t, vault, "remove", "foo", "--exact")
 	// Assert
 	mustExit(t, result, 0)
-	mustContain(t, result.stdout, "Record foo successfully removed")
+	mustContain(t, result.stdout, "Removed foo")
 	result2 := runPsw(t, vault, "get", "foo", "--exact", "--stdout")
 	mustExit(t, result2, 1)
 	mustContain(t, result2.stdout, "Record foo was not found")
@@ -37,8 +37,8 @@ func TestRemove_MultiExact(t *testing.T) {
 
 	result := runPsw(t, vault, "remove", "alice", "carol", "--exact")
 	mustExit(t, result, 0)
-	mustContain(t, result.stdout, "Record alice successfully removed")
-	mustContain(t, result.stdout, "Record carol successfully removed")
+	mustContain(t, result.stdout, "Removed alice")
+	mustContain(t, result.stdout, "Removed carol")
 
 	gotBob := runPsw(t, vault, "get", "bob", "--exact", "--stdout")
 	mustExit(t, gotBob, 0)
@@ -87,7 +87,7 @@ func TestRemove_MultiArgsRequireExact(t *testing.T) {
 
 	result := runPsw(t, vault, "remove", "alice", "bob")
 	mustExit(t, result, 1)
-	mustContain(t, result.stdout, "multiple names require --exact")
+	mustContain(t, result.stdout, "passing multiple names requires --exact")
 
 	gotA := runPsw(t, vault, "get", "alice", "--exact", "--stdout")
 	mustExit(t, gotA, 0)

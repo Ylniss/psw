@@ -8,7 +8,7 @@ import "github.com/ylniss/psw/internal/passgen"
 func GenerateRecordPassword() (string, error) {
 	opts := AppConfig.PasswordGen.Resolve()
 	if err := opts.Validate(); err != nil {
-		Warn("password_gen invalid: %v. Falling back to defaults.", err)
+		Warn("Invalid [password_gen] config: %v. Using defaults.", err)
 		opts = passgen.DefaultOptions()
 	}
 	return passgen.Generate(opts)

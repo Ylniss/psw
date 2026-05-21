@@ -84,7 +84,7 @@ func (a AddAction) updateLoading(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, cmd
 	}
 	a.store = store
-	return a.toYesNo("Add a single value record?", addPhaseAskSingle)
+	return a.toYesNo("Store a single value (no username)?", addPhaseAskSingle)
 }
 
 func (a AddAction) updateAskSingle(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -104,12 +104,12 @@ func (a AddAction) updateEnterName(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	lower := strings.ToLower(name)
 	if lower == storage.MainPasswordAlias || lower == storage.MainPasswordName {
-		a.finish(fmt.Sprintf("Name %s is reserved. %s command uses it for changing main password",
-			color.InGreen(name), color.InCyan("change")))
+		a.finish(fmt.Sprintf("Name %s is reserved for %s (the main-password rotation command)",
+			color.InGreen(name), color.InCyan("change main")))
 		return a, nil
 	}
 	if a.store.Exists(name) {
-		a.finish(fmt.Sprintf("Record with name %s already exists", color.InGreen(name)))
+		a.finish(fmt.Sprintf("Record %s already exists", color.InGreen(name)))
 		return a, nil
 	}
 	a.recordName = name
@@ -184,9 +184,9 @@ func (a AddAction) updateSaving(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, nil
 		}
 		if a.isSingleValue {
-			a.finish(fmt.Sprintf("Value set successfully in %s record", color.InGreen(a.recordName)))
+			a.finish(fmt.Sprintf("Saved value for %s", color.InGreen(a.recordName)))
 		} else {
-			a.finish(fmt.Sprintf("Username/password set successfully in %s record", color.InGreen(a.recordName)))
+			a.finish(fmt.Sprintf("Saved %s", color.InGreen(a.recordName)))
 		}
 		return a, nil
 	}

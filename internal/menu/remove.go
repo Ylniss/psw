@@ -93,7 +93,7 @@ func (a RemoveAction) updatePicking(msg tea.Msg) (tea.Model, tea.Cmd) {
 	n := len(a.chosenNames)
 	a.initYesNoWithHint(
 		fmt.Sprintf("Remove %d %s?", n, recordWord(n)),
-		color.InGray("You can undo any action with ")+color.InCyan("psw rollback"),
+		color.InGray("Undo with ")+color.InCyan("psw rollback"),
 	)
 	a.phase = removePhaseConfirming
 	return a, nil
@@ -177,7 +177,7 @@ func recordWord(n int) string {
 
 func removedSuccessLine(names []string) string {
 	if len(names) == 1 {
-		return fmt.Sprintf("Record %s successfully removed", color.InGreen(names[0]))
+		return fmt.Sprintf("Removed %s", color.InGreen(names[0]))
 	}
 	coloredNames := make([]string, len(names))
 	for i, n := range names {

@@ -21,7 +21,7 @@ var logCmd = &cobra.Command{
 			return errSilentExit
 		}
 		if !ok {
-			fmt.Println(color.InRed("Storage is not a git repository, no log to show."))
+			fmt.Println(color.InRed("No history available — storage isn't tracked by git."))
 			return errSilentExit
 		}
 		entries, err := storage.GitLog()

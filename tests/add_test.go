@@ -10,7 +10,7 @@ func TestAdd_UserPassSuccess(t *testing.T) {
 	result := runPsw(t, vault, "add", "foo", "-u", "u", "--password=p")
 	// Assert
 	mustExit(t, result, 0)
-	mustContain(t, result.stdout, "Username/password set successfully in foo record")
+	mustContain(t, result.stdout, "Saved foo")
 	result2 := runPsw(t, vault, "get", "foo", "--exact", "--stdout")
 	mustExit(t, result2, 0)
 	mustEqual(t, trimmed(result2), "p")
@@ -24,7 +24,7 @@ func TestAdd_ValueSuccess(t *testing.T) {
 	result := runPsw(t, vault, "add", "foo", "-s", "--value=v")
 	// Assert
 	mustExit(t, result, 0)
-	mustContain(t, result.stdout, "Value set successfully in foo record")
+	mustContain(t, result.stdout, "Saved value for foo")
 	result2 := runPsw(t, vault, "get", "foo", "--exact", "--stdout")
 	mustExit(t, result2, 0)
 	mustEqual(t, trimmed(result2), "v")
@@ -76,7 +76,7 @@ func TestAdd_DuplicateRejected(t *testing.T) {
 	result := runPsw(t, vault, "add", "foo", "-u", "u", "--password=p")
 	// Assert: duplicate-name path uses bare return, so exit 0.
 	mustExit(t, result, 0)
-	mustContain(t, result.stdout, "Record with name foo already exists")
+	mustContain(t, result.stdout, "Record foo already exists")
 }
 
 func TestAdd_SingleAndGenerateRejected(t *testing.T) {
@@ -87,7 +87,7 @@ func TestAdd_SingleAndGenerateRejected(t *testing.T) {
 	result := runPsw(t, vault, "add", "foo", "-s", "-g", "--value=v")
 	// Assert
 	mustExit(t, result, 1)
-	mustContain(t, result.stdout, "Flags --single and --generate cannot be used together")
+	mustContain(t, result.stdout, "--generate only applies to passwords")
 }
 
 func TestAdd_SingleWithUsernameRejected(t *testing.T) {

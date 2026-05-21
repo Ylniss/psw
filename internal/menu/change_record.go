@@ -27,7 +27,7 @@ func (a ChangeAction) updateEnterRename(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, cmd
 	}
 	if a.store.Exists(newName) {
-		a.output = append(a.output, fmt.Sprintf("Record with name %s already exists", color.InGreen(newName)))
+		a.output = append(a.output, fmt.Sprintf("Record %s already exists", color.InGreen(newName)))
 		a.done = true
 		return a, nil
 	}
@@ -39,11 +39,11 @@ func (a ChangeAction) updateEnterRename(msg tea.Msg) (tea.Model, tea.Cmd) {
 // advanceAfterRename branches based on record kind into the next confirm step.
 func (a ChangeAction) advanceAfterRename() ChangeAction {
 	if len(a.record.Value) == 0 {
-		a.yesNo = prompt.NewYesNoModel("Do you want to change username?")
+		a.yesNo = prompt.NewYesNoModel("Change username?")
 		a.phase = changePhaseConfirmUsername
 		return a
 	}
-	a.yesNo = prompt.NewYesNoModel("Do you want to change value?")
+	a.yesNo = prompt.NewYesNoModel("Change value?")
 	a.phase = changePhaseConfirmValue
 	return a
 }
@@ -56,7 +56,7 @@ func (a ChangeAction) updateConfirmUsername(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if answer {
 		return a.toInput("New username", false, false, changePhaseEnterUsername)
 	}
-	return a.toYesNo("Do you want to change password?", changePhaseConfirmPassword)
+	return a.toYesNo("Change password?", changePhaseConfirmPassword)
 }
 
 func (a ChangeAction) updateEnterUsername(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -65,7 +65,7 @@ func (a ChangeAction) updateEnterUsername(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, cmd
 	}
 	a.record.Username = val
-	return a.toYesNo("Do you want to change password?", changePhaseConfirmPassword)
+	return a.toYesNo("Change password?", changePhaseConfirmPassword)
 }
 
 func (a ChangeAction) updateConfirmPassword(msg tea.Msg) (tea.Model, tea.Cmd) {

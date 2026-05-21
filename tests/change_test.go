@@ -11,7 +11,7 @@ func TestChange_Password(t *testing.T) {
 	result := runPsw(t, vault, "change", "foo", "--password=new", "--exact")
 	// Assert
 	mustExit(t, result, 0)
-	mustContain(t, result.stdout, "was updated successfully")
+	mustContain(t, result.stdout, "Updated foo")
 	result2 := runPsw(t, vault, "get", "foo", "--exact", "--stdout")
 	mustExit(t, result2, 0)
 	mustEqual(t, trimmed(result2), "new")
@@ -26,7 +26,7 @@ func TestChange_Username(t *testing.T) {
 	result := runPsw(t, vault, "change", "foo", "--username=newuser", "--exact")
 	// Assert
 	mustExit(t, result, 0)
-	mustContain(t, result.stdout, "was updated successfully")
+	mustContain(t, result.stdout, "Updated foo")
 	result2 := runPsw(t, vault, "get", "foo", "--exact", "--stdout", "--username")
 	mustExit(t, result2, 0)
 	mustEqual(t, trimmed(result2), "newuser")
@@ -41,7 +41,7 @@ func TestChange_Rename(t *testing.T) {
 	result := runPsw(t, vault, "change", "foo", "--rename=bar", "--exact")
 	// Assert
 	mustExit(t, result, 0)
-	mustContain(t, result.stdout, "was updated successfully")
+	mustContain(t, result.stdout, "Updated bar")
 	result2 := runPsw(t, vault, "get", "bar", "--exact", "--stdout")
 	mustExit(t, result2, 0)
 	mustEqual(t, trimmed(result2), "p")
@@ -60,7 +60,7 @@ func TestChange_RenameCollisionRejected(t *testing.T) {
 	result := runPsw(t, vault, "change", "foo", "--rename=bar", "--exact")
 	// Assert
 	mustExit(t, result, 0)
-	mustContain(t, result.stdout, "Record with name bar already exists")
+	mustContain(t, result.stdout, "Record bar already exists")
 	result2 := runPsw(t, vault, "get", "bar", "--exact", "--stdout")
 	mustExit(t, result2, 0)
 	mustEqual(t, trimmed(result2), "barpass")
@@ -75,7 +75,7 @@ func TestChange_Value(t *testing.T) {
 	result := runPsw(t, vault, "change", "foo", "--value=v2", "--exact")
 	// Assert
 	mustExit(t, result, 0)
-	mustContain(t, result.stdout, "was updated successfully")
+	mustContain(t, result.stdout, "Updated foo")
 	result2 := runPsw(t, vault, "get", "foo", "--exact", "--stdout")
 	mustExit(t, result2, 0)
 	mustEqual(t, trimmed(result2), "v2")
@@ -90,7 +90,7 @@ func TestChange_UserFlagOnValueRecordRejected(t *testing.T) {
 	result := runPsw(t, vault, "change", "foo", "--username=x", "--exact")
 	// Assert
 	mustExit(t, result, 1)
-	mustContain(t, result.stdout, "is value-only; --username/--password not applicable")
+	mustContain(t, result.stdout, "has no username or password to change")
 }
 
 func TestChange_ValueFlagOnUserPassRecordRejected(t *testing.T) {
@@ -102,7 +102,7 @@ func TestChange_ValueFlagOnUserPassRecordRejected(t *testing.T) {
 	result := runPsw(t, vault, "change", "foo", "--value=x", "--exact")
 	// Assert
 	mustExit(t, result, 1)
-	mustContain(t, result.stdout, "is user/pass; --value not applicable")
+	mustContain(t, result.stdout, "has no value to change")
 }
 
 func TestChange_Main(t *testing.T) {
@@ -122,7 +122,7 @@ func TestChange_Main(t *testing.T) {
 	mustEqual(t, trimmed(result2), "p")
 	result3 := runPsw(t, vault, "get", "foo", "--exact", "--stdout")
 	mustExit(t, result3, 0)
-	mustContain(t, result3.stdout, "Wrong password.")
+	mustContain(t, result3.stdout, "Wrong password")
 }
 
 func TestChange_MainPasswordAlias(t *testing.T) {
@@ -150,8 +150,8 @@ func TestChange_MainWithRecordFlagRejected(t *testing.T) {
 	result := runPsw(t, vault, "change", "main", "--rename=x")
 	// Assert
 	mustExit(t, result, 1)
-	mustContain(t, result.stdout, "Record-level flags")
-	mustContain(t, result.stdout, "are not valid with 'change main'")
+	mustContain(t, result.stdout, "--rename/--username/--password/--value cannot be used")
+	mustContain(t, result.stdout, "change main")
 }
 
 func TestChange_MissingRecord(t *testing.T) {

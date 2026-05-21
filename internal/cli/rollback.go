@@ -34,7 +34,7 @@ would be encrypted under a different main password.`,
 			return errSilentExit
 		}
 		if !ok {
-			fmt.Println(color.InRed("Storage is not a git repository; nothing to roll back to."))
+			fmt.Println(color.InRed("Nothing to roll back to — storage isn't tracked by git."))
 			return errSilentExit
 		}
 
@@ -60,7 +60,7 @@ would be encrypted under a different main password.`,
 			}
 		}
 		if len(picks) == 0 {
-			fmt.Println("No previous commits to roll back to.")
+			fmt.Println("Nothing to roll back to.")
 			return nil
 		}
 		slices.Reverse(picks) // newest first — most likely rollback targets at the top
@@ -80,7 +80,7 @@ would be encrypted under a different main password.`,
 
 		records, err := storage.LoadCommitRecords(target.ShortSHA, store.MainPassword)
 		if errors.Is(err, storage.ErrForkUndecryptable) {
-			fmt.Println(color.InRed("This commit was encrypted under a previous main password; cannot roll back across that."))
+			fmt.Println(color.InRed("Can't roll back to this snapshot — it was encrypted with a different main password"))
 			return errSilentExit
 		}
 		if done, ret := handleCmdErr(err); done {

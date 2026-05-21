@@ -24,7 +24,7 @@ var verboseFlag bool
 
 func init() {
 	cobra.EnableCommandSorting = false
-	rootCmd.PersistentFlags().BoolVarP(&verboseFlag, "verbose", "v", false, "verbose output, sensitive data will be logged")
+	rootCmd.PersistentFlags().BoolVarP(&verboseFlag, "verbose", "v", false, "verbose output (may log sensitive data)")
 	rootCmd.AddCommand(getCmd, addCmd, changeCmd, removeCmd, logCmd, rollbackCmd, configCmd, versionCmd)
 	// completion before help in --help; cobra defaults to help-first.
 	rootCmd.InitDefaultCompletionCmd()
@@ -33,7 +33,7 @@ func init() {
 
 var rootCmd = &cobra.Command{
 	Use:   "psw",
-	Short: "psw is the simplest password management tool",
+	Short: "psw — a simple password manager",
 	Long: `psw is a simple password manager that secures your passwords using AES-256-GCM with Argon2id key derivation.
 
 A 'psw' directory is created under your user config directory (e.g. ~/.config/psw on Linux, %AppData%\psw on Windows) to store:
@@ -128,5 +128,5 @@ func warnEnvPasswordInTTY() {
 		return
 	}
 	fmt.Fprintln(os.Stderr, color.InYellow(
-		"warning: PSW_MAIN_PASSWORD/PSW_NEW_MAIN_PASSWORD is set in an interactive session; it is visible via /proc/<pid>/environ"))
+		"warning: PSW_MAIN_PASSWORD/PSW_NEW_MAIN_PASSWORD is set — readable by other processes on this machine via /proc/<pid>/environ"))
 }

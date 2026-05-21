@@ -52,11 +52,11 @@ func changeRecord(cmd *cobra.Command, args []string) error {
 	}
 
 	if (usernameSet || passwordSet) && len(record.Value) != 0 {
-		fmt.Printf("Record %s is value-only; --username/--password not applicable\n", color.InGreen(recordName))
+		fmt.Printf("Record %s has no username or password to change\n", color.InGreen(recordName))
 		return errSilentExit
 	}
 	if valueSet && len(record.Value) == 0 {
-		fmt.Printf("Record %s is user/pass; --value not applicable\n", color.InGreen(recordName))
+		fmt.Printf("Record %s has no value to change (it's a username/password record)\n", color.InGreen(recordName))
 		return errSilentExit
 	}
 
@@ -83,7 +83,7 @@ func changeRecord(cmd *cobra.Command, args []string) error {
 		return ret
 	}
 
-	fmt.Printf("Record %s was updated successfully\n", color.InGreen(record.Name))
+	fmt.Printf("Updated %s\n", color.InGreen(record.Name))
 	storage.GitCommit("record updated")
 	return nil
 }
@@ -94,7 +94,7 @@ func changeRecord(cmd *cobra.Command, args []string) error {
 func applyOrPromptRename(record *storage.Record, store *storage.Storage, flagSet, anyFlagSet bool) bool {
 	if flagSet {
 		if store.Exists(changeRenameFlag) {
-			fmt.Printf("Record with name %s already exists\n", color.InGreen(changeRenameFlag))
+			fmt.Printf("Record %s already exists\n", color.InGreen(changeRenameFlag))
 			return false
 		}
 		record.Name = changeRenameFlag
@@ -103,7 +103,7 @@ func applyOrPromptRename(record *storage.Record, store *storage.Storage, flagSet
 	if anyFlagSet {
 		return true
 	}
-	if !prompt.YesOrNo("Do you want to change record name?") {
+	if !prompt.YesOrNo("Change name?") {
 		return true
 	}
 	fmt.Printf("Current name: %s\n", color.InGreen(record.Name))
@@ -112,7 +112,7 @@ func applyOrPromptRename(record *storage.Record, store *storage.Storage, flagSet
 		return false
 	}
 	if store.Exists(newName) {
-		fmt.Printf("Record with name %s already exists\n", color.InGreen(newName))
+		fmt.Printf("Record %s already exists\n", color.InGreen(newName))
 		return false
 	}
 	record.Name = newName
@@ -127,7 +127,7 @@ func applyOrPromptUsername(record *storage.Record, flagSet, anyFlagSet bool) boo
 	if anyFlagSet {
 		return true
 	}
-	if !prompt.YesOrNo("Do you want to change username?") {
+	if !prompt.YesOrNo("Change username?") {
 		return true
 	}
 	newUsername, err := prompt.PromptForName("New username")
@@ -146,7 +146,7 @@ func applyOrPromptPassword(record *storage.Record, flagSet, anyFlagSet bool) boo
 	if anyFlagSet {
 		return true
 	}
-	if !prompt.YesOrNo("Do you want to change password?") {
+	if !prompt.YesOrNo("Change password?") {
 		return true
 	}
 	newPassword, err := prompt.PromptForRecordPassword()
@@ -165,7 +165,7 @@ func applyOrPromptValue(record *storage.Record, flagSet, anyFlagSet bool) bool {
 	if anyFlagSet {
 		return true
 	}
-	if !prompt.YesOrNo("Do you want to change value?") {
+	if !prompt.YesOrNo("Change value?") {
 		return true
 	}
 	newValue, err := prompt.PromptForSecretValue("New value")

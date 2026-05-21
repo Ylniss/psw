@@ -90,7 +90,7 @@ func (a RollbackAction) updateLoading(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 	if len(picks) == 0 {
-		a.finish("No previous commits to roll back to.")
+		a.finish("Nothing to roll back to.")
 		return a, nil
 	}
 	// Newest first — most likely rollback targets at the top. Matches CLI.

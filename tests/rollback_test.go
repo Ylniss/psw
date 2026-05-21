@@ -32,7 +32,7 @@ func TestRollback_NoGitRepo(t *testing.T) {
 	vault := newVault(t) // PSW_GIT=0
 	result := runPsw(t, vault, "rollback")
 	mustExit(t, result, 1)
-	mustContain(t, result.stdout, "Storage is not a git repository")
+	mustContain(t, result.stdout, "isn't tracked by git")
 }
 
 func TestRollback_NoPriorCommits(t *testing.T) {
@@ -44,7 +44,7 @@ func TestRollback_NoPriorCommits(t *testing.T) {
 	// Only the initial-main-password commit exists, and it's HEAD.
 	result := runPswEnv(t, vault, env, "rollback")
 	mustExit(t, result, 0)
-	mustContain(t, result.stdout, "No previous commits to roll back to")
+	mustContain(t, result.stdout, "Nothing to roll back to")
 }
 
 func TestRollback_NoTTY(t *testing.T) {
@@ -138,7 +138,7 @@ func TestRollback_ChangeMainRefused(t *testing.T) {
 	envNew = withEnv(envNew, "PSW_ROLLBACK_YES", "1")
 	result := runPswEnv(t, vault, envNew, "rollback")
 	mustExit(t, result, 1)
-	mustContain(t, result.stdout, "encrypted under a previous main password")
+	mustContain(t, result.stdout, "encrypted with a different main password")
 
 	// Vault should be untouched by the failed rollback.
 	envNewList := withEnv(env, "PSW_MAIN_PASSWORD", "rotated")

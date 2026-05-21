@@ -37,10 +37,9 @@ Arguments:
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if singleValueFlag && generatePasswordFlag {
-			fmt.Printf("Flags %s and %s cannot be used together. %s works only for passwords.\n",
-				color.InCyan("--single"),
+			fmt.Printf("%s only applies to passwords; cannot combine with %s.\n",
 				color.InCyan("--generate"),
-				color.InCyan("--generate"))
+				color.InCyan("--single"))
 			return errSilentExit
 		}
 
@@ -78,12 +77,12 @@ Arguments:
 
 		lower := strings.ToLower(recordName)
 		if lower == storage.MainPasswordAlias || lower == storage.MainPasswordName {
-			fmt.Printf("Name %s is reserved. %s command uses it for changing main password\n", color.InGreen(recordName), color.InCyan("change"))
+			fmt.Printf("Name %s is reserved for %s (the main-password rotation command)\n", color.InGreen(recordName), color.InCyan("change main"))
 			return nil
 		}
 
 		if store.Exists(recordName) {
-			fmt.Printf("Record with name %s already exists\n", color.InGreen(recordName))
+			fmt.Printf("Record %s already exists\n", color.InGreen(recordName))
 			return nil
 		}
 
@@ -110,9 +109,9 @@ Arguments:
 		}
 
 		if singleValueFlag {
-			fmt.Printf("Value set successfully in %s record\n", color.InGreen(recordName))
+			fmt.Printf("Saved value for %s\n", color.InGreen(recordName))
 		} else {
-			fmt.Printf("Username/password set successfully in %s record\n", color.InGreen(recordName))
+			fmt.Printf("Saved %s\n", color.InGreen(recordName))
 		}
 
 		storage.GitCommit("added new record")

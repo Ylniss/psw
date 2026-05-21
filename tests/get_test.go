@@ -45,7 +45,7 @@ func TestGet_ExactRequiresName(t *testing.T) {
 	result := runPsw(t, vault, "get", "--exact")
 	// Assert
 	mustExit(t, result, 1)
-	mustContain(t, result.stdout, "--exact requires a record name argument")
+	mustContain(t, result.stdout, "--exact needs a record name")
 }
 
 func TestGet_WrongMainPassword(t *testing.T) {
@@ -58,7 +58,7 @@ func TestGet_WrongMainPassword(t *testing.T) {
 		"get", "foo", "--exact", "--stdout")
 	// Assert
 	mustExit(t, result, 0)
-	mustContain(t, result.stdout, "Wrong password.")
+	mustContain(t, result.stdout, "Wrong password")
 }
 
 func TestGet_CaseInsensitiveLookup(t *testing.T) {

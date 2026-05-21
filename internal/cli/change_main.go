@@ -20,7 +20,7 @@ func changeMainPassword() error {
 // changeMainPasswordOnStore lets the picker path reuse the store loaded by
 // changeRecord instead of re-prompting via GetOrCreateForMutate.
 func changeMainPasswordOnStore(store *storage.Storage) error {
-	fmt.Println(color.InCyan("You are changing your main password!"))
+	fmt.Println(color.InCyan("Changing your main password"))
 	newMainPassword, err := prompt.PromptMainPasswordChange()
 	if done, ret := handleCmdErr(err); done {
 		return ret
@@ -36,7 +36,7 @@ func changeMainPasswordOnStore(store *storage.Storage) error {
 func rejectFieldFlagsForMain(cmd *cobra.Command) error {
 	if cmd.Flags().Changed("rename") || cmd.Flags().Changed("username") ||
 		cmd.Flags().Changed("password") || cmd.Flags().Changed("value") {
-		fmt.Println("Record-level flags (--rename/--username/--password/--value) are not valid with 'change main' / 'change main-password'")
+		fmt.Printf("--rename/--username/--password/--value cannot be used with %s\n", color.InCyan("change main"))
 		return errSilentExit
 	}
 	return nil

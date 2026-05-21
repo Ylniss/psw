@@ -132,7 +132,7 @@ func (a ChangeAction) updatePicking(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 	}
 	a.record = rec
-	return a.toYesNo("Do you want to change record name?", changePhaseConfirmRename)
+	return a.toYesNo("Change name?", changePhaseConfirmRename)
 }
 
 func (a ChangeAction) updateSaving(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -145,7 +145,7 @@ func (a ChangeAction) updateSaving(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.rotatedMainPassword = memguard.NewEnclave([]byte(a.newMainPassword))
 			a.finish(color.InGreen("Main password changed"))
 		} else {
-			a.finish(fmt.Sprintf("Record %s was updated successfully", color.InGreen(a.record.Name)))
+			a.finish(fmt.Sprintf("Updated %s", color.InGreen(a.record.Name)))
 		}
 		return a, nil
 	}

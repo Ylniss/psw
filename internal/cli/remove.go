@@ -45,7 +45,7 @@ Arguments:
 		}
 
 		for _, n := range names {
-			fmt.Printf("Record %s successfully removed\n", color.InGreen(n))
+			fmt.Printf("Removed %s\n", color.InGreen(n))
 		}
 		storage.GitCommit(storage.RemoveCommitMessage(len(names)))
 		return nil

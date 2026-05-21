@@ -168,7 +168,7 @@ func TestSync_ChangeMain_CrossMergeBails(t *testing.T) {
 	// A's change-main commit; decryption check fails → ErrForkUndecryptable.
 	res := runPswEnv(t, vaultB, envB, "add", "beta", "-u", "u", "--password=p")
 	mustExit(t, res, 1)
-	mustContain(t, res.stdout, "Storage was re-encrypted")
+	mustContain(t, res.stdout, "Your main password was changed on another device")
 }
 
 // TestSync_NoRemoteConfigured: vault without remote=...; no warnings, no network attempts.

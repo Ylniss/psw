@@ -61,7 +61,7 @@ func TestReportCmdErr_ForkUndecryptablePrintsAndExits(t *testing.T) {
 			t.Fatalf("ErrForkUndecryptable should return errSilentExit, got %v", ret)
 		}
 	})
-	if !strings.Contains(out, "re-encrypted") {
+	if !strings.Contains(out, "main password was changed on another device") {
 		t.Fatalf("expected fork banner in output, got %q", out)
 	}
 }

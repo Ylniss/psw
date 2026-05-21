@@ -24,7 +24,7 @@ var ErrPromptCancelled = errors.New("prompt cancelled")
 const PasswordMismatchMsg = "Passwords don't match, try again"
 
 var (
-	errRequired      = errors.New("input required")
+	errRequired      = errors.New("required")
 	errNoTTY         = errors.New("interactive prompt required: stdin is not a terminal")
 	promptErrorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("203"))
 )

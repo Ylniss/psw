@@ -82,5 +82,5 @@ func TestLog_NoGitRepo(t *testing.T) {
 	vault := newVault(t) // PSW_GIT=0, no .git/
 	result := runPsw(t, vault, "log")
 	mustExit(t, result, 1)
-	mustContain(t, result.stdout, "Storage is not a git repository")
+	mustContain(t, result.stdout, "isn't tracked by git")
 }

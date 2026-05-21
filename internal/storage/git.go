@@ -64,8 +64,8 @@ func initGitRepoIfNotExists() error {
 	}
 	Paths.gitRepoExists = true
 
-	fmt.Println(color.InGreen("Making initial commit with main password set for storage"))
-	fmt.Println(color.InGreen("Every add/change/remove action will also commit to repository"))
+	fmt.Println(color.InGreen("Saving initial encrypted vault to history"))
+	fmt.Println(color.InGreen("Every add/change/remove is committed to history"))
 	return GitCommit("initial main password set")
 }
 
