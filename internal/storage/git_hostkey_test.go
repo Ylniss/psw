@@ -16,7 +16,7 @@ import (
 
 func newSSHKey(t *testing.T) cryptossh.PublicKey {
 	t.Helper()
-	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	_, priv, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		t.Fatalf("generate ed25519 key: %v", err)
 	}
@@ -24,7 +24,6 @@ func newSSHKey(t *testing.T) cryptossh.PublicKey {
 	if err != nil {
 		t.Fatalf("signer: %v", err)
 	}
-	_ = pub
 	return signer.PublicKey()
 }
 
@@ -132,23 +131,22 @@ func TestKnownHostsPath_CreatesFileAndDirIfMissing(t *testing.T) {
 		t.Fatalf("path = %q, want %q", path, wantPath)
 	}
 
-	sshInfo, err := os.Stat(filepath.Join(tmpHome, ".ssh"))
-	if err != nil {
-		t.Fatalf("stat ~/.ssh: %v", err)
-	}
-	if runtime.GOOS != "windows" {
-		if got := sshInfo.Mode().Perm(); got != 0700 {
-			t.Fatalf(".ssh perm = %o, want 0700", got)
-		}
-	}
+	assertPerm(t, filepath.Join(tmpHome, ".ssh"), 0700)
+	assertPerm(t, path, 0600)
+}
 
-	khInfo, err := os.Stat(path)
+// assertPerm checks that path exists and, off Windows (which carries no Unix
+// mode), that its permission bits match want.
+func assertPerm(t *testing.T, path string, want os.FileMode) {
+	t.Helper()
+	info, err := os.Stat(path)
 	if err != nil {
-		t.Fatalf("stat known_hosts: %v", err)
+		t.Fatalf("stat %s: %v", path, err)
 	}
-	if runtime.GOOS != "windows" {
-		if got := khInfo.Mode().Perm(); got != 0600 {
-			t.Fatalf("known_hosts perm = %o, want 0600", got)
-		}
+	if runtime.GOOS == "windows" {
+		return
+	}
+	if got := info.Mode().Perm(); got != want {
+		t.Fatalf("%s perm = %o, want %o", path, got, want)
 	}
 }

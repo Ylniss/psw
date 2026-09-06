@@ -2,7 +2,6 @@ package tests
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -142,9 +141,6 @@ func TestConfig_ResetRestoresTemplate(t *testing.T) {
 
 func TestConfig_SetCommitsWhenGitOn(t *testing.T) {
 	t.Parallel()
-	if _, err := exec.LookPath("git"); err != nil {
-		t.Skip("git not available")
-	}
 	vault, env := newGitVault(t)
 	// init git repo via an add first (config alone doesn't init the repo).
 	mustExit(t, runPswEnv(t, vault, env, "add", "alpha", "-u", "u", "--password=p"), 0)
@@ -157,9 +153,6 @@ func TestConfig_SetCommitsWhenGitOn(t *testing.T) {
 
 func TestConfig_ResetCommitsWhenGitOn(t *testing.T) {
 	t.Parallel()
-	if _, err := exec.LookPath("git"); err != nil {
-		t.Skip("git not available")
-	}
 	vault, env := newGitVault(t)
 	mustExit(t, runPswEnv(t, vault, env, "add", "alpha", "-u", "u", "--password=p"), 0)
 	mustExit(t, runPswEnv(t, vault, env, "config", "reset"), 0)
@@ -171,22 +164,15 @@ func TestConfig_ResetCommitsWhenGitOn(t *testing.T) {
 
 func TestConfig_PSWGitZeroSkipsCommit(t *testing.T) {
 	t.Parallel()
-	if _, err := exec.LookPath("git"); err != nil {
-		t.Skip("git not available")
-	}
 	vault, env := newGitVault(t)
 	mustExit(t, runPswEnv(t, vault, env, "add", "alpha", "-u", "u", "--password=p"), 0)
-	before := runPswEnv(t, vault, env, "log")
-	mustExit(t, before, 0)
-	beforeCount := strings.Count(before.stdout, "\n")
+	beforeCount := len(pswLogSHAs(t, vault, env))
 
 	env2 := withEnv(env, "PSW_GIT", "0")
 	mustExit(t, runPswEnv(t, vault, env2, "config", "set", "min_digits", "7"), 0)
 
-	after := runPswEnv(t, vault, env, "log")
-	mustExit(t, after, 0)
-	afterCount := strings.Count(after.stdout, "\n")
+	afterCount := len(pswLogSHAs(t, vault, env))
 	if afterCount != beforeCount {
-		t.Fatalf("expected no new commits with PSW_GIT=0; before=%d after=%d\n%s", beforeCount, afterCount, after.stdout)
+		t.Fatalf("expected no new commits with PSW_GIT=0; before=%d after=%d", beforeCount, afterCount)
 	}
 }

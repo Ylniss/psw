@@ -8,12 +8,11 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/TwiN/go-color"
-	"github.com/atotto/clipboard"
 	"github.com/awnumar/memguard"
 
 	"github.com/ylniss/psw/internal/clipclean"
+	"github.com/ylniss/psw/internal/prompt"
 	"github.com/ylniss/psw/internal/storage"
-	"github.com/ylniss/psw/internal/tuiutil"
 )
 
 type getPhase int
@@ -30,15 +29,13 @@ type GetAction struct {
 	phase    getPhase
 	password *memguard.Enclave
 
-	picker storage.PickerModel
+	picker prompt.PickerModel
 	store  *storage.Storage
 
 	countdownEnd        time.Time
 	remainingSeconds    int
 	recordName          string
 	isSingleValueRecord bool
-
-	width, height int
 }
 
 func NewGetAction(password *memguard.Enclave) GetAction {
@@ -50,13 +47,11 @@ func NewGetAction(password *memguard.Enclave) GetAction {
 }
 
 func (a GetAction) Init() tea.Cmd {
-	return tea.Batch(loadCmd(a.password, false), a.spinner.Init())
+	return tea.Batch(loadCmd(a.password), a.spinner.Init())
 }
 
 func (a GetAction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if w, ok := msg.(tea.WindowSizeMsg); ok {
-		a.width, a.height = w.Width, w.Height
-	}
+	a.captureSize(msg)
 	switch a.phase {
 	case getPhaseLoading:
 		return a.updateLoading(msg)
@@ -69,8 +64,8 @@ func (a GetAction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (a GetAction) updateLoading(msg tea.Msg) (tea.Model, tea.Cmd) {
-	store, done, cmd := a.handleLoadingMsg(msg, a.password)
-	if done || store == nil {
+	store, cmd := a.handleLoadingMsg(msg, a.password)
+	if store == nil {
 		return a, cmd
 	}
 	a.store = store
@@ -79,10 +74,8 @@ func (a GetAction) updateLoading(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.finish(fmt.Sprintf("No records yet. Use %s to create one.", color.InCyan("add")))
 		return a, nil
 	}
-	a.picker = storage.NewPickerModel(names, nil).WithoutHelp()
-	if a.width > 0 && a.height > 0 {
-		tuiutil.UpdateInPlace(&a.picker, tea.WindowSizeMsg{Width: a.width, Height: a.height})
-	}
+	a.picker = prompt.NewPickerModel(names, nil).WithoutHelp()
+	a.sizePicker(&a.picker)
 	a.phase = getPhasePicking
 	return a, nil
 }
@@ -98,10 +91,8 @@ func (a GetAction) updatePicking(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (a GetAction) updateCountdown(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if k, ok := msg.(tea.KeyPressMsg); ok {
-		switch k.String() {
-		case "esc", "ctrl+c":
-			a.wipeAndDone()
-			return a, nil
+		if s := k.String(); s == "esc" || s == "ctrl+c" {
+			a.clearOutputAndDone()
 		}
 		return a, nil
 	}
@@ -110,7 +101,7 @@ func (a GetAction) updateCountdown(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	remainingSeconds := int(time.Until(a.countdownEnd).Seconds() + 0.5)
 	if remainingSeconds <= 0 {
-		a.wipeAndDone()
+		a.clearOutputAndDone()
 		return a, nil
 	}
 	a.remainingSeconds = remainingSeconds
@@ -118,14 +109,9 @@ func (a GetAction) updateCountdown(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // Empty output + Done → MenuModel.lastOutput cleared (routeToAction writes unconditionally).
-func (a *GetAction) wipeAndDone() {
+func (a *GetAction) clearOutputAndDone() {
 	a.output = nil
 	a.done = true
-}
-
-// tea.Every (not Tick) so the displayed seconds align with the wall clock.
-func countdownTick() tea.Cmd {
-	return tea.Every(time.Second, func(time.Time) tea.Msg { return countdownTickMsg{} })
 }
 
 // Returns the first tick cmd; nil on early exit (record/clipboard/clipclean error).
@@ -136,16 +122,13 @@ func (a *GetAction) copyAndStartCountdown(recordName string) tea.Cmd {
 		return nil
 	}
 	clipboardTimeoutSeconds := storage.AppConfig.ClipboardTimeoutSeconds
-	var clipboardText string
-	if len(record.Value) == 0 {
-		clipboardText = string(record.Password)
-		a.isSingleValueRecord = false
-	} else {
+	a.isSingleValueRecord = len(record.Value) != 0
+	clipboardText := string(record.Password)
+	if a.isSingleValueRecord {
 		clipboardText = string(record.Value)
-		a.isSingleValueRecord = true
 	}
-	if err := clipboard.WriteAll(clipboardText); err != nil {
-		a.finish(fmt.Sprintf("Failed to copy value to clipboard: %s", err))
+	if err := clipclean.CopyAndSchedule(clipboardText, clipboardTimeoutSeconds); err != nil {
+		a.finish(err.Error())
 		return nil
 	}
 	if !a.isSingleValueRecord {
@@ -154,12 +137,6 @@ func (a *GetAction) copyAndStartCountdown(recordName string) tea.Cmd {
 			color.InYellow(record.Username),
 			"",
 		)
-	}
-	if err := clipclean.Spawn(clipboardTimeoutSeconds); err != nil {
-		_ = clipboard.WriteAll("")
-		a.output = append(a.output, fmt.Sprintf("Couldn't start clipboard cleanup: %s (clipboard cleared)", err))
-		a.done = true
-		return nil
 	}
 	a.recordName = recordName
 	a.countdownEnd = time.Now().Add(time.Duration(clipboardTimeoutSeconds) * time.Second)
@@ -194,7 +171,6 @@ func (a GetAction) View() tea.View {
 	return tea.NewView("")
 }
 
-func (a GetAction) NewPassword() *memguard.Enclave { return nil }
 func (a GetAction) FooterHelp() string {
 	switch a.phase {
 	case getPhasePicking:

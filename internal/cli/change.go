@@ -34,11 +34,11 @@ Arguments:
 			if err := rejectFieldFlagsForMain(cmd); err != nil {
 				return err
 			}
-			if err := changeMainPassword(); err != nil {
-				return err
+			store, err := storage.GetOrCreateForMutate()
+			if err != nil {
+				return handleCmdErr(err)
 			}
-			storage.GitCommit("main password changed")
-			return nil
+			return changeMainPassword(store)
 		}
 		return changeRecord(cmd, args)
 	},

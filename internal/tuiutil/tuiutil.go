@@ -35,3 +35,14 @@ func UpdateInPlace[M tea.Model](dst *M, msg tea.Msg) tea.Cmd {
 	*dst = raw.(M)
 	return cmd
 }
+
+// Run runs m as a one-shot tea.Program wrapped in a QuittingWrapper and
+// returns the finished inner model.
+func Run[M Finishable](m M) (M, error) {
+	final, err := tea.NewProgram(QuittingWrapper[M]{M: m}).Run()
+	if err != nil {
+		var zero M
+		return zero, err
+	}
+	return final.(QuittingWrapper[M]).M, nil
+}

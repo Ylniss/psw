@@ -15,7 +15,7 @@ type passwordValidatedMsg struct {
 	err error
 }
 
-// pullDoneMsg returns warnings captured via storage.WarnSink for the
+// pullDoneMsg carries warnings captured via storage.WarnSink for the
 // transcript. Non-nil store means the merge decrypted; callers skip decryptCmd.
 type pullDoneMsg struct {
 	store    *storage.Storage
@@ -23,12 +23,10 @@ type pullDoneMsg struct {
 	warnings []string
 }
 
-// rollbackAppliedMsg signals storage.ApplyRollback returned.
 type rollbackAppliedMsg struct {
 	err error
 }
 
-// configSavedMsg signals WriteAndCommitConfig returned.
 type configSavedMsg struct {
 	err error
 }

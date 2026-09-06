@@ -29,36 +29,30 @@ func buildAndRun(m *testing.M) (int, error) {
 		return 0, err
 	}
 
-	dir, err := os.MkdirTemp("", "psw-tests-*")
+	binDir, err := os.MkdirTemp("", "psw-tests-*")
 	if err != nil {
 		return 0, fmt.Errorf("mkdtemp: %w", err)
 	}
-	defer os.RemoveAll(dir)
+	defer os.RemoveAll(binDir)
 
-	pswBinaryFilename := "psw"
+	exeSuffix := ""
 	if runtime.GOOS == "windows" {
-		pswBinaryFilename = "psw.exe"
+		exeSuffix = ".exe"
 	}
-	pswBinaryPath = filepath.Join(dir, pswBinaryFilename)
-	pswBuildCmd := exec.Command("go", "build", "-o", pswBinaryPath, "./cmd/psw")
-	pswBuildCmd.Dir = root
-	pswBuildCmd.Stdout = os.Stdout
-	pswBuildCmd.Stderr = os.Stderr
-	if err := pswBuildCmd.Run(); err != nil {
-		return 0, fmt.Errorf("build psw: %w", err)
-	}
+	pswBinaryPath = filepath.Join(binDir, "psw"+exeSuffix)
+	fakeGpgBinaryPath = filepath.Join(binDir, "fakegpg"+exeSuffix)
 
-	fakeGpgFilename := "fakegpg"
-	if runtime.GOOS == "windows" {
-		fakeGpgFilename = "fakegpg.exe"
-	}
-	fakeGpgBinaryPath = filepath.Join(dir, fakeGpgFilename)
-	fakeGpgBuildCmd := exec.Command("go", "build", "-o", fakeGpgBinaryPath, "./tests/cmd/fakegpg")
-	fakeGpgBuildCmd.Dir = root
-	fakeGpgBuildCmd.Stdout = os.Stdout
-	fakeGpgBuildCmd.Stderr = os.Stderr
-	if err := fakeGpgBuildCmd.Run(); err != nil {
-		return 0, fmt.Errorf("build fakegpg: %w", err)
+	for _, b := range []struct{ out, pkg string }{
+		{pswBinaryPath, "./cmd/psw"},
+		{fakeGpgBinaryPath, "./tests/cmd/fakegpg"},
+	} {
+		buildCmd := exec.Command("go", "build", "-o", b.out, b.pkg)
+		buildCmd.Dir = root
+		buildCmd.Stdout = os.Stdout
+		buildCmd.Stderr = os.Stderr
+		if err := buildCmd.Run(); err != nil {
+			return 0, fmt.Errorf("build %s: %w", b.pkg, err)
+		}
 	}
 
 	// Mirror `make build`: copy pswcfg-template.toml → <bin dir>/pswcfg.toml
@@ -67,7 +61,7 @@ func buildAndRun(m *testing.M) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("read template: %w", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "pswcfg.toml"), tmpl, 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(binDir, "pswcfg.toml"), tmpl, 0644); err != nil {
 		return 0, fmt.Errorf("write template next to binary: %w", err)
 	}
 

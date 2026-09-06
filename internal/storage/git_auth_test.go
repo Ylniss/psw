@@ -2,6 +2,7 @@ package storage
 
 import (
 	"errors"
+	"os"
 	"testing"
 )
 
@@ -22,10 +23,16 @@ func TestHTTPSAuth_NoUserinfoNoHelperReturnsNil(t *testing.T) {
 	// With no userinfo and no credential.helper configured we expect nil auth —
 	// go-git will reach the server unauthenticated. shouldFallbackToShell logic
 	// is exercised elsewhere.
+	// hasCredentialHelper shells out to `git config`; point it at an empty
+	// vault dir with the developer's global/system config masked, so the
+	// result never depends on the machine running the test.
+	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
+	t.Setenv("GIT_CONFIG_SYSTEM", os.DevNull)
+	prevStoragePath := Paths.storagePath
+	t.Cleanup(func() { Paths.storagePath = prevStoragePath })
+	Paths.storagePath = t.TempDir()
+
 	auth, err := httpsAuth("https://example.com/repo.git")
-	if err != nil && errors.Is(err, ErrShellGitNeeded) {
-		t.Skipf("credential.helper detected in this env; skip the no-auth assertion: %v", err)
-	}
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

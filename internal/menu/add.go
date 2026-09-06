@@ -2,7 +2,6 @@ package menu
 
 import (
 	"fmt"
-	"strings"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/TwiN/go-color"
@@ -79,8 +78,8 @@ func (a AddAction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (a AddAction) updateLoading(msg tea.Msg) (tea.Model, tea.Cmd) {
-	store, done, cmd := a.handleLoadingMsg(msg, a.password)
-	if done || store == nil {
+	store, cmd := a.handleLoadingMsg(msg, a.password)
+	if store == nil {
 		return a, cmd
 	}
 	a.store = store
@@ -88,28 +87,21 @@ func (a AddAction) updateLoading(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (a AddAction) updateAskSingle(msg tea.Msg) (tea.Model, tea.Cmd) {
-	answer, ok, cmd := a.stepYesNo(&a.yesNo, msg)
+	answer, ok, cmd := a.stepYesNo(msg)
 	if a.cancelled || !ok {
 		return a, cmd
 	}
 	a.isSingleValue = answer
-	a.inlineBanner = ""
 	return a.toInput("Record name", false, false, addPhaseEnterName)
 }
 
 func (a AddAction) updateEnterName(msg tea.Msg) (tea.Model, tea.Cmd) {
-	name, ok, cmd := a.stepInput(&a.input, msg)
+	name, ok, cmd := a.stepInput(msg)
 	if a.cancelled || !ok {
 		return a, cmd
 	}
-	lower := strings.ToLower(name)
-	if lower == storage.MainPasswordAlias || lower == storage.MainPasswordName {
-		a.finish(fmt.Sprintf("Name %s is reserved for %s (the main-password rotation command)",
-			color.InGreen(name), color.InCyan("change main")))
-		return a, nil
-	}
-	if a.store.Exists(name) {
-		a.finish(fmt.Sprintf("Record %s already exists", color.InGreen(name)))
+	if err := a.store.ValidateNewRecordName(name); err != nil {
+		a.finish(err.Error())
 		return a, nil
 	}
 	a.recordName = name
@@ -120,7 +112,7 @@ func (a AddAction) updateEnterName(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (a AddAction) updateEnterUsername(msg tea.Msg) (tea.Model, tea.Cmd) {
-	val, ok, cmd := a.stepInput(&a.input, msg)
+	val, ok, cmd := a.stepInput(msg)
 	if a.cancelled || !ok {
 		return a, cmd
 	}
@@ -129,7 +121,7 @@ func (a AddAction) updateEnterUsername(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (a AddAction) updateAskGenerate(msg tea.Msg) (tea.Model, tea.Cmd) {
-	answer, ok, cmd := a.stepYesNo(&a.yesNo, msg)
+	answer, ok, cmd := a.stepYesNo(msg)
 	if a.cancelled || !ok {
 		return a, cmd
 	}
@@ -146,7 +138,7 @@ func (a AddAction) updateAskGenerate(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (a AddAction) updateEnterPassword(msg tea.Msg) (tea.Model, tea.Cmd) {
-	val, ok, cmd := a.stepInput(&a.input, msg)
+	val, ok, cmd := a.stepInput(msg)
 	if a.cancelled || !ok {
 		return a, cmd
 	}
@@ -155,7 +147,7 @@ func (a AddAction) updateEnterPassword(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (a AddAction) updateEnterPasswordRepeat(msg tea.Msg) (tea.Model, tea.Cmd) {
-	val, ok, cmd := a.stepInput(&a.input, msg)
+	val, ok, cmd := a.stepInput(msg)
 	if a.cancelled || !ok {
 		return a, cmd
 	}
@@ -169,7 +161,7 @@ func (a AddAction) updateEnterPasswordRepeat(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (a AddAction) updateEnterValue(msg tea.Msg) (tea.Model, tea.Cmd) {
-	val, ok, cmd := a.stepInput(&a.input, msg)
+	val, ok, cmd := a.stepInput(msg)
 	if a.cancelled || !ok {
 		return a, cmd
 	}
@@ -205,6 +197,3 @@ func (a AddAction) View() tea.View {
 	}
 	return tea.NewView("")
 }
-
-func (a AddAction) NewPassword() *memguard.Enclave { return nil }
-func (a AddAction) FooterHelp() string             { return "" }

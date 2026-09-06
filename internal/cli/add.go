@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/TwiN/go-color"
 	"github.com/ylniss/psw/internal/prompt"
@@ -31,7 +30,7 @@ var addCmd = &cobra.Command{
 	Use: `add [name] [flags]
 
 Arguments:
-  name    Optional name of the record to get. If omitted, you'll be prompted to provide it`,
+  name    Optional name of the new record. If omitted, you'll be prompted to provide it`,
 	Short: "Add new record with secrets",
 	Long:  `Add username/password or a value that will be stored in a record with provided name`,
 	Args:  cobra.MaximumNArgs(1),
@@ -66,46 +65,40 @@ Arguments:
 		}
 
 		store, err := storage.GetOrCreateForMutate()
-		if done, ret := handleCmdErr(err); done {
-			return ret
+		if err != nil {
+			return handleCmdErr(err)
 		}
 
-		recordName, err := getRecordName(args)
-		if done, ret := handleCmdErr(err); done {
-			return ret
+		recordName, err := getOrPromptRecordName(args)
+		if err != nil {
+			return handleCmdErr(err)
 		}
 
-		lower := strings.ToLower(recordName)
-		if lower == storage.MainPasswordAlias || lower == storage.MainPasswordName {
-			fmt.Printf("Name %s is reserved for %s (the main-password rotation command)\n", color.InGreen(recordName), color.InCyan("change main"))
-			return nil
-		}
-
-		if store.Exists(recordName) {
-			fmt.Printf("Record %s already exists\n", color.InGreen(recordName))
+		if err := store.ValidateNewRecordName(recordName); err != nil {
+			fmt.Println(err)
 			return nil
 		}
 
 		if singleValueFlag {
 			recordValue, err := getOrPromptValue(valueSet)
-			if done, ret := handleCmdErr(err); done {
-				return ret
+			if err != nil {
+				return handleCmdErr(err)
 			}
 			store.AddRecord(&storage.Record{Name: recordName, Value: []byte(recordValue)})
 		} else {
 			recordUsername, err := getOrPromptUsername(usernameSet)
-			if done, ret := handleCmdErr(err); done {
-				return ret
+			if err != nil {
+				return handleCmdErr(err)
 			}
 			recordPassword, err := getOrPromptPassword(passwordSet)
-			if done, ret := handleCmdErr(err); done {
-				return ret
+			if err != nil {
+				return handleCmdErr(err)
 			}
 			store.AddRecord(&storage.Record{Name: recordName, Username: recordUsername, Password: []byte(recordPassword)})
 		}
 
-		if done, ret := handleCmdErr(store.Save()); done {
-			return ret
+		if err := store.Save(); err != nil {
+			return handleCmdErr(err)
 		}
 
 		if singleValueFlag {
@@ -119,7 +112,7 @@ Arguments:
 	},
 }
 
-func getRecordName(args []string) (string, error) {
+func getOrPromptRecordName(args []string) (string, error) {
 	if len(args) > 0 {
 		return args[0], nil
 	}
@@ -137,7 +130,10 @@ func getOrPromptPassword(flagSet bool) (string, error) {
 	if flagSet {
 		return addPasswordFlag, nil
 	}
-	return getOrGenerateRecordPassword()
+	if generatePasswordFlag {
+		return storage.GenerateRecordPassword()
+	}
+	return prompt.PromptForRecordPassword()
 }
 
 func getOrPromptValue(flagSet bool) (string, error) {
@@ -145,11 +141,4 @@ func getOrPromptValue(flagSet bool) (string, error) {
 		return addValueFlag, nil
 	}
 	return prompt.PromptForSecretValue("Value")
-}
-
-func getOrGenerateRecordPassword() (string, error) {
-	if generatePasswordFlag {
-		return storage.GenerateRecordPassword()
-	}
-	return prompt.PromptForRecordPassword()
 }

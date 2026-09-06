@@ -99,8 +99,8 @@ func encryptToFile(filePath string, plain []byte, password []byte) error {
 	payload = append(payload, salt...)
 	payload = append(payload, sealed...)
 
-	encoded := base64.StdEncoding.EncodeToString(payload)
-	if err := writeFileAtomic(filePath, []byte(encoded)); err != nil {
+	encoded := base64.StdEncoding.AppendEncode(nil, payload)
+	if err := writeFileAtomic(filePath, encoded); err != nil {
 		return fmt.Errorf("failed to write encrypted file: %w", err)
 	}
 	return nil
@@ -116,7 +116,7 @@ func decryptFromFile(filePath string, password []byte) ([]byte, error) {
 
 // decryptBlob decodes and unseals a base64 payload. Caller wipes the result.
 func decryptBlob(encoded []byte, password []byte) ([]byte, error) {
-	payload, err := base64.StdEncoding.DecodeString(string(encoded))
+	payload, err := base64.StdEncoding.AppendDecode(nil, encoded)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode storage: %w", err)
 	}

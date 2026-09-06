@@ -14,8 +14,8 @@ import (
 	"github.com/ylniss/psw/internal/ui"
 )
 
-// shouldUseRemote reports whether fetch/push are allowed.
-// False when: PSW_GIT=0, PSW_GIT_REMOTE=0, or no remote in config.
+// shouldUseRemote reports whether fetch/push are allowed. False when:
+// PSW_GIT=0, PSW_GIT_REMOTE=0, no git repo, or no remote in config.
 func shouldUseRemote() bool {
 	if os.Getenv("PSW_GIT") == "0" {
 		return false
@@ -27,6 +27,26 @@ func shouldUseRemote() bool {
 		return false
 	}
 	return AppConfig.Remote != ""
+}
+
+// runNetworkOp runs the pure-Go op under gitNetworkTimeout, then falls back to
+// shell `git <op> origin <branch>` when auth needs a helper and git is on PATH.
+func runNetworkOp(op, branch string, pureGo func(context.Context, string) error) error {
+	ctx, cancel := context.WithTimeout(context.Background(), gitNetworkTimeout)
+	defer cancel()
+	goGitErr := pureGo(ctx, branch)
+	if !shouldFallbackToShell(goGitErr) {
+		return goGitErr
+	}
+	if !gitOnPath() {
+		return goGitErr
+	}
+	slog.Debug("falling back to shell git "+op, "go_git_err", goGitErr)
+	out, shellErr := runGitNetwork(op, "origin", branch)
+	if shellErr != nil {
+		return fmt.Errorf("%s", strings.TrimSpace(out))
+	}
+	return nil
 }
 
 // GitFetch fetches origin/<branch>. Tries go-git first; falls back to shell
@@ -43,21 +63,7 @@ func GitFetch() error {
 		return err
 	}
 	err = ui.WithSpinner("Pulling from remote", func() error {
-		ctx, cancel := context.WithTimeout(context.Background(), gitNetworkTimeout)
-		defer cancel()
-		goGitErr := gitFetchPureGo(ctx, branch)
-		if !shouldFallbackToShell(goGitErr) {
-			return goGitErr
-		}
-		if !gitOnPath() {
-			return goGitErr
-		}
-		slog.Debug("falling back to shell git fetch", "go_git_err", goGitErr)
-		out, shellErr := runGitNetwork("fetch", "origin", branch)
-		if shellErr != nil {
-			return fmt.Errorf("%s", strings.TrimSpace(out))
-		}
-		return nil
+		return runNetworkOp("fetch", branch, gitFetchPureGo)
 	})
 	if err != nil {
 		return fmt.Errorf("git fetch %s: %w", redactURL(AppConfig.Remote), err)
@@ -87,7 +93,7 @@ func gitFetchPureGo(ctx context.Context, branch string) error {
 	return err
 }
 
-// GitPush pushes the current branch to origin. Errors print yellow to stderr;
+// GitPush pushes the current branch to origin. Errors go through Warn;
 // the function never returns an error.
 func GitPush() {
 	if !shouldUseRemote() {
@@ -103,21 +109,7 @@ func GitPush() {
 		return
 	}
 	err = ui.WithSpinner("Pushing to remote", func() error {
-		ctx, cancel := context.WithTimeout(context.Background(), gitNetworkTimeout)
-		defer cancel()
-		goGitErr := gitPushPureGo(ctx, branch)
-		if !shouldFallbackToShell(goGitErr) {
-			return goGitErr
-		}
-		if !gitOnPath() {
-			return goGitErr
-		}
-		slog.Debug("falling back to shell git push", "go_git_err", goGitErr)
-		out, shellErr := runGitNetwork("push", "origin", branch)
-		if shellErr != nil {
-			return fmt.Errorf("%s", strings.TrimSpace(out))
-		}
-		return nil
+		return runNetworkOp("push", branch, gitPushPureGo)
 	})
 	if err != nil {
 		slog.Debug("git push failed", "remote", redactURL(AppConfig.Remote), "branch", branch, "err", err)

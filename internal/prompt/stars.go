@@ -55,7 +55,7 @@ const (
 )
 
 type star struct {
-	flashColor color.Color
+	blinkColor color.Color
 	blinkUntil time.Time
 }
 
@@ -100,26 +100,19 @@ func (s *StarState) Add(n int) {
 	s.addWithColor(n, starPalette[idx])
 }
 
-// addWithColor appends n stars sharing one flashColor so they blink in unison.
+// addWithColor appends n stars sharing one blinkColor so they blink in unison.
 func (s *StarState) addWithColor(n int, c color.Color) {
 	if n <= 0 {
 		return
 	}
 	until := time.Now().Add(starBlinkDuration)
 	for range n {
-		s.stars = append(s.stars, star{flashColor: c, blinkUntil: until})
+		s.stars = append(s.stars, star{blinkColor: c, blinkUntil: until})
 	}
 }
 
 func (s *StarState) Remove(n int) {
-	if n <= 0 {
-		return
-	}
-	if n >= len(s.stars) {
-		s.stars = s.stars[:0]
-		return
-	}
-	s.stars = s.stars[:len(s.stars)-n]
+	s.stars = s.stars[:max(len(s.stars)-n, 0)]
 }
 
 func (s *StarState) Active() bool {
@@ -142,11 +135,7 @@ func (s *StarState) View() string {
 	var b strings.Builder
 	for _, st := range s.stars {
 		if now.Before(st.blinkUntil) {
-			if styled, ok := styledStarByColor[st.flashColor]; ok {
-				b.WriteString(styled)
-				continue
-			}
-			b.WriteString(lipgloss.NewStyle().Foreground(st.flashColor).Render("*"))
+			b.WriteString(styledStarByColor[st.blinkColor])
 			continue
 		}
 		b.WriteByte('*')
@@ -162,13 +151,12 @@ func (s *StarState) ApplyKeystrokeAdd(deltaChars int) bool {
 	if deltaChars <= 0 {
 		return false
 	}
-	s.ensureRNG()
 	idx := s.pickDistinctIdx(len(starPalette), s.lastStarIndex)
 	s.lastStarIndex = idx
 	c := starPalette[idx]
 	total := 0
 	for range deltaChars {
-		total += 1 + s.rng.IntN(2) // 1 or 2
+		total += 1 + s.rng.IntN(2)
 	}
 	s.addWithColor(total, c)
 	return true

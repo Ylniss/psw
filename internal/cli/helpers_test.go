@@ -11,83 +11,42 @@ import (
 	"github.com/ylniss/psw/internal/storage"
 )
 
-func TestReportCmdErr_NilProceeds(t *testing.T) {
-	done, ret := handleCmdErr(nil)
-	if done {
-		t.Fatal("nil err should not stop the caller")
+func TestHandleCmdErr(t *testing.T) {
+	cases := []struct {
+		name    string
+		err     error
+		wantRet error
+		wantOut string // "" means nothing may be printed
+	}{
+		{"prompt cancelled stops silently", prompt.ErrPromptCancelled, nil, ""},
+		{"errSilentExit is an already-printed sentinel", errSilentExit, errSilentExit, ""},
+		{"fork undecryptable prints the banner", storage.ErrForkUndecryptable, errSilentExit, "main password was changed on another device"},
+		{"non-classified err prints and stops", errors.New("disk on fire"), nil, "disk on fire"},
 	}
-	if ret != nil {
-		t.Fatalf("nil err should return nil, got %v", ret)
-	}
-}
-
-func TestReportCmdErr_PromptCancelledExitsSilently(t *testing.T) {
-	out := captureStdout(t, func() {
-		done, ret := handleCmdErr(prompt.ErrPromptCancelled)
-		if !done {
-			t.Fatal("ErrPromptCancelled should stop the caller")
-		}
-		if ret != nil {
-			t.Fatalf("ErrPromptCancelled should return nil ret, got %v", ret)
-		}
-	})
-	if out != "" {
-		t.Fatalf("ErrPromptCancelled must not print, got %q", out)
-	}
-}
-
-func TestReportCmdErr_ErrExitPropagates(t *testing.T) {
-	out := captureStdout(t, func() {
-		done, ret := handleCmdErr(errSilentExit)
-		if !done {
-			t.Fatal("errSilentExit should stop the caller")
-		}
-		if !errors.Is(ret, errSilentExit) {
-			t.Fatalf("errSilentExit should propagate, got %v", ret)
-		}
-	})
-	if out != "" {
-		t.Fatalf("errSilentExit is already-printed sentinel; must not print, got %q", out)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var ret error
+			out := captureStdout(t, func() { ret = handleCmdErr(tc.err) })
+			if !errors.Is(ret, tc.wantRet) {
+				t.Fatalf("ret = %v, want %v", ret, tc.wantRet)
+			}
+			if tc.wantOut == "" && out != "" {
+				t.Fatalf("must not print, got %q", out)
+			}
+			if !strings.Contains(out, tc.wantOut) {
+				t.Fatalf("output %q missing %q", out, tc.wantOut)
+			}
+		})
 	}
 }
 
-func TestReportCmdErr_ForkUndecryptablePrintsAndExits(t *testing.T) {
-	out := captureStdout(t, func() {
-		done, ret := handleCmdErr(storage.ErrForkUndecryptable)
-		if !done {
-			t.Fatal("ErrForkUndecryptable should stop the caller")
-		}
-		if !errors.Is(ret, errSilentExit) {
-			t.Fatalf("ErrForkUndecryptable should return errSilentExit, got %v", ret)
-		}
-	})
-	if !strings.Contains(out, "main password was changed on another device") {
-		t.Fatalf("expected fork banner in output, got %q", out)
-	}
-}
-
-func TestReportCmdErr_OtherPrintsAndContinues(t *testing.T) {
-	out := captureStdout(t, func() {
-		done, ret := handleCmdErr(errors.New("disk on fire"))
-		if !done {
-			t.Fatal("non-classified err should stop the caller (soft fail)")
-		}
-		if ret != nil {
-			t.Fatalf("non-classified err should return nil ret, got %v", ret)
-		}
-	})
-	if !strings.Contains(out, "disk on fire") {
-		t.Fatalf("expected err message in output, got %q", out)
-	}
-}
-
-func TestReportPromptErr_NilDoesNotAbort(t *testing.T) {
+func TestHandlePromptErr_NilDoesNotAbort(t *testing.T) {
 	if handlePromptErr(nil) {
 		t.Fatal("nil err must not abort")
 	}
 }
 
-func TestReportPromptErr_CancelledAbortsSilently(t *testing.T) {
+func TestHandlePromptErr_CancelledAbortsSilently(t *testing.T) {
 	out := captureStdout(t, func() {
 		if !handlePromptErr(prompt.ErrPromptCancelled) {
 			t.Fatal("ErrPromptCancelled must abort")
@@ -98,7 +57,7 @@ func TestReportPromptErr_CancelledAbortsSilently(t *testing.T) {
 	}
 }
 
-func TestReportPromptErr_OtherPrintsAndAborts(t *testing.T) {
+func TestHandlePromptErr_OtherPrintsAndAborts(t *testing.T) {
 	out := captureStdout(t, func() {
 		if !handlePromptErr(errors.New("input got eaten")) {
 			t.Fatal("non-cancel err must abort")

@@ -8,6 +8,7 @@ import (
 	"github.com/TwiN/go-color"
 	"github.com/awnumar/memguard"
 
+	"github.com/ylniss/psw/internal/prompt"
 	"github.com/ylniss/psw/internal/storage"
 	"github.com/ylniss/psw/internal/tuiutil"
 )
@@ -27,12 +28,10 @@ type RemoveAction struct {
 	phase    removePhase
 	password *memguard.Enclave
 
-	picker             storage.PickerModel
+	picker             prompt.PickerModel
 	store              *storage.Storage
 	chosenNames        []string
 	transcriptBaseline int // transcript length before the picker appends `> name` lines
-
-	width, height int
 }
 
 func NewRemoveAction(password *memguard.Enclave) RemoveAction {
@@ -48,6 +47,7 @@ func (a RemoveAction) Init() tea.Cmd {
 }
 
 func (a RemoveAction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	a.captureSize(msg)
 	switch a.phase {
 	case removePhaseLoading:
 		return a.updateLoading(msg)
@@ -62,11 +62,8 @@ func (a RemoveAction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (a RemoveAction) updateLoading(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if w, ok := msg.(tea.WindowSizeMsg); ok {
-		a.width, a.height = w.Width, w.Height
-	}
-	store, done, cmd := a.handleLoadingMsg(msg, a.password)
-	if done || store == nil {
+	store, cmd := a.handleLoadingMsg(msg, a.password)
+	if store == nil {
 		return a, cmd
 	}
 	a.store = store
@@ -75,10 +72,8 @@ func (a RemoveAction) updateLoading(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.finish("No records to remove.")
 		return a, nil
 	}
-	a.picker = storage.NewPickerModelMulti(names).WithoutHelp()
-	if a.width > 0 && a.height > 0 {
-		tuiutil.UpdateInPlace(&a.picker, tea.WindowSizeMsg{Width: a.width, Height: a.height})
-	}
+	a.picker = prompt.NewPickerModelMulti(names).WithoutHelp()
+	a.sizePicker(&a.picker)
 	a.transcriptBaseline = len(a.transcript)
 	a.phase = removePhasePicking
 	return a, nil
@@ -107,19 +102,14 @@ func (a RemoveAction) updateConfirming(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if w, ok := msg.(tea.WindowSizeMsg); ok {
 		tuiutil.UpdateInPlace(&a.picker, w)
 	}
-	cmd := tuiutil.UpdateInPlace(&a.yesNo, msg)
-	if a.yesNo.Cancelled() {
-		// Ctrl+c only — esc handled above.
-		a.cancelled = true
-		return a, nil
-	}
-	if !a.yesNo.Done() {
+	// stepYesNo's cancel is ctrl+c only — esc handled above.
+	answer, ok, cmd := a.stepYesNo(msg)
+	if a.cancelled || !ok {
 		return a, cmd
 	}
-	if !a.yesNo.Answer() {
+	if !answer {
 		return a.bounceToPicker()
 	}
-	a.transcript = append(a.transcript, formatYesNoLine(a.yesNo))
 	for _, n := range a.chosenNames {
 		a.store.RemoveRecord(n)
 	}
@@ -160,7 +150,6 @@ func (a RemoveAction) View() tea.View {
 	return tea.NewView("")
 }
 
-func (a RemoveAction) NewPassword() *memguard.Enclave { return nil }
 func (a RemoveAction) FooterHelp() string {
 	if a.phase == removePhasePicking {
 		return a.picker.Help()

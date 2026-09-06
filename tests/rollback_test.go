@@ -15,14 +15,10 @@ func pswLogSHAs(t *testing.T, vault string, env map[string]string) []string {
 	mustExit(t, r, 0)
 	var shas []string
 	for _, line := range strings.Split(strings.TrimSpace(r.stdout), "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" {
+		if strings.TrimSpace(line) == "" {
 			continue
 		}
-		fields := strings.Fields(line)
-		if len(fields) > 0 {
-			shas = append(shas, fields[0])
-		}
+		shas = append(shas, strings.Fields(line)[0])
 	}
 	return shas
 }
@@ -37,9 +33,6 @@ func TestRollback_NoGitRepo(t *testing.T) {
 
 func TestRollback_NoPriorCommits(t *testing.T) {
 	t.Parallel()
-	if _, err := exec.LookPath("git"); err != nil {
-		t.Skip("git not available")
-	}
 	vault, env := newGitVault(t)
 	// Only the initial-main-password commit exists, and it's HEAD.
 	result := runPswEnv(t, vault, env, "rollback")
@@ -49,9 +42,6 @@ func TestRollback_NoPriorCommits(t *testing.T) {
 
 func TestRollback_NoTTY(t *testing.T) {
 	t.Parallel()
-	if _, err := exec.LookPath("git"); err != nil {
-		t.Skip("git not available")
-	}
 	vault, env := newGitVault(t)
 	mustExit(t, runPswEnv(t, vault, env, "add", "alpha", "-u", "u", "--password=p"), 0)
 	result := runPswEnv(t, vault, env, "rollback")
@@ -61,9 +51,6 @@ func TestRollback_NoTTY(t *testing.T) {
 
 func TestRollback_PartialEnvVarsRejected(t *testing.T) {
 	t.Parallel()
-	if _, err := exec.LookPath("git"); err != nil {
-		t.Skip("git not available")
-	}
 	vault, env := newGitVault(t)
 	mustExit(t, runPswEnv(t, vault, env, "add", "alpha", "-u", "u", "--password=p"), 0)
 	env2 := withEnv(env, "PSW_ROLLBACK_TARGET", "deadbee")
@@ -74,9 +61,6 @@ func TestRollback_PartialEnvVarsRejected(t *testing.T) {
 
 func TestRollback_UnknownTargetSHA(t *testing.T) {
 	t.Parallel()
-	if _, err := exec.LookPath("git"); err != nil {
-		t.Skip("git not available")
-	}
 	vault, env := newGitVault(t)
 	mustExit(t, runPswEnv(t, vault, env, "add", "alpha", "-u", "u", "--password=p"), 0)
 	env2 := withEnv(env, "PSW_ROLLBACK_TARGET", "deadbee")
@@ -88,9 +72,6 @@ func TestRollback_UnknownTargetSHA(t *testing.T) {
 
 func TestRollback_RestoresSnapshot(t *testing.T) {
 	t.Parallel()
-	if _, err := exec.LookPath("git"); err != nil {
-		t.Skip("git not available")
-	}
 	vault, env := newGitVault(t)
 	mustExit(t, runPswEnv(t, vault, env, "add", "alpha", "-u", "u", "--password=p1"), 0)
 
@@ -120,9 +101,6 @@ func TestRollback_RestoresSnapshot(t *testing.T) {
 
 func TestRollback_ChangeMainRefused(t *testing.T) {
 	t.Parallel()
-	if _, err := exec.LookPath("git"); err != nil {
-		t.Skip("git not available")
-	}
 	vault, env := newGitVault(t)
 	mustExit(t, runPswEnv(t, vault, env, "add", "alpha", "-u", "u", "--password=p"), 0)
 	shas := pswLogSHAs(t, vault, env)
@@ -134,15 +112,14 @@ func TestRollback_ChangeMainRefused(t *testing.T) {
 
 	// Subsequent invocations use the new password.
 	envNew := withEnv(env, "PSW_MAIN_PASSWORD", "rotated")
-	envNew = withEnv(envNew, "PSW_ROLLBACK_TARGET", preChangeMainSHA)
-	envNew = withEnv(envNew, "PSW_ROLLBACK_YES", "1")
-	result := runPswEnv(t, vault, envNew, "rollback")
+	rbEnv := withEnv(envNew, "PSW_ROLLBACK_TARGET", preChangeMainSHA)
+	rbEnv = withEnv(rbEnv, "PSW_ROLLBACK_YES", "1")
+	result := runPswEnv(t, vault, rbEnv, "rollback")
 	mustExit(t, result, 1)
 	mustContain(t, result.stdout, "encrypted with a different main password")
 
 	// Vault should be untouched by the failed rollback.
-	envNewList := withEnv(env, "PSW_MAIN_PASSWORD", "rotated")
-	assertVaultHasRecords(t, vault, envNewList, "alpha")
+	assertVaultHasRecords(t, vault, envNew, "alpha")
 }
 
 func TestRollback_StampsMTimesForLWW(t *testing.T) {
@@ -175,9 +152,6 @@ func TestRollback_StampsMTimesForLWW(t *testing.T) {
 
 func TestRollback_LogColoring(t *testing.T) {
 	t.Parallel()
-	if _, err := exec.LookPath("git"); err != nil {
-		t.Skip("git not available")
-	}
 	vault, env := newGitVault(t)
 	mustExit(t, runPswEnv(t, vault, env, "add", "alpha", "-u", "u", "--password=p"), 0)
 	shas := pswLogSHAs(t, vault, env)
@@ -203,4 +177,3 @@ func TestRollback_LogColoring(t *testing.T) {
 		t.Fatalf("expected rollback line for %s in psw log:\n%s", targetSHA, raw)
 	}
 }
-

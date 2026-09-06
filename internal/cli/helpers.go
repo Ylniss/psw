@@ -11,41 +11,32 @@ import (
 	"github.com/ylniss/psw/internal/storage"
 )
 
-// printForkUndecryptable prints the fork-undecryptable banner in red.
-func printForkUndecryptable() {
-	fmt.Println(color.InRed(storage.ForkUndecryptableUserMessage))
-}
-
-// handleCmdErr classifies err for a RunE. Returns (true, retval) → caller
-// returns retval; (false, nil) → caller continues. Any user-facing print is
-// done before return. Cases:
+// handleCmdErr maps a non-nil err to the value a RunE must return. Any
+// user-facing print is done before return. Call as
+// `if err != nil { return handleCmdErr(err) }`. Cases:
 //
-//	nil                          → (false, nil)
-//	prompt.ErrPromptCancelled    → (true, nil)         silent exit
-//	errSilentExit                → (true, errSilentExit) already-printed sentinel
-//	storage.ErrForkUndecryptable → (true, errSilentExit) banner printed
-//	storage.ErrPSW1Unsupported   → (true, errSilentExit) red banner printed
-//	anything else                → (true, nil)         err printed
-func handleCmdErr(err error) (stop bool, ret error) {
-	if err == nil {
-		return false, nil
-	}
+//	prompt.ErrPromptCancelled    → nil            silent exit
+//	errSilentExit                → errSilentExit  already-printed sentinel
+//	storage.ErrForkUndecryptable → errSilentExit  banner printed
+//	storage.ErrPSW1Unsupported   → errSilentExit  red banner printed
+//	anything else                → nil            err printed
+func handleCmdErr(err error) error {
 	if errors.Is(err, prompt.ErrPromptCancelled) {
-		return true, nil
+		return nil
 	}
 	if errors.Is(err, errSilentExit) {
-		return true, errSilentExit
+		return errSilentExit
 	}
 	if errors.Is(err, storage.ErrForkUndecryptable) {
-		printForkUndecryptable()
-		return true, errSilentExit
+		fmt.Println(color.InRed(storage.ForkUndecryptableUserMessage))
+		return errSilentExit
 	}
 	if errors.Is(err, storage.ErrPSW1Unsupported) {
 		fmt.Println(color.InRed(err.Error()))
-		return true, errSilentExit
+		return errSilentExit
 	}
 	fmt.Println(err.Error())
-	return true, nil
+	return nil
 }
 
 // handlePromptErr handles a prompt error in a helper that returns bool.
@@ -84,8 +75,8 @@ func resolveRecordName(store *storage.Storage, args []string, exact bool, extras
 		names = store.GetNamesWithPart(args[0])
 		extras = filterExtrasByPart(extras, args[0])
 	}
-	name, err := storage.GetRecordNameInteractive(names, extras)
-	if errors.Is(err, storage.ErrPickerCancelled) {
+	name, err := prompt.GetRecordNameInteractive(names, extras)
+	if errors.Is(err, prompt.ErrPickerCancelled) {
 		return "", nil
 	}
 	return name, err
@@ -115,15 +106,11 @@ func resolveRecordNames(store *storage.Storage, args []string, exact bool) ([]st
 		var missing []string
 		for _, name := range args {
 			if !store.Exists(name) {
-				missing = append(missing, name)
+				missing = append(missing, color.InGreen(name))
 			}
 		}
 		if len(missing) > 0 {
-			colored := make([]string, len(missing))
-			for i, n := range missing {
-				colored[i] = color.InGreen(n)
-			}
-			fmt.Printf("Records not found: %s\n", strings.Join(colored, ", "))
+			fmt.Printf("Records not found: %s\n", strings.Join(missing, ", "))
 			return nil, errSilentExit
 		}
 		return dedupe(args), nil
@@ -138,8 +125,8 @@ func resolveRecordNames(store *storage.Storage, args []string, exact bool) ([]st
 	if len(args) == 1 {
 		names = store.GetNamesWithPart(args[0])
 	}
-	picked, err := storage.GetRecordNamesInteractive(names)
-	if errors.Is(err, storage.ErrPickerCancelled) {
+	picked, err := prompt.GetRecordNamesInteractive(names)
+	if errors.Is(err, prompt.ErrPickerCancelled) {
 		return nil, nil
 	}
 	return picked, err

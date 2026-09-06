@@ -10,7 +10,7 @@ import (
 )
 
 func (a ChangeAction) updateConfirmRename(msg tea.Msg) (tea.Model, tea.Cmd) {
-	answer, ok, cmd := a.stepYesNo(&a.yesNo, msg)
+	answer, ok, cmd := a.stepYesNo(msg)
 	if a.cancelled || !ok {
 		return a, cmd
 	}
@@ -22,13 +22,12 @@ func (a ChangeAction) updateConfirmRename(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (a ChangeAction) updateEnterRename(msg tea.Msg) (tea.Model, tea.Cmd) {
-	newName, ok, cmd := a.stepInput(&a.input, msg)
+	newName, ok, cmd := a.stepInput(msg)
 	if a.cancelled || !ok {
 		return a, cmd
 	}
 	if a.store.Exists(newName) {
-		a.output = append(a.output, fmt.Sprintf("Record %s already exists", color.InGreen(newName)))
-		a.done = true
+		a.finish(fmt.Sprintf("Record %s already exists", color.InGreen(newName)))
 		return a, nil
 	}
 	a.record.Name = newName
@@ -49,7 +48,7 @@ func (a ChangeAction) advanceAfterRename() ChangeAction {
 }
 
 func (a ChangeAction) updateConfirmUsername(msg tea.Msg) (tea.Model, tea.Cmd) {
-	answer, ok, cmd := a.stepYesNo(&a.yesNo, msg)
+	answer, ok, cmd := a.stepYesNo(msg)
 	if a.cancelled || !ok {
 		return a, cmd
 	}
@@ -60,7 +59,7 @@ func (a ChangeAction) updateConfirmUsername(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (a ChangeAction) updateEnterUsername(msg tea.Msg) (tea.Model, tea.Cmd) {
-	val, ok, cmd := a.stepInput(&a.input, msg)
+	val, ok, cmd := a.stepInput(msg)
 	if a.cancelled || !ok {
 		return a, cmd
 	}
@@ -69,7 +68,7 @@ func (a ChangeAction) updateEnterUsername(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (a ChangeAction) updateConfirmPassword(msg tea.Msg) (tea.Model, tea.Cmd) {
-	answer, ok, cmd := a.stepYesNo(&a.yesNo, msg)
+	answer, ok, cmd := a.stepYesNo(msg)
 	if a.cancelled || !ok {
 		return a, cmd
 	}
@@ -81,7 +80,7 @@ func (a ChangeAction) updateConfirmPassword(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (a ChangeAction) updateEnterPassword(msg tea.Msg) (tea.Model, tea.Cmd) {
-	val, ok, cmd := a.stepInput(&a.input, msg)
+	val, ok, cmd := a.stepInput(msg)
 	if a.cancelled || !ok {
 		return a, cmd
 	}
@@ -90,7 +89,7 @@ func (a ChangeAction) updateEnterPassword(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (a ChangeAction) updateEnterPasswordRepeat(msg tea.Msg) (tea.Model, tea.Cmd) {
-	val, ok, cmd := a.stepInput(&a.input, msg)
+	val, ok, cmd := a.stepInput(msg)
 	if a.cancelled || !ok {
 		return a, cmd
 	}
@@ -104,7 +103,7 @@ func (a ChangeAction) updateEnterPasswordRepeat(msg tea.Msg) (tea.Model, tea.Cmd
 }
 
 func (a ChangeAction) updateConfirmValue(msg tea.Msg) (tea.Model, tea.Cmd) {
-	answer, ok, cmd := a.stepYesNo(&a.yesNo, msg)
+	answer, ok, cmd := a.stepYesNo(msg)
 	if a.cancelled || !ok {
 		return a, cmd
 	}
@@ -115,7 +114,7 @@ func (a ChangeAction) updateConfirmValue(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (a ChangeAction) updateEnterValue(msg tea.Msg) (tea.Model, tea.Cmd) {
-	val, ok, cmd := a.stepInput(&a.input, msg)
+	val, ok, cmd := a.stepInput(msg)
 	if a.cancelled || !ok {
 		return a, cmd
 	}

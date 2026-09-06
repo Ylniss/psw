@@ -37,20 +37,17 @@ func TestSync_GitNotOnPath_LocalOnly(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not available")
 	}
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "pswcfg.toml"), []byte("clipboard_timeout = 20\n"), 0644); err != nil {
-		t.Fatal(err)
-	}
+	vault := newVault(t)
 	env := gitTestEnv()
 	env["PATH"] = pathWithoutGit(t)
 
 	// First mutating command triggers init via go-git; git binary not needed.
-	mustExit(t, runPswEnv(t, dir, env, "add", "foo", "-u", "u", "--password=p"), 0)
+	mustExit(t, runPswEnv(t, vault, env, "add", "foo", "-u", "u", "--password=p"), 0)
 
-	if _, err := os.Stat(filepath.Join(dir, ".git", "HEAD")); err != nil {
+	if _, err := os.Stat(filepath.Join(vault, ".git", "HEAD")); err != nil {
 		t.Fatalf("expected .git/HEAD via go-git init: %v", err)
 	}
-	res := runPswEnv(t, dir, env, "log")
+	res := runPswEnv(t, vault, env, "log")
 	mustExit(t, res, 0)
 	mustContain(t, res.stdout, "added new record")
 }
@@ -59,9 +56,6 @@ func TestSync_GitNotOnPath_LocalOnly(t *testing.T) {
 // PATH triggers the typed "signing requires git" warning; data is still saved.
 func TestSync_GPGSignFallback_GitNotOnPath(t *testing.T) {
 	t.Parallel()
-	if _, err := exec.LookPath("git"); err != nil {
-		t.Skip("git not available")
-	}
 	vault, _, env := newGitVaultWithRemote(t)
 	addToGitConfig(t, vault, "[commit]\n\tgpgsign = true\n")
 
@@ -80,9 +74,6 @@ func TestSync_GPGSignFallback_GitNotOnPath(t *testing.T) {
 // requires; git accepts it and the commit/push proceed.
 func TestSync_GPGSignFallback_GitOnPath(t *testing.T) {
 	t.Parallel()
-	if _, err := exec.LookPath("git"); err != nil {
-		t.Skip("git not available")
-	}
 	vault, bare, env := newGitVaultWithRemote(t)
 
 	addToGitConfig(t, vault, "[commit]\n\tgpgsign = true\n[gpg]\n\tprogram = "+filepath.ToSlash(fakeGpgBinaryPath)+"\n[user]\n\tsigningkey = test\n")

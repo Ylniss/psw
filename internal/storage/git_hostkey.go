@@ -28,15 +28,11 @@ func knownHostsPath() (string, error) {
 		return "", fmt.Errorf("create ~/.ssh: %w", err)
 	}
 	path := filepath.Join(sshDir, "known_hosts")
-	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
-		f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0600)
-		if err != nil {
-			return "", fmt.Errorf("create known_hosts: %w", err)
-		}
-		f.Close()
-	} else if err != nil {
-		return "", fmt.Errorf("stat known_hosts: %w", err)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDONLY, 0600)
+	if err != nil {
+		return "", fmt.Errorf("create known_hosts: %w", err)
 	}
+	f.Close()
 	return path, nil
 }
 
@@ -52,12 +48,12 @@ func hostKeyCallback() (cryptossh.HostKeyCallback, error) {
 
 // buildHostKeyCallback is the testable core; caller ensures the file exists.
 func buildHostKeyCallback(path string) (cryptossh.HostKeyCallback, error) {
-	cb, err := knownhosts.New(path)
+	db, err := knownhosts.NewDB(path)
 	if err != nil {
 		return nil, fmt.Errorf("parse known_hosts %s: %w", path, err)
 	}
 	return func(hostname string, remote net.Addr, key cryptossh.PublicKey) error {
-		err := cryptossh.HostKeyCallback(cb)(hostname, remote, key)
+		err := db.HostKeyCallback()(hostname, remote, key)
 		if err == nil {
 			return nil
 		}

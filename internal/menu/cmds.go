@@ -1,7 +1,7 @@
 package menu
 
 import (
-	"errors"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/awnumar/memguard"
@@ -9,18 +9,10 @@ import (
 	"github.com/ylniss/psw/internal/storage"
 )
 
-// formatLoadError swaps fork-undecryptable for its user-facing banner.
-func formatLoadError(err error) string {
-	if errors.Is(err, storage.ErrForkUndecryptable) {
-		return storage.ForkUndecryptableUserMessage
-	}
-	return err.Error()
-}
-
-// loadCmd decrypts storage; pull=true also fetches and merges first.
-func loadCmd(password *memguard.Enclave, pull bool) tea.Cmd {
+// loadCmd decrypts storage without touching the network.
+func loadCmd(password *memguard.Enclave) tea.Cmd {
 	return func() tea.Msg {
-		s, err := storage.LoadOrCreate(password, pull)
+		s, err := storage.LoadOrCreate(password, false)
 		return storageLoadedMsg{store: s, err: err}
 	}
 }
@@ -77,4 +69,9 @@ func saveConfigCmd() tea.Cmd {
 	return func() tea.Msg {
 		return configSavedMsg{err: storage.WriteAndCommitConfig("config updated")}
 	}
+}
+
+// tea.Every (not Tick) so the displayed seconds align with the wall clock.
+func countdownTick() tea.Cmd {
+	return tea.Every(time.Second, func(time.Time) tea.Msg { return countdownTickMsg{} })
 }

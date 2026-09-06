@@ -7,7 +7,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/TwiN/go-color"
-	"github.com/awnumar/memguard"
 
 	"github.com/ylniss/psw/internal/storage"
 	"github.com/ylniss/psw/internal/tuiutil"
@@ -39,8 +38,6 @@ type SettingsAction struct {
 	dirty      bool
 	editingKey storage.ConfigKey
 	editError  string
-
-	width int
 }
 
 func NewSettingsAction() SettingsAction {
@@ -53,9 +50,7 @@ func NewSettingsAction() SettingsAction {
 func (a SettingsAction) Init() tea.Cmd { return nil }
 
 func (a SettingsAction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if w, ok := msg.(tea.WindowSizeMsg); ok {
-		a.width = w.Width
-	}
+	a.captureSize(msg)
 	switch a.phase {
 	case settingsPhaseGrid:
 		return a.updateGrid(msg)
@@ -159,7 +154,7 @@ func (a SettingsAction) View() tea.View {
 	case settingsPhaseGrid:
 		content := a.renderGrid()
 		if desc := storage.ConfigKeys[a.cursor].Description; desc != "" {
-			content += "\n\n" + settingsDescStyle.Width(a.descWidth()).Render(desc)
+			content += "\n\n" + settingsDescStyle.Width(a.columnWidth()).Render(desc)
 		}
 		return tea.NewView(content)
 	case settingsPhaseEditing:
@@ -172,13 +167,8 @@ func (a SettingsAction) View() tea.View {
 			banner = color.InRed(a.editError)
 		}
 		view := prependBanner(a.input.View(), banner)
-		view.Content = header + "\n\n" + view.Content
-		if view.Cursor != nil {
-			c := *view.Cursor
-			c.Position.Y += 2
-			view.Cursor = &c
-		}
-		return view
+		// Trailing newline gives the blank row between header and input.
+		return prependBanner(view, header+"\n")
 	case settingsPhaseSaving:
 		return a.spinner.View()
 	}
@@ -186,7 +176,7 @@ func (a SettingsAction) View() tea.View {
 }
 
 func (a SettingsAction) renderGrid() string {
-	rowWidth := a.descWidth()
+	rowWidth := a.columnWidth()
 	var b strings.Builder
 	for i, k := range storage.ConfigKeys {
 		name := k.Name
@@ -195,10 +185,7 @@ func (a SettingsAction) renderGrid() string {
 		if i == a.cursor {
 			prefix = "> "
 		}
-		gap := rowWidth - lipgloss.Width(prefix) - lipgloss.Width(name) - lipgloss.Width(value)
-		if gap < 4 {
-			gap = 4
-		}
+		gap := max(rowWidth-lipgloss.Width(prefix)-lipgloss.Width(name)-lipgloss.Width(value), 4)
 		dots := strings.Repeat(".", gap-2)
 
 		var line string
@@ -219,15 +206,12 @@ func (a SettingsAction) renderGrid() string {
 	return b.String()
 }
 
-// descWidth returns the column width for the description block.
-func (a SettingsAction) descWidth() int {
+func (a SettingsAction) columnWidth() int {
 	if a.width <= 0 {
 		return pswHeaderWidth + 2*contentPaddingX
 	}
 	return contentColumnWidth(a.width)
 }
-
-func (a SettingsAction) NewPassword() *memguard.Enclave { return nil }
 
 func (a SettingsAction) FooterHelp() string {
 	switch a.phase {

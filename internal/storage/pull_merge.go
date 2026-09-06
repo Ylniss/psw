@@ -1,15 +1,11 @@
 package storage
 
 import (
-	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
-	"strings"
 
 	"github.com/awnumar/memguard"
-	"github.com/go-git/go-git/v5/plumbing"
 )
 
 // ErrForkUndecryptable: fork or remote storage.psw can't be decrypted with
@@ -70,15 +66,11 @@ func GitPullAndMerge(mainPassword *memguard.Enclave) (*Storage, error) {
 }
 
 func fastForward(remoteSHA string, mainPassword *memguard.Enclave) (*Storage, error) {
-	records, err := decryptBlobToRecords(remoteSHA, mainPassword)
+	records, err := LoadCommitRecords(remoteSHA, mainPassword)
 	if err != nil {
 		return nil, ErrForkUndecryptable
 	}
-	hash, err := parseSHA1Hash(remoteSHA)
-	if err != nil {
-		return nil, err
-	}
-	if err := gitFastForward(hash); err != nil {
+	if err := gitFastForward(remoteSHA); err != nil {
 		return nil, err
 	}
 	slog.Debug("git fast-forwarded", "to", remoteSHA)
@@ -95,25 +87,20 @@ func divergentMerge(remoteSHA string, mainPassword *memguard.Enclave) (*Storage,
 		return nil, err
 	}
 
-	forkRecords, err := decryptBlobToRecords(forkSHA, mainPassword)
+	forkRecords, err := LoadCommitRecords(forkSHA, mainPassword)
 	if err != nil {
 		return nil, ErrForkUndecryptable
 	}
-	remoteRecords, err := decryptBlobToRecords(remoteSHA, mainPassword)
+	remoteRecords, err := LoadCommitRecords(remoteSHA, mainPassword)
 	if err != nil {
 		return nil, ErrForkUndecryptable
 	}
-	localPlain, err := DecryptFromStorage(mainPassword)
+	localStore, err := Decrypt(mainPassword)
 	if err != nil {
 		return nil, fmt.Errorf("decrypt local: %w", err)
 	}
-	defer memguard.WipeBytes(localPlain)
-	var localRecords []Record
-	if err := json.Unmarshal(localPlain, &localRecords); err != nil {
-		return nil, fmt.Errorf("parse local records: %w", err)
-	}
 
-	merged, summary := mergeRecords(forkRecords, localRecords, remoteRecords)
+	merged, summary := mergeRecords(forkRecords, localStore.Records, remoteRecords)
 
 	mergedJSON, err := (&Storage{Records: merged}).MarshalRecords()
 	if err != nil {
@@ -123,74 +110,11 @@ func divergentMerge(remoteSHA string, mainPassword *memguard.Enclave) (*Storage,
 		return nil, fmt.Errorf("encrypt merged: %w", err)
 	}
 
-	localHash, err := parseSHA1Hash(localSHA)
-	if err != nil {
-		return nil, err
-	}
-	remoteHash, err := parseSHA1Hash(remoteSHA)
-	if err != nil {
-		return nil, err
-	}
-	msg := buildMergeMessage(summary)
-	if err := gitStorageMergeCommit(localHash, remoteHash, msg); err != nil {
+	msg := summary.mergeMessage()
+	if err := gitStorageMergeCommit(localSHA, remoteSHA, msg); err != nil {
 		return nil, err
 	}
 
 	summary.printSummary()
 	return &Storage{MainPassword: mainPassword, Records: merged}, nil
-}
-
-// parseSHA1Hash validates a 40-hex SHA-1 string. plumbing.NewHash silently
-// returns ZeroHash on malformed input; this catches that.
-func parseSHA1Hash(sha string) (plumbing.Hash, error) {
-	if len(sha) != 40 {
-		return plumbing.ZeroHash, fmt.Errorf("invalid sha length %d (want 40): %q", len(sha), sha)
-	}
-	if _, err := hex.DecodeString(sha); err != nil {
-		return plumbing.ZeroHash, fmt.Errorf("invalid sha hex: %q", sha)
-	}
-	return plumbing.NewHash(sha), nil
-}
-
-func decryptBlobToRecords(ref string, password *memguard.Enclave) ([]Record, error) {
-	blob, err := gitShowBlob(ref, Paths.storageFileName)
-	if err != nil {
-		return nil, fmt.Errorf("git show %s: %w", ref, err)
-	}
-	pwBuf, err := password.Open()
-	if err != nil {
-		return nil, fmt.Errorf("open password enclave: %w", err)
-	}
-	defer pwBuf.Destroy()
-	plain, err := decryptBlob(blob, pwBuf.Bytes())
-	if err != nil {
-		return nil, err
-	}
-	defer memguard.WipeBytes(plain)
-	var records []Record
-	if err := json.Unmarshal(plain, &records); err != nil {
-		return nil, fmt.Errorf("parse records: %w", err)
-	}
-	return records, nil
-}
-
-func buildMergeMessage(s mergeSummary) string {
-	b := s.bucket()
-	var parts []string
-	if len(b.added) > 0 {
-		parts = append(parts, fmt.Sprintf("+%d", len(b.added)))
-	}
-	if len(b.replaced) > 0 {
-		parts = append(parts, fmt.Sprintf("~%d", len(b.replaced)))
-	}
-	if len(b.dropped) > 0 {
-		parts = append(parts, fmt.Sprintf("-%d", len(b.dropped)))
-	}
-	if len(b.kept) > 0 {
-		parts = append(parts, fmt.Sprintf("kept-local %d", len(b.kept)))
-	}
-	if len(parts) == 0 {
-		return "merge: no record changes"
-	}
-	return "merge: " + strings.Join(parts, ", ")
 }

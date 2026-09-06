@@ -3,11 +3,13 @@ package storage
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"slices"
 	"strings"
 	"time"
 
+	color "github.com/TwiN/go-color"
 	"github.com/awnumar/memguard"
 )
 
@@ -27,7 +29,6 @@ type Record struct {
 	MTime    int64  `json:"mtime,omitempty"`
 }
 
-// cloneSecrets returns r with Password/Value deep-copied.
 func cloneSecrets(r Record) Record {
 	r.Password = bytes.Clone(r.Password)
 	r.Value = bytes.Clone(r.Value)
@@ -120,12 +121,22 @@ func (s *Storage) RemoveRecord(name string) {
 }
 
 func (s *Storage) Exists(name string) bool {
-	for _, r := range s.Records {
-		if strings.EqualFold(r.Name, name) {
-			return true
-		}
+	_, found := s.GetRecord(name)
+	return found
+}
+
+// ValidateNewRecordName reports why name can't hold a new record: reserved for
+// the main-password rotation, or already taken. nil means the name is free.
+func (s *Storage) ValidateNewRecordName(name string) error {
+	lower := strings.ToLower(name)
+	if lower == MainPasswordAlias || lower == MainPasswordName {
+		return fmt.Errorf("Name %s is reserved for %s (the main-password rotation command)",
+			color.InGreen(name), color.InCyan("change main"))
 	}
-	return false
+	if s.Exists(name) {
+		return fmt.Errorf("Record %s already exists", color.InGreen(name))
+	}
+	return nil
 }
 
 // MarshalRecords serializes records to indented JSON bytes. Caller wipes.

@@ -3,6 +3,7 @@ package storage
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/awnumar/memguard"
@@ -57,8 +58,35 @@ func HeadShortSHA() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if len(sha) < 7 {
-		return "", fmt.Errorf("HEAD sha too short: %q", sha)
-	}
 	return sha[:7], nil
+}
+
+// RollbackPicks returns the rollback candidates as picker labels, newest
+// first, plus the label→entry map a selection is resolved through. HEAD is
+// dropped — rolling back to it would change nothing. No candidates → empty
+// labels; the caller words its own "nothing to roll back to" message.
+func RollbackPicks() (labels []string, byLabel map[string]LogEntry, err error) {
+	entries, err := GitLog()
+	if err != nil {
+		return nil, nil, err
+	}
+	headShort, err := HeadShortSHA()
+	if err != nil {
+		return nil, nil, err
+	}
+	picks := make([]LogEntry, 0, len(entries))
+	for _, e := range entries {
+		if e.ShortSHA != headShort {
+			picks = append(picks, e)
+		}
+	}
+	slices.Reverse(picks) // newest first — most likely rollback targets at the top
+	labels = make([]string, len(picks))
+	byLabel = make(map[string]LogEntry, len(picks))
+	for i, e := range picks {
+		label := fmt.Sprintf("%s  %s  %s", e.ShortSHA, e.Time.Format("2006-01-02 15:04"), e.Message)
+		labels[i] = label
+		byLabel[label] = e
+	}
+	return labels, byLabel, nil
 }

@@ -83,29 +83,30 @@ func Generate(o Options) (string, error) {
 	if err := o.Validate(); err != nil {
 		return "", err
 	}
-	if o.AllowRepeat {
-		return generateWithRepeat(o)
+	categories := []struct {
+		pool string
+		min  int
+	}{
+		{DigitPool, o.MinDigits},
+		{SymbolPool, o.MinSymbols},
+		{UpperPool, o.MinUppercase},
+		{LowerPool, o.MinLowercase},
 	}
-	return generateNoRepeat(o)
-}
-
-func generateWithRepeat(o Options) (string, error) {
+	pick := pickWithRepeat
+	if !o.AllowRepeat {
+		used := make(map[byte]bool, o.Length)
+		pick = func(buf *[]byte, pool string, n int) error {
+			return pickDistinct(buf, used, pool, n)
+		}
+	}
+	buf := make([]byte, 0, o.Length)
+	for _, c := range categories {
+		if err := pick(&buf, c.pool, c.min); err != nil {
+			return "", err
+		}
+	}
 	full := DigitPool + SymbolPool + UpperPool + LowerPool
-	buf := make([]byte, 0, o.Length)
-	if err := appendN(&buf, DigitPool, o.MinDigits); err != nil {
-		return "", err
-	}
-	if err := appendN(&buf, SymbolPool, o.MinSymbols); err != nil {
-		return "", err
-	}
-	if err := appendN(&buf, UpperPool, o.MinUppercase); err != nil {
-		return "", err
-	}
-	if err := appendN(&buf, LowerPool, o.MinLowercase); err != nil {
-		return "", err
-	}
-	remaining := o.Length - len(buf)
-	if err := appendN(&buf, full, remaining); err != nil {
+	if err := pick(&buf, full, o.Length-len(buf)); err != nil {
 		return "", err
 	}
 	if err := shuffle(buf); err != nil {
@@ -114,33 +115,9 @@ func generateWithRepeat(o Options) (string, error) {
 	return string(buf), nil
 }
 
-func generateNoRepeat(o Options) (string, error) {
-	used := make(map[byte]bool, o.Length)
-	buf := make([]byte, 0, o.Length)
-	if err := pickDistinct(&buf, used, DigitPool, o.MinDigits); err != nil {
-		return "", err
-	}
-	if err := pickDistinct(&buf, used, SymbolPool, o.MinSymbols); err != nil {
-		return "", err
-	}
-	if err := pickDistinct(&buf, used, UpperPool, o.MinUppercase); err != nil {
-		return "", err
-	}
-	if err := pickDistinct(&buf, used, LowerPool, o.MinLowercase); err != nil {
-		return "", err
-	}
-	remainder := o.Length - len(buf)
-	if err := pickDistinct(&buf, used, DigitPool+SymbolPool+UpperPool+LowerPool, remainder); err != nil {
-		return "", err
-	}
-	if err := shuffle(buf); err != nil {
-		return "", err
-	}
-	return string(buf), nil
-}
-
-// appendN picks n random bytes from pool (with replacement) and appends them.
-func appendN(buf *[]byte, pool string, n int) error {
+// pickWithRepeat picks n random bytes from pool (with replacement) and
+// appends them.
+func pickWithRepeat(buf *[]byte, pool string, n int) error {
 	for range n {
 		idx, err := randIndex(len(pool))
 		if err != nil {
@@ -180,7 +157,7 @@ func pickDistinct(buf *[]byte, used map[byte]bool, pool string, n int) error {
 	return nil
 }
 
-// shuffle Fisher-Yates the buffer in place using crypto/rand.
+// shuffle reorders buf in place with Fisher-Yates over crypto/rand.
 func shuffle(buf []byte) error {
 	for i := len(buf) - 1; i > 0; i-- {
 		j, err := randIndex(i + 1)
@@ -193,9 +170,6 @@ func shuffle(buf []byte) error {
 }
 
 func randIndex(n int) (int, error) {
-	if n <= 0 {
-		return 0, fmt.Errorf("randIndex: n=%d must be > 0", n)
-	}
 	bn, err := rand.Int(rand.Reader, big.NewInt(int64(n)))
 	if err != nil {
 		return 0, err

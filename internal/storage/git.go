@@ -23,13 +23,13 @@ func IsGitRepo() (bool, error) {
 }
 
 // refreshGitRepoFlag sets Paths.gitRepoExists when .git/ exists on disk.
-// For entry points that bypass initGitRepoIfNotExists (e.g. psw config
+// For entry points that bypass ensureGitRepo (e.g. psw config
 // set/reset). Stat errors are swallowed — false flag matches the no-repo case.
 func refreshGitRepoFlag() {
 	if Paths.gitRepoExists {
 		return
 	}
-	if ok, _ := pathExists(filepath.Join(Paths.storagePath, ".git")); ok {
+	if ok, _ := IsGitRepo(); ok {
 		Paths.gitRepoExists = true
 	}
 }
@@ -43,13 +43,13 @@ func GitLog() ([]LogEntry, error) {
 	return entries, nil
 }
 
-func initGitRepoIfNotExists() error {
+func ensureGitRepo() error {
 	// PSW_GIT=0 opts out of git init/commit (intended for tests/scripting)
 	if os.Getenv("PSW_GIT") == "0" {
 		return nil
 	}
 
-	gitRepoExists, err := pathExists(filepath.Join(Paths.storagePath, ".git"))
+	gitRepoExists, err := IsGitRepo()
 	if err != nil {
 		return err
 	}

@@ -4,20 +4,18 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+
+	"github.com/ylniss/psw/internal/tuiutil"
 )
 
-func updateInput(m InputModel, msg tea.Msg) InputModel {
-	raw, _ := m.Update(msg)
-	return raw.(InputModel)
-}
-
 func typeChar(m InputModel, r rune) InputModel {
-	return updateInput(m, tea.KeyPressMsg{Code: r, Text: string(r)})
+	tuiutil.UpdateInPlace(&m, tea.KeyPressMsg{Code: r, Text: string(r)})
+	return m
 }
 
 func TestInputModel_EscCancels(t *testing.T) {
 	m := NewInputModel("test", false, false)
-	m = updateInput(m, tea.KeyPressMsg{Code: tea.KeyEscape})
+	tuiutil.UpdateInPlace(&m, tea.KeyPressMsg{Code: tea.KeyEscape})
 	if !m.Cancelled() {
 		t.Fatal("expected Cancelled() true after esc")
 	}
@@ -28,15 +26,15 @@ func TestInputModel_EscCancels(t *testing.T) {
 
 func TestInputModel_CtrlCCancels(t *testing.T) {
 	m := NewInputModel("test", false, false)
-	m = updateInput(m, tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
+	tuiutil.UpdateInPlace(&m, tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
 	if !m.Cancelled() {
 		t.Fatal("expected Cancelled() true after ctrl+c")
 	}
 }
 
-func TestInputModel_EnterEmptyValueShowsError(t *testing.T) {
+func TestInputModel_EnterEmptyValueDoesNotCommit(t *testing.T) {
 	m := NewInputModel("test", false, false)
-	m = updateInput(m, tea.KeyPressMsg{Code: tea.KeyEnter})
+	tuiutil.UpdateInPlace(&m, tea.KeyPressMsg{Code: tea.KeyEnter})
 	if m.Done() {
 		t.Fatal("expected Done() false on empty enter")
 	}
@@ -49,7 +47,7 @@ func TestInputModel_EnterWithValueCommits(t *testing.T) {
 	m := NewInputModel("test", false, false)
 	m = typeChar(m, 'h')
 	m = typeChar(m, 'i')
-	m = updateInput(m, tea.KeyPressMsg{Code: tea.KeyEnter})
+	tuiutil.UpdateInPlace(&m, tea.KeyPressMsg{Code: tea.KeyEnter})
 	if !m.Done() {
 		t.Fatal("expected Done() true after enter with value")
 	}
@@ -61,7 +59,7 @@ func TestInputModel_EnterWithValueCommits(t *testing.T) {
 func TestInputModel_Reset(t *testing.T) {
 	m := NewInputModel("test", false, false)
 	m = typeChar(m, 'x')
-	m = updateInput(m, tea.KeyPressMsg{Code: tea.KeyEnter})
+	tuiutil.UpdateInPlace(&m, tea.KeyPressMsg{Code: tea.KeyEnter})
 	if !m.Done() {
 		t.Fatal("setup: expected Done() true")
 	}

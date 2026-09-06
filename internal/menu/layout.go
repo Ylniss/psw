@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/awnumar/memguard"
 )
 
 // PSW ASCII header. Trailing whitespace OK; lipgloss.Width takes max line width.
@@ -39,53 +40,33 @@ func contentColumnWidth(termWidth int) int {
 
 // contentColumnLeft is the terminal column where the body-content column starts.
 func contentColumnLeft(termWidth int) int {
-	left := (termWidth - contentColumnWidth(termWidth)) / 2
-	if left < 0 {
-		return 0
-	}
-	return left
+	return max((termWidth-contentColumnWidth(termWidth))/2, 0)
 }
 
 var defaultHeaderColor = lipgloss.Color("6")
 
-// menuActions is the ordered list of buttons. Index maps directly to:
-//   - the [N] hotkey (1-based)
-//   - the cell in menuCells (same index)
-//   - the dispatch name in newAction
-//
-// Keep the three in sync when adding entries.
-var menuActions = []string{"get", "add", "change", "remove", "settings", "rollback"}
+// menuEntry is one button: its label and the action it starts. Its index in
+// menuEntries is the [N] hotkey (1-based).
+type menuEntry struct {
+	name string
+	new  func(*memguard.Enclave) Action
+}
 
-// menuCells lays out the actions in a column-major 3x2 grid:
+// menuEntries lays out the actions in a column-major 3x2 grid:
 //
 //	[1] get      [3] change    [5] settings
 //	[2] add      [4] remove    [6] rollback
-var menuCells = [...]struct{ row, col int }{
-	{0, 0}, // [1] get
-	{1, 0}, // [2] add
-	{0, 1}, // [3] change
-	{1, 1}, // [4] remove
-	{0, 2}, // [5] settings
-	{1, 2}, // [6] rollback
+var menuEntries = []menuEntry{
+	{name: "get", new: func(p *memguard.Enclave) Action { return NewGetAction(p) }},
+	{name: "add", new: func(p *memguard.Enclave) Action { return NewAddAction(p) }},
+	{name: "change", new: func(p *memguard.Enclave) Action { return NewChangeAction(p) }},
+	{name: "remove", new: func(p *memguard.Enclave) Action { return NewRemoveAction(p) }},
+	{name: "settings", new: func(*memguard.Enclave) Action { return NewSettingsAction() }},
+	{name: "rollback", new: func(p *memguard.Enclave) Action { return NewRollbackAction(p) }},
 }
 
 const menuGridCols = 3
 const menuGridRows = 2
-
-// menuCellLookup[row][col] = menuActions index, or -1 if empty.
-// Inverse of menuCells, built at init.
-var menuCellLookup = func() [menuGridRows][menuGridCols]int {
-	var m [menuGridRows][menuGridCols]int
-	for r := 0; r < menuGridRows; r++ {
-		for c := 0; c < menuGridCols; c++ {
-			m[r][c] = -1
-		}
-	}
-	for i, cell := range menuCells {
-		m[cell.row][cell.col] = i
-	}
-	return m
-}()
 
 // No PaddingRight on button styles: trailing pad on the rightmost button
 // would push the visible right edge 2 cells short of the content column.
@@ -103,10 +84,42 @@ var (
 const (
 	buttonPrefixSelected = "> "
 	buttonPrefixBlank    = "  "
-	buttonPrefixWidth    = 2
 )
 
-const footerHelp = "←→/hjkl/tab nav · 1-6 jump · enter/space run · esc/q quit"
+// layoutRowSpaceBetween places buttons with equal gaps. Leftmost hugs the
+// column's left edge, rightmost its right edge.
+func layoutRowSpaceBetween(rendered []string, widths []int, btnIdxs []int, columnWidth int) string {
+	n := len(btnIdxs)
+	if n == 0 {
+		return ""
+	}
+	sumW := 0
+	for _, i := range btnIdxs {
+		sumW += widths[i]
+	}
+	totalGap := max(columnWidth-sumW, 0)
+	gaps := make([]int, n-1)
+	if n > 1 {
+		base := totalGap / (n - 1)
+		rem := totalGap % (n - 1)
+		for i := range gaps {
+			gaps[i] = base
+			if i < rem {
+				gaps[i]++
+			}
+		}
+	}
+	var sb strings.Builder
+	for i, btn := range btnIdxs {
+		sb.WriteString(rendered[btn])
+		if i < len(gaps) {
+			sb.WriteString(strings.Repeat(" ", gaps[i]))
+		}
+	}
+	return sb.String()
+}
+
+const selectActionHelp = "←→/hjkl/tab nav · 1-6 jump · enter/space run · esc/q quit"
 
 // actionFrameHeight = row count of header + spacers + button rows.
 // Computed from renderActionFrame so it tracks layout changes.
@@ -125,15 +138,6 @@ func renderActionFrame() string {
 
 func renderHeader(c imgcolor.Color) string {
 	return lipgloss.NewStyle().Foreground(c).Render(pswHeader)
-}
-
-// indentToContent indents content to contentColumnLeft.
-// No wrap; use for short single-line content.
-func indentToContent(termWidth int, content string) string {
-	if termWidth == 0 {
-		return content
-	}
-	return lipgloss.NewStyle().MarginLeft(contentColumnLeft(termWidth)).Render(content)
 }
 
 // wrapToContent indents and wraps content to the body-content column.
@@ -198,10 +202,7 @@ func indentToFooter(termWidth int, content string) string {
 		return content
 	}
 	column := contentColumnWidth(termWidth)
-	extra := (column - contentWidth) / 2
-	if extra < 0 {
-		extra = 0
-	}
+	extra := max((column-contentWidth)/2, 0)
 	return lipgloss.NewStyle().MarginLeft(contentColumnLeft(termWidth) + extra).Render(content)
 }
 
@@ -213,10 +214,7 @@ func alignBlock(termWidth, targetCol int, content string) (string, int) {
 	if termWidth == 0 || termWidth <= targetCol {
 		return trimmed, 0
 	}
-	indent := targetCol - minLeadingSpaces(trimmed)
-	if indent < 0 {
-		indent = 0
-	}
+	indent := max(targetCol-minLeadingSpaces(trimmed), 0)
 	return lipgloss.NewStyle().MarginLeft(indent).Render(trimmed), indent
 }
 
@@ -236,19 +234,10 @@ func minLeadingSpaces(content string) int {
 		if strings.TrimSpace(l) == "" {
 			continue
 		}
-		n := 0
-		for _, r := range l {
-			if r != ' ' {
-				break
-			}
-			n++
-		}
+		n := len(l) - len(strings.TrimLeft(l, " "))
 		if best == -1 || n < best {
 			best = n
 		}
 	}
-	if best < 0 {
-		return 0
-	}
-	return best
+	return max(best, 0)
 }

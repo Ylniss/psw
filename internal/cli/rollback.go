@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"slices"
 
 	"github.com/TwiN/go-color"
 	"github.com/spf13/cobra"
@@ -39,43 +38,25 @@ would be encrypted under a different main password.`,
 		}
 
 		store, err := storage.GetOrCreateForMutate()
-		if done, ret := handleCmdErr(err); done {
-			return ret
-		}
-
-		entries, err := storage.GitLog()
-		if done, ret := handleCmdErr(err); done {
-			return ret
-		}
-		headShort, err := storage.HeadShortSHA()
 		if err != nil {
-			fmt.Println(color.InRed(err.Error()))
-			return errSilentExit
+			return handleCmdErr(err)
 		}
 
-		picks := make([]storage.LogEntry, 0, len(entries))
-		for _, e := range entries {
-			if e.ShortSHA != headShort {
-				picks = append(picks, e)
-			}
+		labels, byLabel, err := storage.RollbackPicks()
+		if err != nil {
+			return handleCmdErr(err)
 		}
-		if len(picks) == 0 {
+		if len(labels) == 0 {
 			fmt.Println("Nothing to roll back to.")
 			return nil
 		}
-		slices.Reverse(picks) // newest first — most likely rollback targets at the top
 
-		target, err := chooseRollbackTarget(picks)
-		if err != nil {
-			if errors.Is(err, storage.ErrPickerCancelled) {
-				return nil
-			}
-			if done, ret := handleCmdErr(err); done {
-				return ret
-			}
-		}
-		if target == nil {
+		target, err := chooseRollbackTarget(labels, byLabel)
+		if errors.Is(err, prompt.ErrPickerCancelled) {
 			return nil
+		}
+		if err != nil {
+			return handleCmdErr(err)
 		}
 
 		records, err := storage.LoadCommitRecords(target.ShortSHA, store.MainPassword)
@@ -83,16 +64,16 @@ would be encrypted under a different main password.`,
 			fmt.Println(color.InRed("Can't roll back to this snapshot — it was encrypted with a different main password"))
 			return errSilentExit
 		}
-		if done, ret := handleCmdErr(err); done {
-			return ret
+		if err != nil {
+			return handleCmdErr(err)
 		}
 
 		if !confirmRollback(*target) {
 			return nil
 		}
 
-		if done, ret := handleCmdErr(storage.ApplyRollback(store, *target, records)); done {
-			return ret
+		if err := storage.ApplyRollback(store, *target, records); err != nil {
+			return handleCmdErr(err)
 		}
 		fmt.Printf("Rolled back to %s: %s\n", color.InCyan(target.ShortSHA), target.Message)
 		return nil
@@ -102,8 +83,8 @@ would be encrypted under a different main password.`,
 // chooseRollbackTarget returns the selected LogEntry, or nil if the user
 // cancelled. Uses PSW_ROLLBACK_TARGET (matched against ShortSHA prefix) when
 // set; otherwise opens the interactive picker. Returns an error when env-var
-// bypass mode is partial or the target SHA isn't in picks.
-func chooseRollbackTarget(picks []storage.LogEntry) (*storage.LogEntry, error) {
+// bypass mode is partial or the target SHA isn't among the candidates.
+func chooseRollbackTarget(labels []string, byLabel map[string]storage.LogEntry) (*storage.LogEntry, error) {
 	envTarget := os.Getenv(envRollbackTarget)
 	envYes := os.Getenv(envRollbackYes)
 	if envTarget != "" || envYes != "" {
@@ -111,9 +92,9 @@ func chooseRollbackTarget(picks []storage.LogEntry) (*storage.LogEntry, error) {
 			fmt.Println(color.InRed(envRollbackTarget + " and " + envRollbackYes + " must be set together"))
 			return nil, errSilentExit
 		}
-		for i := range picks {
-			if picks[i].ShortSHA == envTarget {
-				return &picks[i], nil
+		for _, e := range byLabel {
+			if e.ShortSHA == envTarget {
+				return &e, nil
 			}
 		}
 		fmt.Printf("%s: no commit with short-sha %s\n", color.InRed("rollback"), envTarget)
@@ -125,19 +106,7 @@ func chooseRollbackTarget(picks []storage.LogEntry) (*storage.LogEntry, error) {
 		return nil, errSilentExit
 	}
 
-	byLabel := make(map[string]storage.LogEntry, len(picks))
-	labels := make([]string, len(picks))
-	for i, e := range picks {
-		label := fmt.Sprintf("%s  %s  %s",
-			e.ShortSHA,
-			e.Time.Format("2006-01-02 15:04"),
-			e.Message,
-		)
-		labels[i] = label
-		byLabel[label] = e
-	}
-
-	chosen, err := storage.GetRecordNameInteractive(labels, nil)
+	chosen, err := prompt.GetRecordNameInteractive(labels, nil)
 	if err != nil {
 		return nil, err
 	}

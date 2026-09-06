@@ -2,22 +2,14 @@ package storage
 
 import (
 	"fmt"
-	"log/slog"
 	"os"
 	"strings"
 )
 
 func ensureDirExists(path string) error {
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		err := os.MkdirAll(path, 0700)
-		if err != nil {
-			return fmt.Errorf("create directory %s: %w", path, err)
-		}
-		slog.Debug("directory created", "path", path)
-	} else if err != nil {
-		return fmt.Errorf("stat directory %s: %w", path, err)
+	if err := os.MkdirAll(path, 0700); err != nil {
+		return fmt.Errorf("create directory %s: %w", path, err)
 	}
-
 	return nil
 }
 
@@ -52,11 +44,8 @@ func copyFile(source, destination string) error {
 		return fmt.Errorf("failed to read source file: %w", err)
 	}
 
-	if err := os.WriteFile(destination, input, 0600); err != nil {
+	if err := writeFileAtomic(destination, input); err != nil {
 		return fmt.Errorf("failed to write file to destination: %w", err)
-	}
-	if err := os.Chmod(destination, 0600); err != nil {
-		return fmt.Errorf("failed to chmod destination file: %w", err)
 	}
 
 	return nil

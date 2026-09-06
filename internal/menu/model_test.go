@@ -5,12 +5,14 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/awnumar/memguard"
+
+	"github.com/ylniss/psw/internal/tuiutil"
 )
 
 type fakeFinishMsg struct{}
 
-// fakeAction is a minimal Action used to drive MenuModel through running-action
-// transitions. Receiving fakeFinishMsg sets done=true.
+// fakeAction is a minimal Action used to drive MenuModel through
+// running-action transitions.
 type fakeAction struct {
 	output      []string
 	newPassword *memguard.Enclave
@@ -47,95 +49,45 @@ func enclaveBytes(t *testing.T, e *memguard.Enclave) []byte {
 	return cp
 }
 
-func updateMenu(m MenuModel, msg tea.Msg) MenuModel {
-	raw, _ := m.Update(msg)
-	return raw.(MenuModel)
-}
-
 func TestMenuModel_PasswordPhaseEscQuits(t *testing.T) {
 	m := NewMenuModel()
 	if m.phase != menuPhaseEnterPassword {
 		t.Fatalf("expected menuPhaseEnterPassword, got %v", m.phase)
 	}
-	raw, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
-	m = raw.(MenuModel)
+	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
 	if cmd == nil {
 		t.Fatal("expected tea.Quit cmd from password Esc")
 	}
 }
 
-func TestMenuModel_SelectActionLKeyMovesRight(t *testing.T) {
-	// In the column-major 3x2 grid, 'l' from get (0,0) jumps to change (0,1)
-	// — index 2 in menuActions.
-	m := NewMenuModel()
-	m.phase = menuPhaseSelectAction
-	m = updateMenu(m, tea.KeyPressMsg{Code: 'l', Text: "l"})
-	if m.actionCursor != 2 {
-		t.Fatalf("expected cursor 2 (change) after 'l' from get, got %d", m.actionCursor)
+func TestMenuModel_SelectActionNavigation(t *testing.T) {
+	// Column-major 3x2 grid: get(0,0) add(1,0) change(0,1) remove(1,1)
+	// settings(0,2) rollback(1,2). h/l step a whole column and clamp;
+	// j/k step one entry and wrap.
+	cases := []struct {
+		name  string
+		start int
+		key   rune
+		want  int
+	}{
+		{"l from get to change", 0, 'l', 2},
+		{"h from change to get", 2, 'h', 0},
+		{"j from get to add", 0, 'j', 1},
+		{"j from add to change", 1, 'j', 2},
+		{"j from rollback wraps to get", 5, 'j', 0},
+		{"k from get wraps to rollback", 0, 'k', 5},
+		{"k from change to add", 2, 'k', 1},
 	}
-}
-
-func TestMenuModel_SelectActionHKeyMovesLeft(t *testing.T) {
-	// 'h' from change (0,1) jumps to get (0,0).
-	m := NewMenuModel()
-	m.phase = menuPhaseSelectAction
-	m.actionCursor = 2
-	m = updateMenu(m, tea.KeyPressMsg{Code: 'h', Text: "h"})
-	if m.actionCursor != 0 {
-		t.Fatalf("expected cursor 0 (get) after 'h' from change, got %d", m.actionCursor)
-	}
-}
-
-func TestMenuModel_SelectActionJKeyMovesDown(t *testing.T) {
-	// 'j' from get (0,0) drops to add (1,0).
-	m := NewMenuModel()
-	m.phase = menuPhaseSelectAction
-	m = updateMenu(m, tea.KeyPressMsg{Code: 'j', Text: "j"})
-	if m.actionCursor != 1 {
-		t.Fatalf("expected cursor 1 (add) after 'j' from get, got %d", m.actionCursor)
-	}
-}
-
-func TestMenuModel_SelectActionJKeyMovesToNextColumn(t *testing.T) {
-	// 'j' from add (1,0) moves to change (0,1).
-	m := NewMenuModel()
-	m.phase = menuPhaseSelectAction
-	m.actionCursor = 1
-	m = updateMenu(m, tea.KeyPressMsg{Code: 'j', Text: "j"})
-	if m.actionCursor != 2 {
-		t.Fatalf("expected cursor 2 (change) after 'j' from add, got %d", m.actionCursor)
-	}
-}
-
-func TestMenuModel_SelectActionJKeyWrapsToFirst(t *testing.T) {
-	// 'j' from rollback (1,2) wraps to get (0,0).
-	m := NewMenuModel()
-	m.phase = menuPhaseSelectAction
-	m.actionCursor = 5
-	m = updateMenu(m, tea.KeyPressMsg{Code: 'j', Text: "j"})
-	if m.actionCursor != 0 {
-		t.Fatalf("expected cursor 0 (get) after 'j' from rollback, got %d", m.actionCursor)
-	}
-}
-
-func TestMenuModel_SelectActionKKeyWrapsToLast(t *testing.T) {
-	// 'k' from get (0,0) wraps to rollback (1,2).
-	m := NewMenuModel()
-	m.phase = menuPhaseSelectAction
-	m = updateMenu(m, tea.KeyPressMsg{Code: 'k', Text: "k"})
-	if m.actionCursor != 5 {
-		t.Fatalf("expected cursor 5 (rollback) after 'k' from get, got %d", m.actionCursor)
-	}
-}
-
-func TestMenuModel_SelectActionKKeyMovesToPrevColumn(t *testing.T) {
-	// 'k' from change (0,1) moves to add (1,0).
-	m := NewMenuModel()
-	m.phase = menuPhaseSelectAction
-	m.actionCursor = 2
-	m = updateMenu(m, tea.KeyPressMsg{Code: 'k', Text: "k"})
-	if m.actionCursor != 1 {
-		t.Fatalf("expected cursor 1 (add) after 'k' from change, got %d", m.actionCursor)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			m := NewMenuModel()
+			m.phase = menuPhaseSelectAction
+			m.actionCursor = tc.start
+			tuiutil.UpdateInPlace(&m, tea.KeyPressMsg{Code: tc.key, Text: string(tc.key)})
+			if m.actionCursor != tc.want {
+				t.Fatalf("cursor = %d, want %d", m.actionCursor, tc.want)
+			}
+		})
 	}
 }
 
@@ -143,7 +95,7 @@ func TestMenuModel_SelectActionSpaceConfirms(t *testing.T) {
 	// Space confirms the focused action, like enter.
 	m := NewMenuModel()
 	m.phase = menuPhaseSelectAction
-	m = updateMenu(m, tea.KeyPressMsg{Code: ' ', Text: " "})
+	tuiutil.UpdateInPlace(&m, tea.KeyPressMsg{Code: ' ', Text: " "})
 	if m.phase != menuPhaseRunningAction {
 		t.Fatalf("expected menuPhaseRunningAction after space, got %v", m.phase)
 	}
@@ -162,7 +114,7 @@ func TestMenuModel_RunningActionCompletionReturnsToSelect(t *testing.T) {
 	m := NewMenuModel()
 	m.phase = menuPhaseRunningAction
 	m.activeAction = fakeAction{output: []string{"recordX done"}}
-	m = updateMenu(m, fakeFinishMsg{})
+	tuiutil.UpdateInPlace(&m, fakeFinishMsg{})
 	if m.phase != menuPhaseSelectAction {
 		t.Fatalf("expected menuPhaseSelectAction after action.Done(), got %v", m.phase)
 	}
@@ -180,7 +132,7 @@ func TestMenuModel_RunningActionNewPasswordPropagates(t *testing.T) {
 	newEnc := memguard.NewEnclave([]byte("new"))
 	m.phase = menuPhaseRunningAction
 	m.activeAction = fakeAction{newPassword: newEnc}
-	m = updateMenu(m, fakeFinishMsg{})
+	tuiutil.UpdateInPlace(&m, fakeFinishMsg{})
 	if got := string(enclaveBytes(t, m.password)); got != "new" {
 		t.Fatalf("password = %q, want %q", got, "new")
 	}
@@ -190,7 +142,7 @@ func TestMenuModel_RunningActionCancelReturnsToSelectWithoutOutput(t *testing.T)
 	m := NewMenuModel()
 	m.phase = menuPhaseRunningAction
 	m.activeAction = fakeAction{cancelled: true, output: []string{"should-not-leak"}}
-	m = updateMenu(m, struct{}{})
+	tuiutil.UpdateInPlace(&m, struct{}{})
 	if m.phase != menuPhaseSelectAction {
 		t.Fatalf("expected menuPhaseSelectAction after cancellation, got %v", m.phase)
 	}

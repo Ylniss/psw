@@ -9,27 +9,21 @@ import (
 	"github.com/ylniss/psw/internal/storage"
 )
 
-func changeMainPassword() error {
-	store, err := storage.GetOrCreateForMutate()
-	if done, ret := handleCmdErr(err); done {
-		return ret
-	}
-	return changeMainPasswordOnStore(store)
-}
-
-// changeMainPasswordOnStore lets the picker path reuse the store loaded by
-// changeRecord instead of re-prompting via GetOrCreateForMutate.
-func changeMainPasswordOnStore(store *storage.Storage) error {
+// changeMainPassword re-encrypts the already-loaded store under a new main
+// password, then commits. Callers reject the record-field flags first, before
+// the store loads — a bad flag combination shouldn't cost a password prompt.
+func changeMainPassword(store *storage.Storage) error {
 	fmt.Println(color.InCyan("Changing your main password"))
 	newMainPassword, err := prompt.PromptMainPasswordChange()
-	if done, ret := handleCmdErr(err); done {
-		return ret
+	if err != nil {
+		return handleCmdErr(err)
 	}
 	store.MainPassword = newMainPassword
-	if done, ret := handleCmdErr(store.Save()); done {
-		return ret
+	if err := store.Save(); err != nil {
+		return handleCmdErr(err)
 	}
 	fmt.Println(color.InGreen("Main password changed"))
+	storage.GitCommit("main password changed")
 	return nil
 }
 

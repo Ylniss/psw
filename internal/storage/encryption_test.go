@@ -60,27 +60,15 @@ func TestEncryptToFile_RoundTrip(t *testing.T) {
 	}
 }
 
-// TestEncryptToFile_NoLeftoverTemp: no temp file remains after a successful write.
 func TestEncryptToFile_NoLeftoverTemp(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "storage.psw")
 	if err := encryptToFile(path, []byte("x"), []byte("p")); err != nil {
 		t.Fatalf("encryptToFile: %v", err)
 	}
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		t.Fatalf("readdir: %v", err)
-	}
-	if len(entries) != 1 || entries[0].Name() != "storage.psw" {
-		names := make([]string, len(entries))
-		for i, e := range entries {
-			names[i] = e.Name()
-		}
-		t.Fatalf("expected only storage.psw, got %v", names)
-	}
+	assertOnlyFile(t, dir, "storage.psw")
 }
 
-// TestEncryptToFile_WipesInput: input slice is wiped on return.
 func TestEncryptToFile_WipesInput(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "storage.psw")
@@ -123,12 +111,11 @@ func TestPSW2_RoundTrip_AllSizes(t *testing.T) {
 	}
 }
 
-// TestPSW2_PaddingIsBlockAligned: sealed length minus GCM overhead is a
-// multiple of padBlockSize.
-func TestPSW2_PaddingIsBlockAligned(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "storage.psw")
-	plain := bytes.Repeat([]byte("a"), 17) // far below one block
+// encryptedPayload writes plain to a fresh vault file and returns the path plus
+// the decoded on-disk payload (magic || salt || sealed).
+func encryptedPayload(t *testing.T, plain []byte) (string, []byte) {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "storage.psw")
 	if err := encryptToFile(path, plain, []byte("p")); err != nil {
 		t.Fatalf("encrypt: %v", err)
 	}
@@ -140,6 +127,19 @@ func TestPSW2_PaddingIsBlockAligned(t *testing.T) {
 	if err != nil {
 		t.Fatalf("base64: %v", err)
 	}
+	return path, payload
+}
+
+// writePayload re-encodes payload over the vault file at path.
+func writePayload(t *testing.T, path string, payload []byte) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(base64.StdEncoding.EncodeToString(payload)), 0600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+}
+
+func TestPSW2_PaddingIsBlockAligned(t *testing.T) {
+	_, payload := encryptedPayload(t, bytes.Repeat([]byte("a"), 17)) // far below one block
 	sealed := payload[len(magicHeaderV2)+saltLength:]
 	// GCMWithRandomNonce: 12-byte nonce prepended + 16-byte tag.
 	const gcmOverhead = 12 + 16
@@ -152,24 +152,9 @@ func TestPSW2_PaddingIsBlockAligned(t *testing.T) {
 // TestPSW2_SaltTamperingFailsDecrypt: flipping a salt byte yields a different
 // derived key; gcm.Open fails the tag check.
 func TestPSW2_SaltTamperingFailsDecrypt(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "storage.psw")
-	if err := encryptToFile(path, []byte("hello"), []byte("p")); err != nil {
-		t.Fatalf("encrypt: %v", err)
-	}
-	encoded, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read: %v", err)
-	}
-	payload, err := base64.StdEncoding.DecodeString(string(encoded))
-	if err != nil {
-		t.Fatalf("base64: %v", err)
-	}
+	path, payload := encryptedPayload(t, []byte("hello"))
 	payload[len(magicHeaderV2)] ^= 0xFF
-	tampered := base64.StdEncoding.EncodeToString(payload)
-	if err := os.WriteFile(path, []byte(tampered), 0600); err != nil {
-		t.Fatalf("write: %v", err)
-	}
+	writePayload(t, path, payload)
 	if _, err := decryptFromFile(path, []byte("p")); err == nil {
 		t.Fatalf("expected decrypt to fail after salt tampering, got nil error")
 	}
@@ -178,25 +163,10 @@ func TestPSW2_SaltTamperingFailsDecrypt(t *testing.T) {
 // TestPSW2_UnknownMagicRejected: format check rejects unknown magic before
 // decryption.
 func TestPSW2_UnknownMagicRejected(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "storage.psw")
-	if err := encryptToFile(path, []byte("hello"), []byte("p")); err != nil {
-		t.Fatalf("encrypt: %v", err)
-	}
-	encoded, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read: %v", err)
-	}
-	payload, err := base64.StdEncoding.DecodeString(string(encoded))
-	if err != nil {
-		t.Fatalf("base64: %v", err)
-	}
+	path, payload := encryptedPayload(t, []byte("hello"))
 	payload[3] = '3' // PSW2 → PSW3 (unrecognized)
-	tampered := base64.StdEncoding.EncodeToString(payload)
-	if err := os.WriteFile(path, []byte(tampered), 0600); err != nil {
-		t.Fatalf("write: %v", err)
-	}
-	_, err = decryptFromFile(path, []byte("p"))
+	writePayload(t, path, payload)
+	_, err := decryptFromFile(path, []byte("p"))
 	if err == nil {
 		t.Fatalf("expected decrypt to fail after magic swap")
 	}
@@ -205,7 +175,6 @@ func TestPSW2_UnknownMagicRejected(t *testing.T) {
 	}
 }
 
-// TestDecrypt_PSW1ReturnsErrPSW1Unsupported: synthesized PSW1 blob → ErrPSW1Unsupported.
 func TestDecrypt_PSW1ReturnsErrPSW1Unsupported(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "storage.psw")
@@ -215,6 +184,25 @@ func TestDecrypt_PSW1ReturnsErrPSW1Unsupported(t *testing.T) {
 	_, err := decryptFromFile(path, []byte("p"))
 	if !errors.Is(err, ErrPSW1Unsupported) {
 		t.Fatalf("expected ErrPSW1Unsupported, got %v", err)
+	}
+}
+
+func TestPSW2_FileBeginsWithPSW2(t *testing.T) {
+	_, payload := encryptedPayload(t, []byte("x"))
+	if !bytes.Equal(payload[:4], []byte("PSW2")) {
+		t.Fatalf("expected PSW2 magic, got %q", string(payload[:4]))
+	}
+}
+
+func TestUnpadPlaintext_MalformedLengthPrefix(t *testing.T) {
+	padded := make([]byte, padBlockSize)
+	// Length prefix says 10000 bytes, but the buffer is one 4 KiB block.
+	padded[0] = 0x00
+	padded[1] = 0x00
+	padded[2] = 0x27
+	padded[3] = 0x10 // 0x2710 = 10000
+	if _, err := unpadPlaintext(padded); err == nil {
+		t.Fatalf("expected malformed-length error, got nil")
 	}
 }
 
@@ -238,37 +226,4 @@ func writePSW1Vault(filePath, plainText string, password []byte) error {
 	payload = append(payload, sealed...)
 	encoded := base64.StdEncoding.EncodeToString(payload)
 	return os.WriteFile(filePath, []byte(encoded), 0600)
-}
-
-// TestPSW2_FileBeginsWithPSW2 inspects the on-disk header bytes.
-func TestPSW2_FileBeginsWithPSW2(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "storage.psw")
-	if err := encryptToFile(path, []byte("x"), []byte("p")); err != nil {
-		t.Fatalf("encrypt: %v", err)
-	}
-	encoded, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read: %v", err)
-	}
-	payload, err := base64.StdEncoding.DecodeString(string(encoded))
-	if err != nil {
-		t.Fatalf("base64: %v", err)
-	}
-	if !bytes.Equal(payload[:4], []byte("PSW2")) {
-		t.Fatalf("expected PSW2 magic, got %q", string(payload[:4]))
-	}
-}
-
-// TestUnpadPlaintext_MalformedLengthPrefix rejects an oversized length prefix.
-func TestUnpadPlaintext_MalformedLengthPrefix(t *testing.T) {
-	padded := make([]byte, padBlockSize)
-	// Length prefix says plaintext is 10 KiB, but the buffer is only 4 KiB.
-	padded[0] = 0x00
-	padded[1] = 0x00
-	padded[2] = 0x27
-	padded[3] = 0x10 // 0x2710 = 10000
-	if _, err := unpadPlaintext(padded); err == nil {
-		t.Fatalf("expected malformed-length error, got nil")
-	}
 }

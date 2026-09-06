@@ -8,12 +8,12 @@ Guidance for Claude Code in this repo.
 
 Nix flake (`nix/flake.nix`): bump `gomod2nix.toml` + `vendorHash` on dep changes.
 
-Integration tests in `tests/` (`make test`): `TestMain` builds `psw` once into `t.TempDir`; each shells out against its own `PSW_HOME=t.TempDir()` vault with `PSW_GIT=0`.
+`make test` runs `go test ./...`: unit tests beside their source, plus the integration tests in `tests/`, where `TestMain` builds `psw` once into `t.TempDir` and each test shells out against its own `PSW_HOME=t.TempDir()` vault with `PSW_GIT=0`.
 
 ## Two binaries, one repo
 
 - `psw` (`cmd/psw/main.go` → `cli.Execute`) — CLI. No `.env` autoload.
-- `clipclean` (`cmd/clipclean/main.go`) — backgrounded by `psw get` to clear clipboard after timeout. Must be on `PATH` (`make install` covers it).
+- `clipclean` (`cmd/clipclean/main.go` → `clipclean.Run`) — backgrounded by `psw get` to clear clipboard after timeout. Must be on `PATH` (`make install` covers it).
 
 ## Architecture
 
@@ -21,9 +21,9 @@ Integration tests in `tests/` (`make test`): `TestMain` builds `psw` once into `
 
 - `cmd/<binary>/main.go` — entry points; thin wrappers, real logic under `internal/`.
 - `internal/cli/` — Cobra commands (`package cli`). `rootCmd` (`root.go`) is the central registry; `init()` calls `rootCmd.AddCommand(getCmd, addCmd, ...)`; subcommand files define their `*cobra.Command` + per-command flags. Bare `psw` launches the interactive menu (TTY required; non-TTY exits 1 with "requires an interactive terminal"); `PersistentPreRunE` runs `setupLogger()` + `storage.InitConfig()` (errors → cobra → `Execute` → exit 1). `Version` = ldflag target. `psw config` is the pswcfg.toml-only command family: bare prints the config path; `set <key> <value>` writes via the `storage.ConfigKeys` registry; `reset` re-copies the binary-adjacent template. Both mutating subcommands call `GitCommit` directly (no `GetOrCreateFor*`); `tryGitCommit` flips `Paths.gitRepoExists` on demand if `.git/` exists. `set remote` does not auto-pull/push — next normal mutation handles sync.
-- `internal/storage/` — storage + encryption. `InitConfig` populates package singletons `Paths` (`StorageConfig`; paths + git-repo flag) and `AppConfig` (parsed TOML). `WarnSink` is a hook so menu mode routes `Warn(...)` into the action transcript instead of stderr.
-- `internal/prompt/` — embeddable TUI primitives (`InputModel`, `YesNoModel`, `StarState`) plus standalone wrappers (`PromptForName`, `YesOrNo`, etc.) that wrap the model in `tuiutil.Quitter` for one-shot `tea.NewProgram` runs. `YesOrNo` returns `false` on non-TTY stdin (no panic) — scripting-safe.
-- `internal/menu/` — persistent menu TUI launched by bare `psw`. `MenuModel` orchestrates six `Action` implementations (`get/add/change/remove/settings/rollback`) sharing a small `baseAction` (output/transcript/done/cancelled + `stepInput`/`stepYesNo`/`stepPicker` helpers). Buttons render in a 4+2 grid (`menuActions` + `menuCells` in `layout.go`).
+- `internal/storage/` — storage + encryption. `InitConfig` populates package singletons `Paths` (`StoragePaths`; paths + git-repo flag) and `AppConfig` (parsed TOML). `WarnSink` is a hook so menu mode routes `Warn(...)` into the action transcript instead of stderr.
+- `internal/prompt/` — embeddable TUI primitives (`InputModel`, `YesNoModel`, `PickerModel`, `StarState`) plus standalone wrappers (`PromptForName`, `YesOrNo`, etc.) that wrap the model in `tuiutil.Quitter` for one-shot `tea.NewProgram` runs. `YesOrNo` returns `false` on non-TTY stdin (no panic) — scripting-safe.
+- `internal/menu/` — persistent menu TUI launched by bare `psw`. `MenuModel` orchestrates six `Action` implementations (`get/add/change/remove/settings/rollback`) sharing a small `baseAction` (output/transcript/done/cancelled + `stepInput`/`stepYesNo`/`stepPicker` helpers). Buttons render in a 4+2 grid (`menuEntries` in `layout.go`).
 - `internal/passgen/` — password generator (per-category minimums + Fisher-Yates shuffle on `crypto/rand`). Configured via `[password_gen]` section of `pswcfg.toml`.
 - `internal/tuiutil/` — generic `Quitter[M]` and `UpdateInPlace[M]` shared across embeddable models.
 - `internal/clipclean/` — spawns the `clipclean` helper, resolving the binary next to `psw` first (handles minimal-PATH launchers like `niri spawn-sh`).
@@ -67,11 +67,11 @@ Documented unavoidable leaks (caveats):
 
 ### Interactive record selection
 
-`get`/`change`/`remove` resolve via `storage.GetRecordNameInteractive` (`internal/storage/picker.go`) — in-process `bubbles/list` fuzzy picker, no `PATH` deps. Single match returned without launching the TUI — intentional (prevents confirming a forced choice); keep before changing selection logic. On Esc/Ctrl-C picker returns `ErrPickerCancelled`; `helpers.go` translates to silent exit.
+`get`/`change`/`remove` resolve via `prompt.GetRecordNameInteractive` (`internal/prompt/picker.go`) — in-process `bubbles/list` fuzzy picker, no `PATH` deps. Single match returned without launching the TUI — intentional (prevents confirming a forced choice); keep before changing selection logic. On Esc/Ctrl-C picker returns `ErrPickerCancelled`; `helpers.go` translates to silent exit.
 
 ### Menu mode (hotkey terminals)
 
-Bare `psw` (`internal/cli/root.go` → `internal/menu/`) = single persistent `tea.Program` hosting every action as an embedded sub-model. Phases under the PSW ASCII header: (1) password entry — animated stars (`prompt.InputModel` with `animateStars=true`) plus a per-keypress non-cyan logo flash for 250ms; (2) action select — 4+2 grid: row 1 `get/add/change/remove`, row 2 `settings/rollback` under cols 3-4 (`menuCells` in `layout.go`). Default `get`. ←/→ or h/l move within a row, ↑/↓ or j/k move between rows in the same column, `1`-`6` jump directly, `enter` runs, `q/esc/ctrl+c` quits psw; (3) running an action — the chosen `Action` (in `internal/menu/{get,add,change,remove,settings,rollback}.go`) drives a state machine over `prompt.InputModel` / `prompt.YesNoModel` / `storage.PickerModel` / `ui.SpinnerModel` and emits output lines appended to the menu's history (capped at 20 blocks, rendered above the buttons). After completion, returns to action-select. Esc inside an action returns to action-select with no output appended; only Esc/q at action-select (or password phase) exits psw.
+Bare `psw` (`internal/cli/root.go` → `internal/menu/`) = single persistent `tea.Program` hosting every action as an embedded sub-model. Phases under the PSW ASCII header: (1) password entry — animated stars (`prompt.InputModel` with `animateStars=true`) plus a per-keypress non-cyan logo flash for 250ms; (2) action select — 4+2 grid: row 1 `get/add/change/remove`, row 2 `settings/rollback` under cols 3-4 (`menuEntries` in `layout.go`). Default `get`. ←/→ or h/l move within a row, ↑/↓ or j/k move between rows in the same column, `1`-`6` jump directly, `enter` runs, `q/esc/ctrl+c` quits psw; (3) running an action — the chosen `Action` (in `internal/menu/{get,add,change,remove,settings,rollback}.go`) drives a state machine over `prompt.InputModel` / `prompt.YesNoModel` / `prompt.PickerModel` / `ui.SpinnerModel` and emits output lines appended to the menu's history (capped at 20 blocks, rendered above the buttons). After completion, returns to action-select. Esc inside an action returns to action-select with no output appended; only Esc/q at action-select (or password phase) exits psw.
 
 Each action embeds `baseAction` (output/transcript/done/cancelled + accessors) and uses `stepInput`/`stepYesNo`/`stepPicker` helpers to compress per-phase boilerplate. The picker emits its own help line for standalone CLI usage; menu hosts call `PickerModel.WithoutHelp()` and surface help via `Action.FooterHelp()` at the bottom row instead.
 

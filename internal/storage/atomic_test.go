@@ -39,15 +39,21 @@ func TestWriteFileAtomic_OverwritesExisting(t *testing.T) {
 	if string(got) != "second" {
 		t.Fatalf("content = %q, want %q", got, "second")
 	}
+	assertOnlyFile(t, dir, "file.bin")
+}
+
+// assertOnlyFile asserts that dir holds exactly one entry, named name.
+func assertOnlyFile(t *testing.T, dir, name string) {
+	t.Helper()
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		t.Fatalf("readdir: %v", err)
 	}
-	if len(entries) != 1 || entries[0].Name() != "file.bin" {
+	if len(entries) != 1 || entries[0].Name() != name {
 		names := make([]string, len(entries))
 		for i, e := range entries {
 			names[i] = e.Name()
 		}
-		t.Fatalf("expected only file.bin, got %v", names)
+		t.Fatalf("expected only %s, got %v", name, names)
 	}
 }

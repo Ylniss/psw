@@ -6,11 +6,11 @@ import (
 	"path/filepath"
 )
 
-// writeFileAtomic atomically replaces filename: write to temp file,
-// fsync, rename, then fsync parent dir on POSIX.
-func writeFileAtomic(filename string, data []byte) error {
-	dir := filepath.Dir(filename)
-	base := filepath.Base(filename)
+// writeFileAtomic atomically replaces the file at filePath: write to temp
+// file, fsync, rename, then fsync parent dir on POSIX.
+func writeFileAtomic(filePath string, data []byte) error {
+	dir := filepath.Dir(filePath)
+	base := filepath.Base(filePath)
 	f, err := os.CreateTemp(dir, "."+base+".tmp.*")
 	if err != nil {
 		return err
@@ -31,7 +31,7 @@ func writeFileAtomic(filename string, data []byte) error {
 	if err := f.Close(); err != nil {
 		return err
 	}
-	if err := os.Rename(tempPath, filename); err != nil {
+	if err := os.Rename(tempPath, filePath); err != nil {
 		return err
 	}
 	renamed = true

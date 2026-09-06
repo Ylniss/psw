@@ -1,44 +1,13 @@
 package tests
 
 import (
-	"os"
-	"os/exec"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
 )
 
-func newGitVault(t *testing.T) (string, map[string]string) {
-	t.Helper()
-	env := map[string]string{
-		"PSW_GIT":             "",
-		"PSW_GIT_REMOTE":      "0",
-		"GIT_AUTHOR_NAME":     "psw-tests",
-		"GIT_AUTHOR_EMAIL":    "psw@tests.local",
-		"GIT_COMMITTER_NAME":  "psw-tests",
-		"GIT_COMMITTER_EMAIL": "psw@tests.local",
-	}
-	dir := t.TempDir()
-	src := filepath.Join("testdata", "pswcfg.toml")
-	data, err := os.ReadFile(src)
-	if err != nil {
-		t.Fatalf("read testdata pswcfg.toml: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "pswcfg.toml"), data, 0644); err != nil {
-		t.Fatalf("write vault pswcfg.toml: %v", err)
-	}
-	// Trigger first-time init via a known-missing record (exit 1 ignored).
-	runPswEnv(t, dir, env, "get", "__init__", "--exact")
-	return dir, env
-}
-
 func TestLog_ShowsCommits(t *testing.T) {
 	t.Parallel()
-	if _, err := exec.LookPath("git"); err != nil {
-		t.Skip("git not available")
-	}
-
 	vault, env := newGitVault(t)
 
 	mustExit(t, runPswEnv(t, vault, env, "add", "foo", "-u", "u", "--password=p"), 0)
@@ -51,12 +20,7 @@ func TestLog_ShowsCommits(t *testing.T) {
 	mustContain(t, result.stdout, "added new record")
 	mustContain(t, result.stdout, "record removed")
 
-	var lines []string
-	for _, l := range strings.Split(strings.TrimSpace(result.stdout), "\n") {
-		if l != "" {
-			lines = append(lines, l)
-		}
-	}
+	lines := strings.Split(strings.TrimSpace(result.stdout), "\n")
 	if len(lines) != 5 {
 		t.Fatalf("expected 5 log lines, got %d:\n%s", len(lines), result.stdout)
 	}

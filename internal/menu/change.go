@@ -7,6 +7,7 @@ import (
 	"github.com/TwiN/go-color"
 	"github.com/awnumar/memguard"
 
+	"github.com/ylniss/psw/internal/prompt"
 	"github.com/ylniss/psw/internal/storage"
 	"github.com/ylniss/psw/internal/tuiutil"
 )
@@ -36,7 +37,7 @@ type ChangeAction struct {
 	phase    changePhase
 	password *memguard.Enclave
 
-	picker storage.PickerModel
+	picker prompt.PickerModel
 	store  *storage.Storage
 
 	rotatingMainPassword bool
@@ -45,8 +46,6 @@ type ChangeAction struct {
 
 	nameBeforeRename string
 	record           storage.Record
-
-	width, height int
 
 	inlineBanner string
 
@@ -66,6 +65,7 @@ func (a ChangeAction) Init() tea.Cmd {
 }
 
 func (a ChangeAction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	a.captureSize(msg)
 	switch a.phase {
 	case changePhaseLoading:
 		return a.updateLoading(msg)
@@ -100,18 +100,13 @@ func (a ChangeAction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (a ChangeAction) updateLoading(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if w, ok := msg.(tea.WindowSizeMsg); ok {
-		a.width, a.height = w.Width, w.Height
-	}
-	store, done, cmd := a.handleLoadingMsg(msg, a.password)
-	if done || store == nil {
+	store, cmd := a.handleLoadingMsg(msg, a.password)
+	if store == nil {
 		return a, cmd
 	}
 	a.store = store
-	a.picker = storage.NewPickerModel(store.GetNames(), []string{storage.MainPasswordName}).WithoutHelp()
-	if a.width > 0 && a.height > 0 {
-		tuiutil.UpdateInPlace(&a.picker, tea.WindowSizeMsg{Width: a.width, Height: a.height})
-	}
+	a.picker = prompt.NewPickerModel(store.GetNames(), []string{storage.MainPasswordName}).WithoutHelp()
+	a.sizePicker(&a.picker)
 	a.phase = changePhasePicking
 	return a, nil
 }

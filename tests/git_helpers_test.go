@@ -21,6 +21,21 @@ func gitTestEnv() map[string]string {
 	}
 }
 
+// newGitVault creates a vault with git commits enabled but no remote, and runs
+// psw once to trigger first-time init. Returns the vault path and env.
+func newGitVault(t *testing.T) (string, map[string]string) {
+	t.Helper()
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+	dir := newVault(t)
+	env := gitTestEnv()
+	env["PSW_GIT_REMOTE"] = "0"
+	// Trigger first-time init via a known-missing record (exit 1 ignored).
+	runPswEnv(t, dir, env, "get", "__init__", "--exact")
+	return dir, env
+}
+
 // newBareRemote creates a bare git repo in a temp dir and returns its path.
 // Uses --initial-branch=main to match the vault's init.
 func newBareRemote(t *testing.T) string {
@@ -55,9 +70,6 @@ func newGitVaultWithRemote(t *testing.T) (vault, bare string, env map[string]str
 // common ancestor.
 func addPeer(t *testing.T, bare string) (vault string, env map[string]string) {
 	t.Helper()
-	if _, err := exec.LookPath("git"); err != nil {
-		t.Skip("git not available")
-	}
 	vault = t.TempDir()
 	if out, err := exec.Command("git", "clone", bare, vault).CombinedOutput(); err != nil {
 		t.Fatalf("git clone: %v\n%s", err, out)

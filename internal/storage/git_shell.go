@@ -3,9 +3,9 @@ package storage
 import (
 	"context"
 	"errors"
-	"net/url"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-git/go-git/v5/plumbing/transport"
@@ -13,6 +13,21 @@ import (
 
 // gitNetworkTimeout caps fetch/push to prevent indefinite hangs.
 const gitNetworkTimeout = 5 * time.Second
+
+var (
+	gitOnPathOnce   sync.Once
+	gitOnPathResult bool
+)
+
+// gitOnPath reports whether the git binary is on PATH. Cached on first call;
+// mid-process $PATH changes are ignored.
+func gitOnPath() bool {
+	gitOnPathOnce.Do(func() {
+		_, err := exec.LookPath("git")
+		gitOnPathResult = err == nil
+	})
+	return gitOnPathResult
+}
 
 // runGit and runGitNetwork are the shell-git fallback path for auth/signing
 // cases go-git can't handle.
@@ -35,33 +50,15 @@ func runGitNetwork(args ...string) (string, error) {
 	return string(out), err
 }
 
-// redactURL replaces the password in a URL with "xxxxx" for safe logging.
-func redactURL(u string) string {
-	p, err := url.Parse(u)
-	if err != nil {
-		return u
-	}
-	return p.Redacted()
-}
-
 // shouldFallbackToShell is true for auth/signing failures we can recover from
 // via shell git (our pre-call sentinel, go-git transport sentinels, or the SSH
 // "no supported methods" handshake error).
 func shouldFallbackToShell(err error) bool {
-	if errors.Is(err, ErrShellGitNeeded) {
+	if errors.Is(err, ErrShellGitNeeded) ||
+		errors.Is(err, transport.ErrAuthenticationRequired) ||
+		errors.Is(err, transport.ErrAuthorizationFailed) ||
+		errors.Is(err, transport.ErrInvalidAuthMethod) {
 		return true
 	}
-	if errors.Is(err, transport.ErrAuthenticationRequired) {
-		return true
-	}
-	if errors.Is(err, transport.ErrAuthorizationFailed) {
-		return true
-	}
-	if errors.Is(err, transport.ErrInvalidAuthMethod) {
-		return true
-	}
-	if err != nil && strings.Contains(err.Error(), "no supported methods remain") {
-		return true
-	}
-	return false
+	return err != nil && strings.Contains(err.Error(), "no supported methods remain")
 }

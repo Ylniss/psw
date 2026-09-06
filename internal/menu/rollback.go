@@ -1,14 +1,13 @@
 package menu
 
 import (
-	"errors"
 	"fmt"
-	"slices"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/TwiN/go-color"
 	"github.com/awnumar/memguard"
 
+	"github.com/ylniss/psw/internal/prompt"
 	"github.com/ylniss/psw/internal/storage"
 	"github.com/ylniss/psw/internal/tuiutil"
 )
@@ -29,12 +28,10 @@ type RollbackAction struct {
 	password *memguard.Enclave
 
 	store        *storage.Storage
-	picker       storage.PickerModel
+	picker       prompt.PickerModel
 	entryByLabel map[string]storage.LogEntry
 	target       storage.LogEntry
 	records      []storage.Record
-
-	width, height int
 }
 
 func NewRollbackAction(password *memguard.Enclave) RollbackAction {
@@ -50,6 +47,7 @@ func (a RollbackAction) Init() tea.Cmd {
 }
 
 func (a RollbackAction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	a.captureSize(msg)
 	switch a.phase {
 	case rollbackPhaseLoading:
 		return a.updateLoading(msg)
@@ -64,49 +62,24 @@ func (a RollbackAction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (a RollbackAction) updateLoading(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if w, ok := msg.(tea.WindowSizeMsg); ok {
-		a.width, a.height = w.Width, w.Height
-	}
-	store, done, cmd := a.handleLoadingMsg(msg, a.password)
-	if done || store == nil {
+	store, cmd := a.handleLoadingMsg(msg, a.password)
+	if store == nil {
 		return a, cmd
 	}
 	a.store = store
 
-	entries, err := storage.GitLog()
+	labels, byLabel, err := storage.RollbackPicks()
 	if err != nil {
 		a.finishErr(err)
 		return a, nil
 	}
-	headShort, err := storage.HeadShortSHA()
-	if err != nil {
-		a.finishErr(err)
-		return a, nil
-	}
-	picks := make([]storage.LogEntry, 0, len(entries))
-	for _, e := range entries {
-		if e.ShortSHA != headShort {
-			picks = append(picks, e)
-		}
-	}
-	if len(picks) == 0 {
+	if len(labels) == 0 {
 		a.finish("Nothing to roll back to.")
 		return a, nil
 	}
-	// Newest first — most likely rollback targets at the top. Matches CLI.
-	slices.Reverse(picks)
-
-	labels := make([]string, len(picks))
-	a.entryByLabel = make(map[string]storage.LogEntry, len(picks))
-	for i, e := range picks {
-		label := fmt.Sprintf("%s  %s  %s", e.ShortSHA, e.Time.Format("2006-01-02 15:04"), e.Message)
-		labels[i] = label
-		a.entryByLabel[label] = e
-	}
-	a.picker = storage.NewPickerModel(labels, nil).WithoutHelp()
-	if a.width > 0 && a.height > 0 {
-		tuiutil.UpdateInPlace(&a.picker, tea.WindowSizeMsg{Width: a.width, Height: a.height})
-	}
+	a.entryByLabel = byLabel
+	a.picker = prompt.NewPickerModel(labels, nil).WithoutHelp()
+	a.sizePicker(&a.picker)
 	a.phase = rollbackPhasePicking
 	return a, nil
 }
@@ -124,12 +97,8 @@ func (a RollbackAction) updatePicking(msg tea.Msg) (tea.Model, tea.Cmd) {
 	a.target = entry
 
 	records, err := storage.LoadCommitRecords(a.target.ShortSHA, a.password)
-	if errors.Is(err, storage.ErrForkUndecryptable) {
-		a.finish(color.InRed(storage.ForkUndecryptableUserMessage))
-		return a, nil
-	}
 	if err != nil {
-		a.finishErr(err)
+		a.finish(color.InRed(formatLoadError(err)))
 		return a, nil
 	}
 	a.records = records
@@ -139,7 +108,7 @@ func (a RollbackAction) updatePicking(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (a RollbackAction) updateConfirming(msg tea.Msg) (tea.Model, tea.Cmd) {
-	answer, ok, cmd := a.stepYesNo(&a.yesNo, msg)
+	answer, ok, cmd := a.stepYesNo(msg)
 	if a.cancelled || !ok {
 		return a, cmd
 	}
@@ -177,7 +146,6 @@ func (a RollbackAction) View() tea.View {
 	return tea.NewView("")
 }
 
-func (a RollbackAction) NewPassword() *memguard.Enclave { return nil }
 func (a RollbackAction) FooterHelp() string {
 	if a.phase == rollbackPhasePicking {
 		return a.picker.Help()

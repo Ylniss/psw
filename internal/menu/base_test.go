@@ -5,14 +5,16 @@ import (
 	"testing"
 )
 
-func TestBaseAction_InitInputSetsModelAndReturnsCmd(t *testing.T) {
+func TestBaseAction_InitInputSetsModelAndReturnsNil(t *testing.T) {
 	var b baseAction
 	cmd := b.initInput("Label", false, false)
 	if b.input.Prefix() != "Label: " {
 		t.Fatalf("expected prefix %q, got %q", "Label: ", b.input.Prefix())
 	}
-	if cmd == nil {
-		t.Fatal("initInput must return a non-nil cmd (textinput.Blink)")
+	// InputModel turns the virtual cursor off, and bubbles only forwards blink
+	// messages while useVirtualCursor is true, so there is no init cmd.
+	if cmd != nil {
+		t.Fatalf("initInput must return a nil cmd, got %v", cmd)
 	}
 }
 
@@ -46,7 +48,6 @@ func TestBaseAction_InitSpinnerSetsLabelAndReturnsCmd(t *testing.T) {
 	}
 }
 
-// initInput must overwrite a previous input rather than carry over state.
 func TestBaseAction_InitInputResetsBetweenCalls(t *testing.T) {
 	var b baseAction
 	b.initInput("First", false, false)

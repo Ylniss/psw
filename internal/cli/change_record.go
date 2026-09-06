@@ -21,13 +21,13 @@ func changeRecord(cmd *cobra.Command, args []string) error {
 	anyFlagSet := renameSet || usernameSet || passwordSet || valueSet
 
 	store, err := storage.GetOrCreateForMutate()
-	if done, ret := handleCmdErr(err); done {
-		return ret
+	if err != nil {
+		return handleCmdErr(err)
 	}
 
 	recordName, err := resolveRecordName(store, args, changeExactFlag, []string{storage.MainPasswordName})
-	if done, ret := handleCmdErr(err); done {
-		return ret
+	if err != nil {
+		return handleCmdErr(err)
 	}
 	if recordName == "" {
 		return nil
@@ -36,11 +36,7 @@ func changeRecord(cmd *cobra.Command, args []string) error {
 		if err := rejectFieldFlagsForMain(cmd); err != nil {
 			return err
 		}
-		if err := changeMainPasswordOnStore(store); err != nil {
-			return err
-		}
-		storage.GitCommit("main password changed")
-		return nil
+		return changeMainPassword(store)
 	}
 	record, isFound := store.GetRecord(recordName)
 
@@ -79,8 +75,8 @@ func changeRecord(cmd *cobra.Command, args []string) error {
 
 	store.UpdateRecord(recordName, record)
 
-	if done, ret := handleCmdErr(store.Save()); done {
-		return ret
+	if err := store.Save(); err != nil {
+		return handleCmdErr(err)
 	}
 
 	fmt.Printf("Updated %s\n", color.InGreen(record.Name))

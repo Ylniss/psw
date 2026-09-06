@@ -2,6 +2,8 @@ package storage
 
 import (
 	"bytes"
+	"fmt"
+	"maps"
 	"slices"
 	"strings"
 )
@@ -27,7 +29,7 @@ type mergeSummary struct {
 }
 
 // mergeRecords does a 3-way merge using MTime as the last-write-wins (LWW) signal.
-// Names match case-insensitively. On a content tie, remote wins.
+// Names match case-insensitively. On an mtime tie, remote wins.
 //
 // F=fork present, L=local present, R=remote present:
 //
@@ -65,8 +67,8 @@ func mergeRecords(fork, local, remote []Record) ([]Record, mergeSummary) {
 			// F0 L0 R1
 			merged = append(merged, remoteRec)
 			summary.changes = append(summary.changes, mergeChange{remoteRec.Name, actionAddedFromRemote})
-		case inLocal && inRemote && !inFork:
-			// F0 L1 R1
+		case inLocal && inRemote:
+			// F0 L1 R1 and F1 L1 R1 — mtime LWW either way
 			chosen, action := pickByMTime(localRec, remoteRec)
 			merged = append(merged, chosen)
 			if action != actionUnchanged {
@@ -87,13 +89,6 @@ func mergeRecords(fork, local, remote []Record) ([]Record, mergeSummary) {
 				summary.changes = append(summary.changes, mergeChange{remoteRec.Name, actionAddedFromRemote})
 			}
 			// local removed; remote unchanged → drop silently
-		case inLocal && inRemote && inFork:
-			// F1 L1 R1
-			chosen, action := pickByMTime(localRec, remoteRec)
-			merged = append(merged, chosen)
-			if action != actionUnchanged {
-				summary.changes = append(summary.changes, mergeChange{chosen.Name, action})
-			}
 		}
 	}
 
@@ -118,11 +113,7 @@ func unionKeys(indexes ...map[string]Record) []string {
 			seen[k] = struct{}{}
 		}
 	}
-	out := make([]string, 0, len(seen))
-	for k := range seen {
-		out = append(out, k)
-	}
-	return out
+	return slices.Collect(maps.Keys(seen))
 }
 
 // pickByMTime: byte-equal → unchanged (use local); higher mtime wins; tie → remote.
@@ -163,7 +154,7 @@ func (m mergeSummary) bucket() mergeBuckets {
 	return b
 }
 
-// printSummary emits one yellow stderr line per non-empty change category.
+// printSummary emits one Warn line per non-empty change category.
 func (m mergeSummary) printSummary() {
 	if len(m.changes) == 0 {
 		return
@@ -181,4 +172,26 @@ func (m mergeSummary) printSummary() {
 	if len(b.kept) > 0 {
 		Warn("Kept %d local records (newer than remote): %s", len(b.kept), strings.Join(b.kept, ", "))
 	}
+}
+
+// mergeMessage renders the git commit subject for a merge.
+func (m mergeSummary) mergeMessage() string {
+	b := m.bucket()
+	var parts []string
+	if len(b.added) > 0 {
+		parts = append(parts, fmt.Sprintf("+%d", len(b.added)))
+	}
+	if len(b.replaced) > 0 {
+		parts = append(parts, fmt.Sprintf("~%d", len(b.replaced)))
+	}
+	if len(b.dropped) > 0 {
+		parts = append(parts, fmt.Sprintf("-%d", len(b.dropped)))
+	}
+	if len(b.kept) > 0 {
+		parts = append(parts, fmt.Sprintf("kept-local %d", len(b.kept)))
+	}
+	if len(parts) == 0 {
+		return "merge: no record changes"
+	}
+	return "merge: " + strings.Join(parts, ", ")
 }

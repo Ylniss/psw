@@ -82,30 +82,28 @@ func TestStarState_ApplyEmpty(t *testing.T) {
 func TestStarState_ApplyKeystrokeAdd_Distribution(t *testing.T) {
 	const trials = 5000
 	s := NewStarState()
-	startLen := s.Len()
-	for i := 0; i < trials; i++ {
+	for range trials {
 		s.ApplyKeystrokeAdd(1)
 	}
-	delta := s.Len() - startLen
-	mean := float64(delta) / float64(trials)
+	mean := float64(s.Len()) / float64(trials)
 	if math.Abs(mean-1.5) > 0.1 {
 		t.Fatalf("expected mean delta ~+1.5, got %.3f over %d trials", mean, trials)
 	}
 }
 
-// All stars added in one ApplyKeystrokeAdd call must share one flashColor.
+// All stars added in one ApplyKeystrokeAdd call must share one blinkColor.
 func TestStarState_ApplyKeystrokeAdd_SingleColor(t *testing.T) {
 	s := NewStarState()
-	for trial := 0; trial < 50; trial++ {
+	for trial := range 50 {
 		s.Reset()
 		s.ApplyKeystrokeAdd(5) // 5-10 stars added with one color
 		if s.Len() < 5 {
 			t.Fatalf("trial %d: too few stars (%d)", trial, s.Len())
 		}
-		first := s.stars[0].flashColor
+		first := s.stars[0].blinkColor
 		for i, st := range s.stars {
-			if st.flashColor != first {
-				t.Fatalf("trial %d: star %d color %v differs from first %v", trial, i, st.flashColor, first)
+			if st.blinkColor != first {
+				t.Fatalf("trial %d: star %d color %v differs from first %v", trial, i, st.blinkColor, first)
 			}
 		}
 	}
@@ -129,11 +127,11 @@ func TestStarState_RandomHeaderColorNotNil(t *testing.T) {
 func TestStarState_ApplyKeystrokeAdd_NeverRepeatsColor(t *testing.T) {
 	s := NewStarState()
 	s.ApplyKeystrokeAdd(1)
-	prev := s.stars[len(s.stars)-1].flashColor
-	for i := 0; i < 200; i++ {
+	prev := s.stars[len(s.stars)-1].blinkColor
+	for i := range 200 {
 		s.Reset()
 		s.ApplyKeystrokeAdd(1)
-		cur := s.stars[len(s.stars)-1].flashColor
+		cur := s.stars[len(s.stars)-1].blinkColor
 		if cur == prev {
 			t.Fatalf("iteration %d: color repeated (%v)", i, cur)
 		}
@@ -144,7 +142,7 @@ func TestStarState_ApplyKeystrokeAdd_NeverRepeatsColor(t *testing.T) {
 func TestStarState_RandomHeaderColor_NeverRepeats(t *testing.T) {
 	s := NewStarState()
 	prev := s.RandomHeaderColor()
-	for i := 0; i < 200; i++ {
+	for i := range 200 {
 		cur := s.RandomHeaderColor()
 		if cur == prev {
 			t.Fatalf("iteration %d: header color repeated (%v)", i, cur)

@@ -22,7 +22,7 @@ func getOrCreate(pull bool) (*Storage, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := initGitRepoIfNotExists(); err != nil {
+	if err := ensureGitRepo(); err != nil {
 		return nil, err
 	}
 	// Password resolved before pull; merge needs it to decrypt fork/remote blobs.
@@ -58,7 +58,7 @@ func LoadOrCreate(password *memguard.Enclave, pull bool) (*Storage, error) {
 	if err := createEmptyVaultIfMissing(password); err != nil {
 		return nil, err
 	}
-	if err := initGitRepoIfNotExists(); err != nil {
+	if err := ensureGitRepo(); err != nil {
 		return nil, err
 	}
 	if pull {

@@ -5,59 +5,36 @@ import (
 	"testing"
 )
 
-func TestMergeRecords_CaseInsensitiveDedup_RemoteNewerWins(t *testing.T) {
-	fork := []Record{}
-	local := []Record{
-		{Name: "alice", Username: "u", Password: []byte("fromA"), MTime: 100},
+func TestMergeRecords_CaseInsensitiveDedup(t *testing.T) {
+	cases := []struct {
+		desc        string
+		localName   string
+		localMTime  int64
+		remoteName  string
+		remoteMTime int64
+		wantPass    string
+	}{
+		{"remote newer wins", "alice", 100, "ALICE", 200, "fromB"},
+		{"local newer wins", "ALICE", 200, "alice", 100, "fromA"},
+		{"mtime tie: remote wins", "alice", 100, "ALICE", 100, "fromB"},
 	}
-	remote := []Record{
-		{Name: "ALICE", Username: "u", Password: []byte("fromB"), MTime: 200},
-	}
+	for _, tc := range cases {
+		t.Run(tc.desc, func(t *testing.T) {
+			local := []Record{
+				{Name: tc.localName, Username: "u", Password: []byte("fromA"), MTime: tc.localMTime},
+			}
+			remote := []Record{
+				{Name: tc.remoteName, Username: "u", Password: []byte("fromB"), MTime: tc.remoteMTime},
+			}
 
-	merged, _ := mergeRecords(fork, local, remote)
+			merged, _ := mergeRecords(nil, local, remote)
 
-	if len(merged) != 1 {
-		t.Fatalf("expected 1 record after case-insensitive dedup, got %d: %+v", len(merged), merged)
-	}
-	if !bytes.Equal(merged[0].Password, []byte("fromB")) {
-		t.Fatalf("expected remote's password (newer mtime) to win; got %q", merged[0].Password)
-	}
-}
-
-func TestMergeRecords_CaseInsensitiveDedup_LocalNewerWins(t *testing.T) {
-	fork := []Record{}
-	local := []Record{
-		{Name: "ALICE", Username: "u", Password: []byte("fromA"), MTime: 200},
-	}
-	remote := []Record{
-		{Name: "alice", Username: "u", Password: []byte("fromB"), MTime: 100},
-	}
-
-	merged, _ := mergeRecords(fork, local, remote)
-
-	if len(merged) != 1 {
-		t.Fatalf("expected 1 record after case-insensitive dedup, got %d: %+v", len(merged), merged)
-	}
-	if !bytes.Equal(merged[0].Password, []byte("fromA")) {
-		t.Fatalf("expected local's password (newer mtime) to win; got %q", merged[0].Password)
-	}
-}
-
-func TestMergeRecords_CaseInsensitiveDedup_TieRemoteWins(t *testing.T) {
-	fork := []Record{}
-	local := []Record{
-		{Name: "alice", Username: "u", Password: []byte("fromA"), MTime: 100},
-	}
-	remote := []Record{
-		{Name: "ALICE", Username: "u", Password: []byte("fromB"), MTime: 100},
-	}
-
-	merged, _ := mergeRecords(fork, local, remote)
-
-	if len(merged) != 1 {
-		t.Fatalf("expected 1 record after case-insensitive dedup, got %d: %+v", len(merged), merged)
-	}
-	if !bytes.Equal(merged[0].Password, []byte("fromB")) {
-		t.Fatalf("expected remote to win on mtime tie; got %q", merged[0].Password)
+			if len(merged) != 1 {
+				t.Fatalf("expected 1 record after case-insensitive dedup, got %d: %+v", len(merged), merged)
+			}
+			if !bytes.Equal(merged[0].Password, []byte(tc.wantPass)) {
+				t.Fatalf("expected %q to win; got %q", tc.wantPass, merged[0].Password)
+			}
+		})
 	}
 }

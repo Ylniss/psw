@@ -30,12 +30,15 @@ func TestRemove_MissingRecord(t *testing.T) {
 
 func TestRemove_MultiExact(t *testing.T) {
 	t.Parallel()
+	// Arrange
 	vault := newVault(t)
 	runPsw(t, vault, "add", "alice", "-u", "u", "--password=p")
 	runPsw(t, vault, "add", "bob", "-u", "u", "--password=p")
 	runPsw(t, vault, "add", "carol", "-u", "u", "--password=p")
 
+	// Act
 	result := runPsw(t, vault, "remove", "alice", "carol", "--exact")
+	// Assert
 	mustExit(t, result, 0)
 	mustContain(t, result.stdout, "Removed alice")
 	mustContain(t, result.stdout, "Removed carol")
@@ -43,20 +46,18 @@ func TestRemove_MultiExact(t *testing.T) {
 	gotBob := runPsw(t, vault, "get", "bob", "--exact", "--stdout")
 	mustExit(t, gotBob, 0)
 	mustEqual(t, trimmed(gotBob), "p")
-	gotAlice := runPsw(t, vault, "get", "alice", "--exact", "--stdout")
-	mustExit(t, gotAlice, 1)
-	mustContain(t, gotAlice.stdout, "Record alice was not found")
-	gotCarol := runPsw(t, vault, "get", "carol", "--exact", "--stdout")
-	mustExit(t, gotCarol, 1)
-	mustContain(t, gotCarol.stdout, "Record carol was not found")
+	assertVaultLacksRecords(t, vault, nil, "alice", "carol")
 }
 
 func TestRemove_MultiExactOneMissing(t *testing.T) {
 	t.Parallel()
+	// Arrange
 	vault := newVault(t)
 	runPsw(t, vault, "add", "alice", "-u", "u", "--password=p")
 
+	// Act
 	result := runPsw(t, vault, "remove", "alice", "missing", "--exact")
+	// Assert
 	mustExit(t, result, 1)
 	mustContain(t, result.stdout, "Records not found: missing")
 
@@ -67,10 +68,13 @@ func TestRemove_MultiExactOneMissing(t *testing.T) {
 
 func TestRemove_MultiExactSeveralMissing(t *testing.T) {
 	t.Parallel()
+	// Arrange
 	vault := newVault(t)
 	runPsw(t, vault, "add", "alice", "-u", "u", "--password=p")
 
+	// Act
 	result := runPsw(t, vault, "remove", "alice", "ghost", "phantom", "--exact")
+	// Assert
 	mustExit(t, result, 1)
 	mustContain(t, result.stdout, "Records not found: ghost, phantom")
 
@@ -81,11 +85,14 @@ func TestRemove_MultiExactSeveralMissing(t *testing.T) {
 
 func TestRemove_MultiArgsRequireExact(t *testing.T) {
 	t.Parallel()
+	// Arrange
 	vault := newVault(t)
 	runPsw(t, vault, "add", "alice", "-u", "u", "--password=p")
 	runPsw(t, vault, "add", "bob", "-u", "u", "--password=p")
 
+	// Act
 	result := runPsw(t, vault, "remove", "alice", "bob")
+	// Assert
 	mustExit(t, result, 1)
 	mustContain(t, result.stdout, "passing multiple names requires --exact")
 

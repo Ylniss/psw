@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 )
 
 const defaultMainPassword = "testpass"
@@ -25,7 +26,7 @@ func stripANSI(s string) string {
 	return ansiRegex.ReplaceAllString(s, "")
 }
 
-// Fresh PSW_HOME with seeded pswcfg.toml.
+// newVault returns a fresh PSW_HOME directory seeded with pswcfg.toml.
 func newVault(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -117,6 +118,15 @@ func flattenEnv(t *testing.T, vault string, extraEnv map[string]string) []string
 	}
 	return flatEnv
 }
+
+func withEnv(base map[string]string, k, v string) map[string]string {
+	out := maps.Clone(base)
+	out[k] = v
+	return out
+}
+
+// mtimeSeparation ensures two psw invocations get distinct UnixMilli stamps.
+const mtimeSeparation = 20 * time.Millisecond
 
 func mustExit(t *testing.T, r pswResult, code int) {
 	t.Helper()

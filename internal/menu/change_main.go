@@ -6,7 +6,7 @@ import (
 )
 
 func (a ChangeAction) updateEnterNewMain(msg tea.Msg) (tea.Model, tea.Cmd) {
-	val, ok, cmd := a.stepInput(&a.input, msg)
+	val, ok, cmd := a.stepInput(msg)
 	if a.cancelled || !ok {
 		return a, cmd
 	}
@@ -16,7 +16,7 @@ func (a ChangeAction) updateEnterNewMain(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (a ChangeAction) updateEnterNewMainRepeat(msg tea.Msg) (tea.Model, tea.Cmd) {
-	val, ok, cmd := a.stepInput(&a.input, msg)
+	val, ok, cmd := a.stepInput(msg)
 	if a.cancelled || !ok {
 		return a, cmd
 	}

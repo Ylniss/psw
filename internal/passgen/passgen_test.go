@@ -28,7 +28,7 @@ func TestGenerateRespectsLength(t *testing.T) {
 
 func TestGenerateRespectsMinima(t *testing.T) {
 	o := Options{Length: 20, MinDigits: 4, MinSymbols: 6, MinUppercase: 2, MinLowercase: 2, AllowRepeat: true}
-	for i := 0; i < 50; i++ {
+	for i := range 50 {
 		got, err := Generate(o)
 		if err != nil {
 			t.Fatalf("iter %d: %v", i, err)
@@ -48,56 +48,46 @@ func TestGenerateRespectsMinima(t *testing.T) {
 
 func TestGenerateAllowRepeatFalseUnique(t *testing.T) {
 	o := Options{Length: 30, MinDigits: 4, MinSymbols: 6, MinUppercase: 5, MinLowercase: 5, AllowRepeat: false}
-	for i := 0; i < 50; i++ {
+	for i := range 50 {
 		got, err := Generate(o)
 		if err != nil {
 			t.Fatalf("iter %d: %v", i, err)
 		}
 		seen := make(map[byte]bool, len(got))
-		for j := 0; j < len(got); j++ {
-			if seen[got[j]] {
+		for j, c := range []byte(got) {
+			if seen[c] {
 				t.Fatalf("iter %d: %q has repeat at index %d", i, got, j)
 			}
-			seen[got[j]] = true
+			seen[c] = true
 		}
 	}
 }
 
-func TestValidateLengthBelowOne(t *testing.T) {
-	err := Options{Length: 0}.Validate()
-	if err == nil || !strings.Contains(err.Error(), "length") {
-		t.Fatalf("want length error, got %v", err)
+func TestValidateRejects(t *testing.T) {
+	cases := []struct {
+		name string
+		opts Options
+		want string
+	}{
+		{"length below one", Options{Length: 0}, "length"},
+		{"min sum exceeds length", Options{Length: 10, MinDigits: 5, MinSymbols: 6, AllowRepeat: true}, "minimums sum"},
+		{"no repeat exceeds pool", Options{Length: 30, MinSymbols: 25, AllowRepeat: false}, "min_symbols"},
+		{"negative min", Options{Length: 16, MinDigits: -1, AllowRepeat: true}, "min_digits"},
 	}
-}
-
-func TestValidateMinSumExceedsLength(t *testing.T) {
-	o := Options{Length: 10, MinDigits: 5, MinSymbols: 6, AllowRepeat: true}
-	err := o.Validate()
-	if err == nil || !strings.Contains(err.Error(), "minimums sum") {
-		t.Fatalf("want sum error, got %v", err)
-	}
-}
-
-func TestValidateNoRepeatExceedsPool(t *testing.T) {
-	o := Options{Length: 30, MinSymbols: 25, AllowRepeat: false}
-	err := o.Validate()
-	if err == nil || !strings.Contains(err.Error(), "min_symbols") {
-		t.Fatalf("want symbol-pool error, got %v", err)
-	}
-}
-
-func TestValidateNegativeMin(t *testing.T) {
-	o := Options{Length: 16, MinDigits: -1, AllowRepeat: true}
-	err := o.Validate()
-	if err == nil || !strings.Contains(err.Error(), "min_digits") {
-		t.Fatalf("want negative min_digits error, got %v", err)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.opts.Validate()
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("Validate() = %v, want error containing %q", err, tc.want)
+			}
+		})
 	}
 }
 
 func countAny(s, pool string) int {
 	n := 0
-	for i := 0; i < len(s); i++ {
-		if strings.IndexByte(pool, s[i]) >= 0 {
+	for _, c := range []byte(s) {
+		if strings.IndexByte(pool, c) >= 0 {
 			n++
 		}
 	}

@@ -1,4 +1,4 @@
-package storage
+package prompt
 
 import (
 	"slices"
@@ -6,16 +6,13 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-)
 
-func updatePicker(m PickerModel, msg tea.Msg) PickerModel {
-	raw, _ := m.Update(msg)
-	return raw.(PickerModel)
-}
+	"github.com/ylniss/psw/internal/tuiutil"
+)
 
 func driveKeys(m PickerModel, keys ...tea.KeyPressMsg) PickerModel {
 	for _, k := range keys {
-		m = updatePicker(m, k)
+		tuiutil.UpdateInPlace(&m, k)
 	}
 	return m
 }
@@ -28,14 +25,15 @@ var (
 
 func sizedMulti(names ...string) PickerModel {
 	m := NewPickerModelMulti(names)
-	return updatePicker(m, tea.WindowSizeMsg{Width: 80, Height: 24})
+	tuiutil.UpdateInPlace(&m, tea.WindowSizeMsg{Width: 80, Height: 24})
+	return m
 }
 
 func TestPickerModel_EnterSelects(t *testing.T) {
 	m := NewPickerModel([]string{"alpha", "beta", "gamma"}, nil)
 	// WindowSize so list is rendered
-	m = updatePicker(m, tea.WindowSizeMsg{Width: 80, Height: 24})
-	m = updatePicker(m, tea.KeyPressMsg{Code: tea.KeyEnter})
+	tuiutil.UpdateInPlace(&m, tea.WindowSizeMsg{Width: 80, Height: 24})
+	tuiutil.UpdateInPlace(&m, tea.KeyPressMsg{Code: tea.KeyEnter})
 	if !m.Done() {
 		t.Fatal("expected Done() true after enter")
 	}
@@ -46,8 +44,8 @@ func TestPickerModel_EnterSelects(t *testing.T) {
 
 func TestPickerModel_EscCancels(t *testing.T) {
 	m := NewPickerModel([]string{"a", "b"}, nil)
-	m = updatePicker(m, tea.WindowSizeMsg{Width: 80, Height: 24})
-	m = updatePicker(m, tea.KeyPressMsg{Code: tea.KeyEscape})
+	tuiutil.UpdateInPlace(&m, tea.WindowSizeMsg{Width: 80, Height: 24})
+	tuiutil.UpdateInPlace(&m, tea.KeyPressMsg{Code: tea.KeyEscape})
 	if !m.Cancelled() {
 		t.Fatal("expected Cancelled() true after esc")
 	}
@@ -58,8 +56,8 @@ func TestPickerModel_EscCancels(t *testing.T) {
 
 func TestPickerModel_CtrlCCancels(t *testing.T) {
 	m := NewPickerModel([]string{"a", "b"}, nil)
-	m = updatePicker(m, tea.WindowSizeMsg{Width: 80, Height: 24})
-	m = updatePicker(m, tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
+	tuiutil.UpdateInPlace(&m, tea.WindowSizeMsg{Width: 80, Height: 24})
+	tuiutil.UpdateInPlace(&m, tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
 	if !m.Cancelled() {
 		t.Fatal("expected Cancelled() true after ctrl+c")
 	}

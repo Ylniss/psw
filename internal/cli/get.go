@@ -5,7 +5,6 @@ import (
 	"log/slog"
 
 	"github.com/TwiN/go-color"
-	"github.com/atotto/clipboard"
 	"github.com/spf13/cobra"
 	"github.com/ylniss/psw/internal/clipclean"
 	"github.com/ylniss/psw/internal/storage"
@@ -33,15 +32,19 @@ Arguments:
 	Short: "Get secrets from record with specified name",
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		store, err := storage.GetOrCreateForRead()
-		if done, ret := handleCmdErr(err); done {
-			return ret
+		if getUsernameFlag && !getStdoutFlag {
+			fmt.Println("--username requires --stdout")
+			return errSilentExit
 		}
-		clipboardTimeoutSeconds := storage.AppConfig.ClipboardTimeoutSeconds
+
+		store, err := storage.GetOrCreateForRead()
+		if err != nil {
+			return handleCmdErr(err)
+		}
 
 		recordName, err := resolveRecordName(store, args, getExactFlag, nil)
-		if done, ret := handleCmdErr(err); done {
-			return ret
+		if err != nil {
+			return handleCmdErr(err)
 		}
 		if recordName == "" {
 			return nil
@@ -56,53 +59,50 @@ Arguments:
 			return nil
 		}
 
-		if getUsernameFlag && !getStdoutFlag {
-			fmt.Println("--username requires --stdout")
+		if getStdoutFlag {
+			return printRecordToStdout(record, recordName)
+		}
+		return copyRecordToClipboard(record, recordName)
+	},
+}
+
+// printRecordToStdout writes raw stdout for piping (e.g. `psw get foo --stdout
+// | xclip`); no labels, no color, no menu indent.
+func printRecordToStdout(record storage.Record, recordName string) error {
+	if getUsernameFlag {
+		if len(record.Value) != 0 {
+			fmt.Printf("Record %s has no username (it stores a value)\n", color.InGreen(recordName))
 			return errSilentExit
 		}
-
-		if getStdoutFlag {
-			// Raw stdout for piping (e.g. `psw get foo --stdout | xclip`); no labels, no color, no menu indent.
-			if getUsernameFlag {
-				if len(record.Value) != 0 {
-					fmt.Printf("Record %s has no username (it stores a value)\n", color.InGreen(recordName))
-					return errSilentExit
-				}
-				fmt.Println(record.Username)
-				return nil
-			}
-			if len(record.Value) == 0 {
-				fmt.Println(string(record.Password))
-			} else {
-				fmt.Println(string(record.Value))
-			}
-			return nil
-		}
-
-		if len(record.Value) == 0 {
-			if err := clipboard.WriteAll(string(record.Password)); err != nil {
-				fmt.Printf("Failed to copy value to clipboard: %s\n", err)
-				return nil
-			}
-			fmt.Println("Username")
-			fmt.Println(color.InYellow(record.Username))
-			fmt.Println()
-			printSecret("Password", recordName, string(record.Password), revealFlag, clipboardTimeoutSeconds)
-		} else {
-			if err := clipboard.WriteAll(string(record.Value)); err != nil {
-				fmt.Printf("Failed to copy value to clipboard: %s\n", err)
-				return nil
-			}
-			printSecret("Value", recordName, string(record.Value), revealFlag, clipboardTimeoutSeconds)
-		}
-
-		if err := clipclean.Spawn(clipboardTimeoutSeconds); err != nil {
-			_ = clipboard.WriteAll("")
-			fmt.Printf("Couldn't start clipboard cleanup: %s (clipboard cleared)\n", err)
-			return nil
-		}
+		fmt.Println(record.Username)
 		return nil
-	},
+	}
+	if len(record.Value) == 0 {
+		fmt.Println(string(record.Password))
+	} else {
+		fmt.Println(string(record.Value))
+	}
+	return nil
+}
+
+func copyRecordToClipboard(record storage.Record, recordName string) error {
+	clipboardTimeoutSeconds := storage.AppConfig.ClipboardTimeoutSeconds
+	isUserPass := len(record.Value) == 0
+	label, secret := "Value", string(record.Value)
+	if isUserPass {
+		label, secret = "Password", string(record.Password)
+	}
+	if err := clipclean.CopyAndSchedule(secret, clipboardTimeoutSeconds); err != nil {
+		fmt.Println(err)
+		return nil
+	}
+	if isUserPass {
+		fmt.Println("Username")
+		fmt.Println(color.InYellow(record.Username))
+		fmt.Println()
+	}
+	printSecret(label, recordName, secret, revealFlag, clipboardTimeoutSeconds)
+	return nil
 }
 
 func printSecret(label, recordName, secret string, reveal bool, clipboardTimeoutSeconds int) {

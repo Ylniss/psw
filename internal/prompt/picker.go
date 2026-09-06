@@ -1,4 +1,4 @@
-package storage
+package prompt
 
 import (
 	"errors"
@@ -41,9 +41,9 @@ type pickerItem string
 
 func (i pickerItem) FilterValue() string { return string(i) }
 
-// One-line renderer (default delegate uses two lines). In multi mode the
-// toggled map is shared by reference with PickerModel — Render sees toggle
-// changes without a SetDelegate call.
+// pickerDelegate renders one line per item; the default delegate uses two.
+// In multi mode the toggled map is shared by reference with PickerModel, so
+// Render sees toggle changes without a SetDelegate call.
 type pickerDelegate struct {
 	highlighted map[string]bool
 	multi       bool
@@ -55,31 +55,22 @@ func (pickerDelegate) Spacing() int                            { return 0 }
 func (pickerDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
 func (d pickerDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
 	name := string(item.(pickerItem))
+	marker := ""
 	if d.multi {
-		marker := multiMarkerOff
+		marker = multiMarkerOff
 		if d.toggled[name] {
 			marker = multiMarkerOn
 		}
-		if index == m.Index() {
-			fmt.Fprint(w, itemSelectedStyle.Render(selectedPrefix+marker+name))
-			return
-		}
-		style := itemStyle
-		if d.highlighted[name] {
-			style = extraStyle
-		}
-		fmt.Fprint(w, style.Render(marker+name))
-		return
 	}
 	if index == m.Index() {
-		fmt.Fprint(w, itemSelectedStyle.Render(selectedPrefix+name))
+		fmt.Fprint(w, itemSelectedStyle.Render(selectedPrefix+marker+name))
 		return
 	}
 	style := itemStyle
 	if d.highlighted[name] {
 		style = extraStyle
 	}
-	fmt.Fprint(w, style.Render(name))
+	fmt.Fprint(w, style.Render(marker+name))
 }
 
 // PickerModel is a fuzzy-filter list picker. Sets done/cancelled flags;
@@ -265,8 +256,9 @@ func (m PickerModel) ResolvedSelections() []string {
 	return []string{m.chosen}
 }
 
-// One item across names+highlightedNames → return it without launching the TUI.
-// Empty → ("", nil).
+// GetRecordNameInteractive runs a single-select picker. One name across
+// names+highlightedNames returns without launching the TUI; empty lists
+// return ("", nil).
 func GetRecordNameInteractive(names, highlightedNames []string) (string, error) {
 	total := len(names) + len(highlightedNames)
 	if total == 0 {
@@ -279,18 +271,14 @@ func GetRecordNameInteractive(names, highlightedNames []string) (string, error) 
 		return highlightedNames[0], nil
 	}
 
-	final, err := tea.NewProgram(tuiutil.QuittingWrapper[PickerModel]{M: NewPickerModel(names, highlightedNames)}).Run()
+	final, err := tuiutil.Run(NewPickerModel(names, highlightedNames))
 	if err != nil {
 		return "", fmt.Errorf("interactive picker failed: %w", err)
 	}
-	quitter, ok := final.(tuiutil.QuittingWrapper[PickerModel])
-	if !ok {
-		return "", fmt.Errorf("interactive picker returned unexpected model type %T", final)
-	}
-	if quitter.M.Cancelled() || quitter.M.Selection() == "" {
+	if final.Cancelled() || final.Selection() == "" {
 		return "", ErrPickerCancelled
 	}
-	return quitter.M.Selection(), nil
+	return final.Selection(), nil
 }
 
 // GetRecordNamesInteractive runs a multi-select picker. Single-name fast
@@ -304,18 +292,14 @@ func GetRecordNamesInteractive(names []string) ([]string, error) {
 		return []string{names[0]}, nil
 	}
 
-	final, err := tea.NewProgram(tuiutil.QuittingWrapper[PickerModel]{M: NewPickerModelMulti(names)}).Run()
+	final, err := tuiutil.Run(NewPickerModelMulti(names))
 	if err != nil {
 		return nil, fmt.Errorf("interactive picker failed: %w", err)
 	}
-	quitter, ok := final.(tuiutil.QuittingWrapper[PickerModel])
-	if !ok {
-		return nil, fmt.Errorf("interactive picker returned unexpected model type %T", final)
-	}
-	if quitter.M.Cancelled() {
+	if final.Cancelled() {
 		return nil, ErrPickerCancelled
 	}
-	sels := quitter.M.ResolvedSelections()
+	sels := final.ResolvedSelections()
 	if sels == nil {
 		return nil, ErrPickerCancelled
 	}

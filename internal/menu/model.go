@@ -185,30 +185,28 @@ func (m MenuModel) updateSelectAction(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.actionCursor -= menuGridRows
 		}
 	case "right", "l":
-		if m.actionCursor+menuGridRows < len(menuActions) {
+		if m.actionCursor+menuGridRows < len(menuEntries) {
 			m.actionCursor += menuGridRows
 		}
 	case "up", "k", "shift+tab":
-		m.actionCursor = (m.actionCursor - 1 + len(menuActions)) % len(menuActions)
+		m.actionCursor = (m.actionCursor - 1 + len(menuEntries)) % len(menuEntries)
 	case "down", "j", "tab":
-		m.actionCursor = (m.actionCursor + 1) % len(menuActions)
+		m.actionCursor = (m.actionCursor + 1) % len(menuEntries)
 	case "1", "2", "3", "4", "5", "6":
 		idx := int(k.String()[0] - '1')
-		if idx < len(menuActions) {
+		if idx < len(menuEntries) {
 			m.actionCursor = idx
-			return m.startAction(menuActions[idx])
+			return m.startAction(idx)
 		}
 	case "enter", "space":
-		return m.startAction(menuActions[m.actionCursor])
+		return m.startAction(m.actionCursor)
 	}
 	return m, nil
 }
 
-func (m MenuModel) startAction(name string) (tea.Model, tea.Cmd) {
-	a, init := newAction(name, m.password)
-	if a == nil {
-		return m, nil
-	}
+func (m MenuModel) startAction(i int) (tea.Model, tea.Cmd) {
+	a := menuEntries[i].new(m.password)
+	init := a.Init()
 	// Action's picker needs a size before its first render or the list is empty.
 	if m.width > 0 && m.height > 0 {
 		tuiutil.UpdateInPlace(&a, tea.WindowSizeMsg{Width: contentColumnWidth(m.width), Height: m.height - actionFrameHeight})
@@ -219,10 +217,6 @@ func (m MenuModel) startAction(name string) (tea.Model, tea.Cmd) {
 }
 
 func (m MenuModel) routeToAction(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if m.activeAction == nil {
-		m.phase = menuPhaseSelectAction
-		return m, nil
-	}
 	cmd := tuiutil.UpdateInPlace(&m.activeAction, msg)
 	if !(m.activeAction.Done() || m.activeAction.Cancelled()) {
 		return m, cmd
@@ -284,10 +278,7 @@ func (m MenuModel) View() tea.View {
 	v.AltScreen = true
 
 	// Bubble the sub-view's cursor up, offset for chrome rows and indent.
-	headerIndent := 0
-	if m.width > pswHeaderWidth {
-		headerIndent = (m.width - pswHeaderWidth) / 2
-	}
+	headerIndent := headerColumnLeft(m.width)
 	switch m.phase {
 	case menuPhaseEnterPassword:
 		if src := m.passwordInput.View().Cursor; src != nil {
@@ -308,14 +299,14 @@ func (m MenuModel) View() tea.View {
 }
 
 func (m MenuModel) renderButtons(b *strings.Builder) {
-	rendered := make([]string, len(menuActions))
-	widths := make([]int, len(menuActions))
+	rendered := make([]string, len(menuEntries))
+	widths := make([]int, len(menuEntries))
 	unselectedStyle := menuButtonStyle
 	if m.phase == menuPhaseRunningAction {
 		unselectedStyle = menuButtonStyleFaint
 	}
-	for i, a := range menuActions {
-		label := fmt.Sprintf("[%d] %s", i+1, a)
+	for i, e := range menuEntries {
+		label := fmt.Sprintf("[%d] %s", i+1, e.name)
 		if i == m.actionCursor {
 			rendered[i] = menuSelectStyle.Render(buttonPrefixSelected + label)
 		} else {
@@ -323,60 +314,22 @@ func (m MenuModel) renderButtons(b *strings.Builder) {
 		}
 		widths[i] = lipgloss.Width(rendered[i])
 	}
-	cw := contentColumnWidth(m.width)
+	columnWidth := contentColumnWidth(m.width)
 
 	rows := make([]string, menuGridRows)
 	for r := 0; r < menuGridRows; r++ {
-		// Buttons of row r, ordered left-to-right by column. Lookup table
-		// is precomputed in layout.go.
-		btnIdxs := make([]int, 0, menuGridCols)
-		for c := 0; c < menuGridCols; c++ {
-			if idx := menuCellLookup[r][c]; idx >= 0 {
-				btnIdxs = append(btnIdxs, idx)
-			}
+		// menuEntries is column-major: index = col*menuGridRows + row —
+		// the same arithmetic updateSelectAction uses for left/right.
+		btnIdxs := make([]int, menuGridCols)
+		for c := range btnIdxs {
+			btnIdxs[c] = c*menuGridRows + r
 		}
-		rows[r] = layoutRowSpaceBetween(rendered, widths, btnIdxs, cw)
+		rows[r] = layoutRowSpaceBetween(rendered, widths, btnIdxs, columnWidth)
 	}
 	grid := lipgloss.JoinVertical(lipgloss.Left, rows...)
 	// MarginLeft anchors the grid at the column's left edge — same anchor
 	// settings rows use, so leftmost/rightmost visible content align.
 	b.WriteString(lipgloss.NewStyle().MarginLeft(contentColumnLeft(m.width)).Render(grid))
-}
-
-// layoutRowSpaceBetween places buttons with equal gaps. Leftmost hugs cw's
-// left, rightmost its right.
-func layoutRowSpaceBetween(rendered []string, widths []int, btnIdxs []int, cw int) string {
-	n := len(btnIdxs)
-	if n == 0 {
-		return ""
-	}
-	sumW := 0
-	for _, i := range btnIdxs {
-		sumW += widths[i]
-	}
-	totalGap := cw - sumW
-	if totalGap < 0 {
-		totalGap = 0
-	}
-	gaps := make([]int, n-1)
-	if n > 1 {
-		base := totalGap / (n - 1)
-		rem := totalGap % (n - 1)
-		for i := range gaps {
-			gaps[i] = base
-			if i < rem {
-				gaps[i]++
-			}
-		}
-	}
-	var sb strings.Builder
-	for i, btn := range btnIdxs {
-		sb.WriteString(rendered[btn])
-		if i < len(gaps) {
-			sb.WriteString(strings.Repeat(" ", gaps[i]))
-		}
-	}
-	return sb.String()
 }
 
 // writeFooterAtBottom pads with blank lines so the footer sits on the last
@@ -392,20 +345,15 @@ func (m MenuModel) writeFooterAtBottom(b *strings.Builder) {
 	footer := indentToFooter(m.width, menuHelpStyle.Render(help))
 	used := lipgloss.Height(b.String())
 	fh := lipgloss.Height(footer)
-	pad := m.height - used - fh
-	if pad < 1 {
-		pad = 1
-	}
+	pad := max(m.height-used-fh, 1)
 	b.WriteString(strings.Repeat("\n", pad))
 	b.WriteString(footer)
 }
 
-// footerHelpText returns the action's FooterHelp when running, footerHelp
-// otherwise.
 func (m MenuModel) footerHelpText() string {
 	switch m.phase {
 	case menuPhaseSelectAction:
-		return footerHelp
+		return selectActionHelp
 	case menuPhaseRunningAction:
 		if m.activeAction != nil {
 			return m.activeAction.FooterHelp()

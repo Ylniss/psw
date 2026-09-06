@@ -36,12 +36,10 @@ func WithSpinner(label string, op func() error) error {
 		close(opDone)
 	}()
 
-	timer := time.NewTimer(spinnerShowAfter)
-	defer timer.Stop()
 	select {
 	case <-opDone:
 		return opErr
-	case <-timer.C:
+	case <-time.After(spinnerShowAfter):
 	}
 
 	program := tea.NewProgram(

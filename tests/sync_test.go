@@ -1,7 +1,6 @@
 package tests
 
 import (
-	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -9,9 +8,6 @@ import (
 	"testing"
 	"time"
 )
-
-// mtimeSeparation ensures two psw invocations get distinct UnixMilli stamps.
-const mtimeSeparation = 20 * time.Millisecond
 
 // TestSync_AutoPushOnAdd: a mutating command pushes its commit to bare.
 func TestSync_AutoPushOnAdd(t *testing.T) {
@@ -115,14 +111,13 @@ func TestSync_SmartMerge_RemovedOnOneSide(t *testing.T) {
 	assertVaultHasRecords(t, vaultB, envB, "beta")
 }
 
-// TestSync_SmartMerge_RemovedVsModified: modification beats removal when L.mtime > F.mtime.
+// TestSync_SmartMerge_RemovedVsModified: modification beats removal when the local edit is newer than the fork.
 func TestSync_SmartMerge_RemovedVsModified(t *testing.T) {
 	t.Parallel()
 	vaultA, bare, envA := newGitVaultWithRemote(t)
 	mustExit(t, runPswEnv(t, vaultA, envA, "add", "alpha", "-u", "u", "--password=p0"), 0)
 
 	vaultB, envB := addPeer(t, bare)
-	// Confirm B has alpha.
 	assertVaultHasRecords(t, vaultB, envB, "alpha")
 
 	// Both go offline so neither pushes immediately.
@@ -177,13 +172,13 @@ func TestSync_NoRemoteConfigured(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not available")
 	}
-	dir := t.TempDir()
+	vault := t.TempDir()
 	// pswcfg without remote.
-	if err := os.WriteFile(filepath.Join(dir, "pswcfg.toml"), []byte("clipboard_timeout = 20\n"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(vault, "pswcfg.toml"), []byte("clipboard_timeout = 20\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
 	env := gitTestEnv()
-	res := runPswEnv(t, dir, env, "add", "foo", "-u", "u", "--password=p")
+	res := runPswEnv(t, vault, env, "add", "foo", "-u", "u", "--password=p")
 	mustExit(t, res, 0)
 	if strings.Contains(res.stderr, "git push") || strings.Contains(res.stderr, "git fetch") {
 		t.Fatalf("unexpected network attempt in stderr:\n%s", res.stderr)
@@ -269,10 +264,4 @@ func TestSync_SmartMerge_ByteEqualSilent(t *testing.T) {
 	if strings.Contains(res.stderr, "shared") {
 		t.Fatalf("byte-equal record should not surface in merge warnings:\n%s", res.stderr)
 	}
-}
-
-func withEnv(base map[string]string, k, v string) map[string]string {
-	out := maps.Clone(base)
-	out[k] = v
-	return out
 }

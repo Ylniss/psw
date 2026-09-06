@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -16,10 +15,6 @@ import (
 // ErrShellGitNeeded signals the caller to fall back to shell git: credential
 // helper needed, key passphrase, or unsupported scheme.
 var ErrShellGitNeeded = errors.New("auth method requires shell git or credential helper")
-
-// ErrSigningRequired signals that commit signing can't be done by go-git.
-// Caller falls back to shell git if available.
-var ErrSigningRequired = errors.New("commit signing requires shell git")
 
 // ErrRemoteCredentialsInURL signals a remote URL with embedded userinfo
 // (https://user:pass@host/). Hard refusal — not retried via shell git.
@@ -47,6 +42,15 @@ func classifyRemote(remoteURL string) remoteKind {
 	return remoteUnknown
 }
 
+// redactURL replaces the password in a URL with "xxxxx" for safe logging.
+func redactURL(u string) string {
+	p, err := url.Parse(u)
+	if err != nil {
+		return u
+	}
+	return p.Redacted()
+}
+
 // gitAuth picks the AuthMethod for remoteURL. Returns ErrShellGitNeeded
 // when only shell git can handle the auth.
 func gitAuth(remoteURL string) (transport.AuthMethod, error) {
@@ -57,10 +61,9 @@ func gitAuth(remoteURL string) (transport.AuthMethod, error) {
 		return sshAuth()
 	case remoteHTTPS:
 		return httpsAuth(remoteURL)
-	case remoteUnknown:
+	default:
 		return nil, fmt.Errorf("%w: unsupported remote scheme: %s", ErrShellGitNeeded, redactURL(remoteURL))
 	}
-	panic("unreachable: remoteKind exhausted")
 }
 
 func sshAuth() (transport.AuthMethod, error) {
@@ -114,9 +117,9 @@ func hasCredentialHelper() bool {
 	if !gitOnPath() {
 		return false
 	}
-	out, err := exec.Command("git", "config", "--get-all", "credential.helper").CombinedOutput()
+	out, err := runGit("config", "--get-all", "credential.helper")
 	if err != nil {
 		return false
 	}
-	return strings.TrimSpace(string(out)) != ""
+	return strings.TrimSpace(out) != ""
 }

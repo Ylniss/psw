@@ -24,13 +24,13 @@ Arguments:
 	Args:  cobra.ArbitraryArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		store, err := storage.GetOrCreateForMutate()
-		if done, ret := handleCmdErr(err); done {
-			return ret
+		if err != nil {
+			return handleCmdErr(err)
 		}
 
 		names, err := resolveRecordNames(store, args, removeExactFlag)
-		if done, ret := handleCmdErr(err); done {
-			return ret
+		if err != nil {
+			return handleCmdErr(err)
 		}
 		if len(names) == 0 {
 			return nil
@@ -40,8 +40,8 @@ Arguments:
 			store.RemoveRecord(n)
 		}
 
-		if done, ret := handleCmdErr(store.Save()); done {
-			return ret
+		if err := store.Save(); err != nil {
+			return handleCmdErr(err)
 		}
 
 		for _, n := range names {

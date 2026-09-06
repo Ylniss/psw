@@ -2,12 +2,12 @@ package storage
 
 import (
 	"cmp"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
-	"os/exec"
 	"slices"
 	"strings"
 	"sync"
@@ -18,21 +18,6 @@ import (
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
 )
-
-var (
-	gitOnPathOnce   sync.Once
-	gitOnPathResult bool
-)
-
-// gitOnPath reports whether the git binary is on PATH. Cached on first call;
-// mid-process $PATH changes are ignored.
-func gitOnPath() bool {
-	gitOnPathOnce.Do(func() {
-		_, err := exec.LookPath("git")
-		gitOnPathResult = err == nil
-	})
-	return gitOnPathResult
-}
 
 // Repo handle, lazy-initialized on first successful PlainOpen.
 var (
@@ -82,6 +67,10 @@ func gitAddPaths(paths ...string) error {
 	}
 	return nil
 }
+
+// ErrSigningRequired signals that commit signing can't be done by go-git.
+// Caller falls back to shell git if available.
+var ErrSigningRequired = errors.New("commit signing requires shell git")
 
 // gitCommit creates a commit. Returns ErrSigningRequired when commit.gpgsign is true.
 func gitCommit(msg string) error {
@@ -212,11 +201,7 @@ func gitShowBlob(ref, path string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("show %s: %w", ref, err)
 	}
-	tree, err := commit.Tree()
-	if err != nil {
-		return nil, err
-	}
-	file, err := tree.File(path)
+	file, err := commit.File(path)
 	if err != nil {
 		return nil, err
 	}
@@ -254,8 +239,28 @@ func gitLogEntries() ([]LogEntry, error) {
 	return entries, nil
 }
 
+// parseSHA1Hash validates a 40-hex SHA-1 string. plumbing.NewHash silently
+// returns ZeroHash on malformed input; this catches that.
+func parseSHA1Hash(sha string) (plumbing.Hash, error) {
+	if len(sha) != 40 {
+		return plumbing.ZeroHash, fmt.Errorf("invalid sha length %d (want 40): %q", len(sha), sha)
+	}
+	if _, err := hex.DecodeString(sha); err != nil {
+		return plumbing.ZeroHash, fmt.Errorf("invalid sha hex: %q", sha)
+	}
+	return plumbing.NewHash(sha), nil
+}
+
 // gitStorageMergeCommit stages storage.psw and creates a two-parent merge commit on the current branch.
-func gitStorageMergeCommit(localHash, remoteHash plumbing.Hash, msg string) error {
+func gitStorageMergeCommit(localSHA, remoteSHA, msg string) error {
+	localHash, err := parseSHA1Hash(localSHA)
+	if err != nil {
+		return err
+	}
+	remoteHash, err := parseSHA1Hash(remoteSHA)
+	if err != nil {
+		return err
+	}
 	repo, err := openRepo()
 	if err != nil {
 		return err
@@ -286,7 +291,11 @@ func gitStorageMergeCommit(localHash, remoteHash plumbing.Hash, msg string) erro
 
 // gitFastForward updates the current branch ref to remoteSHA and resets
 // the worktree to match.
-func gitFastForward(remoteSHA plumbing.Hash) error {
+func gitFastForward(remoteSHA string) error {
+	remoteHash, err := parseSHA1Hash(remoteSHA)
+	if err != nil {
+		return err
+	}
 	repo, err := openRepo()
 	if err != nil {
 		return err
@@ -302,11 +311,7 @@ func gitFastForward(remoteSHA plumbing.Hash) error {
 	if err != nil {
 		return err
 	}
-	ref := plumbing.NewHashReference(head.Name(), remoteSHA)
-	if err := repo.Storer.SetReference(ref); err != nil {
-		return fmt.Errorf("fast-forward set-ref: %w", err)
-	}
-	if err := wt.Reset(&git.ResetOptions{Mode: git.HardReset, Commit: remoteSHA}); err != nil {
+	if err := wt.Reset(&git.ResetOptions{Mode: git.HardReset, Commit: remoteHash}); err != nil {
 		return fmt.Errorf("fast-forward reset: %w", err)
 	}
 	return nil

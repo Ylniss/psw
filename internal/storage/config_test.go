@@ -25,11 +25,8 @@ func TestValidateRemoteURL(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			err := validateRemoteURL(tc.input)
-			if tc.wantErr && err == nil {
-				t.Fatalf("validateRemoteURL(%q) = nil, want error", tc.input)
-			}
-			if !tc.wantErr && err != nil {
-				t.Fatalf("validateRemoteURL(%q) = %v, want nil", tc.input, err)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("validateRemoteURL(%q) = %v, wantErr %v", tc.input, err, tc.wantErr)
 			}
 		})
 	}
